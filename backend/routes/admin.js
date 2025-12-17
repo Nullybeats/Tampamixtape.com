@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const prisma = require('../services/db');
+const spotify = require('../services/spotify');
 
 const router = express.Router();
 
@@ -188,6 +189,108 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Delete user error:', error);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// Create artist from Spotify URL (managed profile)
+router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
+  try {
+    const { spotifyUrl } = req.body;
+
+    // Validate input
+    if (!spotifyUrl) {
+      return res.status(400).json({ error: 'Spotify URL is required' });
+    }
+
+    // Extract artist ID from URL
+    const artistId = spotify.extractArtistId(spotifyUrl);
+    if (!artistId) {
+      return res.status(400).json({ error: 'Invalid Spotify URL format' });
+    }
+
+    // Check if artist already exists
+    const existingUser = await prisma.user.findFirst({
+      where: { spotifyId: artistId },
+    });
+    if (existingUser) {
+      return res.status(409).json({
+        error: 'Artist already exists',
+        existingUser: {
+          id: existingUser.id,
+          artistName: existingUser.artistName,
+          profileSlug: existingUser.profileSlug,
+        },
+      });
+    }
+
+    // Fetch artist data from Spotify
+    let spotifyData;
+    try {
+      spotifyData = await spotify.getFullArtistData(artistId);
+    } catch (spotifyError) {
+      console.error('Spotify fetch error:', spotifyError.message);
+      return res.status(404).json({ error: 'Artist not found on Spotify' });
+    }
+
+    // Generate profile slug from artist name
+    const baseSlug = spotifyData.name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+
+    // Ensure unique slug
+    let profileSlug = baseSlug;
+    let slugCounter = 1;
+    while (await prisma.user.findUnique({ where: { profileSlug } })) {
+      profileSlug = `${baseSlug}-${slugCounter}`;
+      slugCounter++;
+    }
+
+    // Generate placeholder email (for managed profiles)
+    const placeholderEmail = `${artistId}@managed.tampamixtape.local`;
+
+    // Create the managed profile
+    const user = await prisma.user.create({
+      data: {
+        email: placeholderEmail,
+        password: null, // Managed profile - no login
+        artistName: spotifyData.name,
+        profileSlug,
+        avatar: spotifyData.image,
+        role: 'ARTIST',
+        status: 'APPROVED',
+        spotifyId: artistId,
+        spotifyUrl: spotifyData.url,
+      },
+      select: {
+        id: true,
+        email: true,
+        artistName: true,
+        profileSlug: true,
+        avatar: true,
+        role: true,
+        status: true,
+        spotifyId: true,
+        spotifyUrl: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(201).json({
+      message: 'Artist profile created',
+      user,
+      spotifyData: {
+        name: spotifyData.name,
+        followers: spotifyData.followers,
+        genres: spotifyData.genres,
+        image: spotifyData.image,
+      },
+    });
+  } catch (error) {
+    console.error('Create artist from Spotify error:', error);
+    res.status(500).json({ error: 'Failed to create artist profile' });
   }
 });
 

@@ -68,6 +68,7 @@ import {
   Plug,
   Unplug,
   ExternalLink,
+  UserPlus,
 } from 'lucide-react'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
@@ -97,6 +98,12 @@ export function AdminDashboard() {
   const [showEditUser, setShowEditUser] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
+  const [showAddArtist, setShowAddArtist] = useState(false)
+
+  // Add Artist state
+  const [addArtistUrl, setAddArtistUrl] = useState('')
+  const [addArtistLoading, setAddArtistLoading] = useState(false)
+  const [addArtistPreview, setAddArtistPreview] = useState(null)
 
   // Messages
   const [error, setError] = useState('')
@@ -197,6 +204,95 @@ export function AdminDashboard() {
     if (!open) {
       setSpotifyUrlInput('')
       setSpotifyPreview(null)
+    }
+  }
+
+  // Reset Add Artist dialog state
+  const handleAddArtistDialogChange = (open) => {
+    setShowAddArtist(open)
+    if (!open) {
+      setAddArtistUrl('')
+      setAddArtistPreview(null)
+    }
+  }
+
+  // Preview artist for Add Artist dialog
+  const handleAddArtistPreview = async () => {
+    if (!addArtistUrl.trim()) {
+      toast.error('Please enter a Spotify artist URL')
+      return
+    }
+
+    setAddArtistLoading(true)
+    setAddArtistPreview(null)
+
+    try {
+      const response = await fetch(`${API_URL}/api/spotify/artist?url=${encodeURIComponent(addArtistUrl)}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch artist')
+      }
+
+      setAddArtistPreview(data)
+    } catch (error) {
+      toast.error('Could not find artist', {
+        description: error.message || 'Please check the URL and try again',
+      })
+    } finally {
+      setAddArtistLoading(false)
+    }
+  }
+
+  // Create artist from Spotify URL
+  const handleCreateArtistFromSpotify = async () => {
+    if (!addArtistPreview) return
+
+    setAddArtistLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/create-from-spotify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ spotifyUrl: addArtistUrl }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          toast.error('Artist already exists', {
+            description: `${data.existingUser?.artistName} is already on TampaMixtape`,
+          })
+        } else {
+          throw new Error(data.error || 'Failed to create artist')
+        }
+        return
+      }
+
+      toast.success('Artist profile created!', {
+        description: `${data.user.artistName} added to TampaMixtape`,
+      })
+
+      // Update stats
+      setStats(s => ({
+        ...s,
+        totalUsers: s.totalUsers + 1,
+        approvedUsers: s.approvedUsers + 1,
+        artists: s.artists + 1,
+      }))
+
+      // Close dialog and refresh users list
+      handleAddArtistDialogChange(false)
+      fetchUsers()
+    } catch (error) {
+      toast.error('Failed to create artist', {
+        description: error.message,
+      })
+    } finally {
+      setAddArtistLoading(false)
     }
   }
 
@@ -506,16 +602,26 @@ export function AdminDashboard() {
                 <p className="text-muted-foreground">Manage users, settings, and platform analytics</p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="gap-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => setShowAddArtist(true)}
+                className="gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add Artist
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </motion.div>
 
@@ -1386,6 +1492,122 @@ export function AdminDashboard() {
               <Button variant="destructive" onClick={handleDeleteUser} className="gap-2">
                 <Trash2 className="w-4 h-4" />
                 Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Artist from Spotify Dialog */}
+        <Dialog open={showAddArtist} onOpenChange={handleAddArtistDialogChange}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-primary" />
+                Add Artist from Spotify
+              </DialogTitle>
+              <DialogDescription>
+                Create a new artist profile by entering their Spotify URL. The profile will be auto-populated with their Spotify data.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {/* Spotify URL Input */}
+              <div className="space-y-2">
+                <Label htmlFor="addArtistUrl">Spotify Artist URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="addArtistUrl"
+                    value={addArtistUrl}
+                    onChange={(e) => setAddArtistUrl(e.target.value)}
+                    placeholder="https://open.spotify.com/artist/..."
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleAddArtistPreview}
+                    disabled={addArtistLoading || !addArtistUrl.trim()}
+                    className="gap-2"
+                  >
+                    {addArtistLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                    Find
+                  </Button>
+                </div>
+              </div>
+
+              {/* Artist Preview */}
+              {addArtistPreview && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 rounded-lg border border-border bg-secondary/30"
+                >
+                  <div className="flex items-center gap-4">
+                    {addArtistPreview.image ? (
+                      <img
+                        src={addArtistPreview.image}
+                        alt={addArtistPreview.name}
+                        className="w-16 h-16 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-secondary flex items-center justify-center">
+                        <Music className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold truncate">{addArtistPreview.name}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {addArtistPreview.followers?.toLocaleString()} followers
+                      </p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {addArtistPreview.genres?.slice(0, 3).map((genre) => (
+                          <Badge key={genre} variant="secondary" className="text-xs">
+                            {genre}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* What will be created */}
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-xs text-muted-foreground mb-2">This will create:</p>
+                    <ul className="text-sm space-y-1">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3 h-3 text-green-400" />
+                        Artist profile: <strong>/u/{addArtistPreview.name?.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}</strong>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3 h-3 text-green-400" />
+                        Status: <Badge variant="secondary" className="text-xs">APPROVED</Badge>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3 h-3 text-green-400" />
+                        Role: <Badge variant="secondary" className="text-xs">ARTIST</Badge>
+                      </li>
+                    </ul>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => handleAddArtistDialogChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateArtistFromSpotify}
+                disabled={!addArtistPreview || addArtistLoading}
+                className="gap-2 bg-[#1DB954] hover:bg-[#1ed760]"
+              >
+                {addArtistLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <UserPlus className="w-4 h-4" />
+                )}
+                Create Profile
               </Button>
             </DialogFooter>
           </DialogContent>
