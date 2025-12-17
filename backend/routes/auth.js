@@ -61,7 +61,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login
+// Login (works for both regular users and admins)
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -70,6 +70,44 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    // First check if it's the super admin from env vars
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (email === adminEmail && password === adminPassword) {
+      // Check if admin exists in DB, create if not
+      let admin = await prisma.user.findUnique({ where: { email: adminEmail } });
+
+      if (!admin) {
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
+        admin = await prisma.user.create({
+          data: {
+            email: adminEmail,
+            password: hashedPassword,
+            name: 'Admin',
+            role: 'ADMIN',
+            status: 'APPROVED',
+          },
+        });
+      }
+
+      const token = jwt.sign({ userId: admin.id, role: 'ADMIN' }, JWT_SECRET, {
+        expiresIn: JWT_EXPIRES_IN,
+      });
+
+      return res.json({
+        token,
+        user: {
+          id: admin.id,
+          email: admin.email,
+          name: admin.name,
+          role: 'ADMIN',
+          status: 'APPROVED',
+        },
+      });
+    }
+
+    // Otherwise check database for regular users
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });

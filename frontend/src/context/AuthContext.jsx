@@ -599,7 +599,6 @@ export function AuthProvider({ children }) {
     loginWithSpotify,
     setFeaturedPlaylistById,
     approveUser, // For demo
-    adminSignIn, // Real admin login via API
     addEvent,
     updateEvent,
     deleteEvent,
