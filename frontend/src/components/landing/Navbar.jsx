@@ -28,7 +28,6 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
     { name: 'Charts', href: '#charts' },
     { name: 'Tampa Hot 100', href: '#hot100' },
     { name: 'Events', href: '/events', isRoute: true },
-    { name: 'API', href: '#api' },
   ]
 
   const handleLogoClick = () => {

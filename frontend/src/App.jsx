@@ -7,7 +7,6 @@ import { ChartsSection } from '@/components/landing/ChartsSection'
 import { DiscoverySection } from '@/components/landing/DiscoverySection'
 import { Hot100Section } from '@/components/landing/Hot100Section'
 import { AnalyticsCards } from '@/components/landing/AnalyticsCards'
-import { APISection } from '@/components/landing/APISection'
 import { Footer } from '@/components/landing/Footer'
 import { EventsSection } from '@/components/landing/EventsSection'
 import { AuthModal } from '@/components/auth/AuthModal'
@@ -46,7 +45,6 @@ function LandingPage({ onAuthClick, onArtistClick }) {
         <Hot100Section onArtistClick={onArtistClick} />
         <EventsSection />
         <AnalyticsCards />
-        <APISection />
       </main>
       <Footer />
     </div>
