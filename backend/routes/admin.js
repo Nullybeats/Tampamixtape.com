@@ -123,6 +123,63 @@ router.patch('/users/:id/role', requireAdmin, async (req, res) => {
   }
 });
 
+// Comprehensive user update (role, status, spotify)
+router.patch('/users/:id', requireAdmin, async (req, res) => {
+  try {
+    const { role, status, spotifyId, spotifyUrl } = req.body;
+    const updateData = {};
+
+    // Validate and set role
+    if (role !== undefined) {
+      if (!['USER', 'ARTIST', 'ADMIN'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+      updateData.role = role;
+    }
+
+    // Validate and set status
+    if (status !== undefined) {
+      if (!['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      updateData.status = status;
+    }
+
+    // Set Spotify fields (can be null to unlink)
+    if (spotifyId !== undefined) {
+      updateData.spotifyId = spotifyId;
+    }
+    if (spotifyUrl !== undefined) {
+      updateData.spotifyUrl = spotifyUrl;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        artistName: true,
+        profileSlug: true,
+        role: true,
+        status: true,
+        spotifyId: true,
+        spotifyUrl: true,
+      },
+    });
+
+    res.json({ message: 'User updated', user });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
 // Delete user
 router.delete('/users/:id', requireAdmin, async (req, res) => {
   try {

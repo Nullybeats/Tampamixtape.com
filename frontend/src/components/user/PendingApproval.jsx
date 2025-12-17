@@ -9,11 +9,110 @@ import {
   Music,
   MapPin,
   Sparkles,
+  XCircle,
 } from 'lucide-react'
 
 export function PendingApproval() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, isRejected } = useAuth()
 
+  // Rejected state UI
+  if (isRejected) {
+    return (
+      <div className="min-h-screen bg-background pt-20 px-4">
+        <div className="max-w-2xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-8"
+          >
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+              <XCircle className="w-10 h-10 text-red-500" />
+            </div>
+            <h1 className="text-3xl font-bold mb-2">Application Not Approved</h1>
+            <p className="text-muted-foreground">
+              Unfortunately, your application to TampaMixtape was not approved at this time.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Music className="w-5 h-5 text-primary" />
+                  Your Application Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Artist Name</span>
+                  <span className="font-medium">{user?.artistName}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Email</span>
+                  <span className="font-medium">{user?.email}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-border">
+                  <span className="text-muted-foreground">Status</span>
+                  <Badge variant="destructive" className="gap-1">
+                    <XCircle className="w-3 h-3" />
+                    Not Approved
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg">What You Can Do</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground mb-4">
+                  If you believe this was an error or would like more information, please contact our support team.
+                  We're happy to review your application again.
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2">
+                  <li>Verify your Tampa Bay connection</li>
+                  <li>Ensure your artist profile is complete</li>
+                  <li>Provide links to your music platforms</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex flex-col gap-3"
+          >
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 gap-2" asChild>
+                <a href={`mailto:support@tampamixtape.com?subject=Application Appeal - ${user?.artistName}`}>
+                  <Mail className="w-4 h-4" />
+                  Contact Support
+                </a>
+              </Button>
+              <Button variant="ghost" onClick={signOut} className="text-red-400">
+                Sign Out
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    )
+  }
+
+  // Pending state UI (default)
   return (
     <div className="min-h-screen bg-background pt-20 px-4">
       <div className="max-w-2xl mx-auto">

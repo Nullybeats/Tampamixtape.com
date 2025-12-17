@@ -493,6 +493,7 @@ export function AuthProvider({ children }) {
     // Check both 'status' (from API) and 'approvalStatus' (legacy/local) for compatibility
     isApproved: user?.status === APPROVAL_STATUS.APPROVED || user?.approvalStatus === APPROVAL_STATUS.APPROVED,
     isPending: user?.status === APPROVAL_STATUS.PENDING || user?.approvalStatus === APPROVAL_STATUS.PENDING,
+    isRejected: user?.status === APPROVAL_STATUS.REJECTED || user?.approvalStatus === APPROVAL_STATUS.REJECTED,
     isAdmin: user?.role === USER_ROLES.ADMIN,
     isCreator: user?.role === USER_ROLES.CREATOR || user?.role === USER_ROLES.ARTIST,
     creators,

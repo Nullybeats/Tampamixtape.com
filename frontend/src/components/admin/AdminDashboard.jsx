@@ -149,25 +149,24 @@ export function AdminDashboard() {
     }
   }
 
-  // Link Spotify to user (admin action)
+  // Link Spotify to user (admin action) - stages change for save
   const handleAdminSpotifyLink = async () => {
     if (!spotifyPreview || !selectedUser) return
 
     setSpotifyLoading(true)
     try {
-      // For now, just update the local state. In production, you'd call an admin API endpoint
+      // Stage the changes locally - will be saved when "Save Changes" is clicked
       const updatedUser = {
         ...selectedUser,
         spotifyId: spotifyPreview.id,
         spotifyUrl: spotifyPreview.url,
       }
       setSelectedUser(updatedUser)
-      setUsers(users.map(u => u.id === selectedUser.id ? updatedUser : u))
       setSpotifyPreview(null)
       setSpotifyUrlInput('')
 
-      toast.success('Spotify linked!', {
-        description: `Connected ${selectedUser.artistName || selectedUser.name} to ${spotifyPreview.name}`,
+      toast.info('Spotify linked', {
+        description: 'Click "Save Changes" to apply.',
       })
     } catch (error) {
       toast.error('Failed to link Spotify', {
@@ -178,7 +177,7 @@ export function AdminDashboard() {
     }
   }
 
-  // Clear Spotify from user (admin action)
+  // Clear Spotify from user (admin action) - stages change for save
   const handleAdminSpotifyUnlink = () => {
     if (!selectedUser) return
     const updatedUser = {
@@ -187,8 +186,9 @@ export function AdminDashboard() {
       spotifyUrl: null,
     }
     setSelectedUser(updatedUser)
-    setUsers(users.map(u => u.id === selectedUser.id ? updatedUser : u))
-    toast.success('Spotify unlinked')
+    toast.info('Spotify unlinked', {
+      description: 'Click "Save Changes" to apply.',
+    })
   }
 
   // Reset Spotify state when dialog closes
@@ -363,6 +363,73 @@ export function AdminDashboard() {
       }
     } catch (err) {
       toast.error('Failed to update role')
+    }
+  }
+
+  // Save all user changes (role, status, spotify)
+  const handleSaveUser = async () => {
+    if (!selectedUser) return
+
+    // Find original user to detect changes
+    const originalUser = users.find(u => u.id === selectedUser.id)
+    if (!originalUser) return
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${selectedUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          role: selectedUser.role,
+          status: selectedUser.status,
+          spotifyId: selectedUser.spotifyId,
+          spotifyUrl: selectedUser.spotifyUrl,
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+
+        // Update users list
+        setUsers(users.map(u => u.id === selectedUser.id ? { ...u, ...data.user } : u))
+
+        // Update stats if status changed
+        if (originalUser.status !== selectedUser.status) {
+          setStats(s => {
+            const newStats = { ...s }
+            // Decrement old status count
+            if (originalUser.status === 'PENDING') newStats.pendingUsers--
+            if (originalUser.status === 'APPROVED') newStats.approvedUsers--
+            // Increment new status count
+            if (selectedUser.status === 'PENDING') newStats.pendingUsers++
+            if (selectedUser.status === 'APPROVED') newStats.approvedUsers++
+            return newStats
+          })
+        }
+
+        // Build success message
+        const changes = []
+        if (originalUser.role !== selectedUser.role) changes.push(`role → ${selectedUser.role}`)
+        if (originalUser.status !== selectedUser.status) changes.push(`status → ${selectedUser.status}`)
+        if (originalUser.spotifyId !== selectedUser.spotifyId) {
+          changes.push(selectedUser.spotifyId ? 'Spotify linked' : 'Spotify unlinked')
+        }
+
+        toast.success('User updated', {
+          description: changes.length > 0 ? changes.join(', ') : 'Changes saved successfully.',
+        })
+        handleEditDialogChange(false)
+      } else {
+        const data = await response.json()
+        toast.error('Failed to update user', {
+          description: data.error || 'Please try again.',
+        })
+      }
+    } catch (err) {
+      console.error('Save user error:', err)
+      toast.error('Failed to update user')
     }
   }
 
@@ -1290,7 +1357,7 @@ export function AdminDashboard() {
                 Cancel
               </Button>
               <Button
-                onClick={() => handleUpdateRole(selectedUser.id, selectedUser.role)}
+                onClick={handleSaveUser}
                 className="gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
