@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String?
+  artistName    String?
+  profileSlug   String?  @unique
+  bio           String?
+  avatar        String?
+  role          Role     @default(USER)
+  status        Status   @default(PENDING)
+  spotifyId     String?
+  spotifyUrl    String?
+  instagramUrl  String?
+  twitterUrl    String?
+  websiteUrl    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum Role {
+  USER
+  ARTIST
+  ADMIN
+}
+
+enum Status {
+  PENDING
+  APPROVED
+  REJECTED
+}

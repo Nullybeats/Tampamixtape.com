@@ -2,8 +2,14 @@ services:
   - type: web
     name: tampa-mixtape-api
     env: node
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
+
+databases:
+  - name: tampa-mixtape-db
+    plan: free
+    databaseName: tampamixtape
+    user: tampamixtape

@@ -1,0 +1,504 @@
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useAuth } from '@/context/AuthContext'
+import {
+  MapPin,
+  Settings,
+  Music,
+  Play,
+  ExternalLink,
+  Instagram,
+  Twitter,
+  Youtube,
+  Globe,
+  Link,
+  Check,
+  Users,
+  Disc3,
+  ListMusic,
+  Share2,
+  Edit3,
+  Sparkles,
+  CheckCircle2,
+  Calendar,
+  Clock,
+  Ticket,
+} from 'lucide-react'
+
+// Social icons mapping
+const socialIcons = {
+  instagram: Instagram,
+  twitter: Twitter,
+  youtube: Youtube,
+  tiktok: () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+    </svg>
+  ),
+  soundcloud: () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+      <path d="M1.175 12.225c-.051 0-.094.046-.101.1l-.233 2.154.233 2.105c.007.058.05.098.101.098.05 0 .09-.04.099-.098l.255-2.105-.27-2.154c-.009-.06-.052-.1-.084-.1zm-.899 1.185c-.041 0-.075.036-.084.087l-.175 1.072.18 1.081c.007.048.043.084.084.084.043 0 .075-.036.084-.085l.204-1.08-.204-1.072c-.01-.05-.041-.087-.089-.087zm1.775-.727c-.059 0-.104.052-.109.1l-.21 1.78.21 1.767c.005.058.05.104.109.104.059 0 .104-.046.11-.104l.237-1.767-.237-1.78c-.006-.06-.051-.1-.11-.1zm.867-.195c-.068 0-.117.059-.124.115l-.189 1.89.189 1.867c.007.06.056.115.124.115.065 0 .114-.055.123-.115l.213-1.867-.213-1.89c-.009-.065-.058-.115-.123-.115zm.875-.235c-.076 0-.131.062-.137.127l-.166 2.013.166 1.965c.006.065.061.127.137.127.074 0 .129-.062.136-.127l.189-1.965-.189-2.013c-.007-.065-.062-.127-.136-.127zm.875-.139c-.085 0-.145.072-.151.143l-.143 2.038.143 1.927c.006.07.066.141.151.141.085 0 .145-.072.151-.141l.162-1.927-.162-2.038c-.006-.07-.066-.143-.151-.143zm.879-.14c-.093 0-.157.078-.163.157l-.12 2.063.12 1.889c.006.079.07.157.163.157.092 0 .156-.078.162-.157l.137-1.889-.137-2.063c-.006-.079-.07-.157-.162-.157zm.872-.155c-.1 0-.17.084-.176.17l-.097 2.103.097 1.851c.006.087.076.17.176.17.099 0 .169-.083.176-.17l.111-1.851-.111-2.103c-.007-.086-.077-.17-.176-.17zm.895-.167c-.108 0-.182.09-.188.184l-.074 2.153.074 1.813c.006.094.08.184.188.184.107 0 .181-.09.188-.184l.084-1.813-.084-2.153c-.007-.094-.081-.184-.188-.184zm.873-.09c-.114 0-.193.096-.199.198l-.052 2.152.052 1.775c.006.1.085.197.199.197.114 0 .193-.097.2-.197l.059-1.775-.059-2.152c-.007-.102-.086-.198-.2-.198zm.931-.062c-.123 0-.208.102-.213.212l-.028 2.152.028 1.737c.005.109.09.212.213.212.121 0 .206-.103.212-.212l.033-1.737-.033-2.152c-.006-.11-.091-.212-.212-.212zm.868.037c-.121 0-.213.108-.213.224v3.85c0 .116.092.223.213.223.123 0 .213-.107.213-.223l.018-1.699-.018-2.152c0-.116-.09-.223-.213-.223zm3.023-.713c-.267 0-.522.044-.764.116-.161-1.825-1.703-3.262-3.578-3.262-.466 0-.92.092-1.338.257-.159.063-.212.126-.214.251v6.378c.002.129.096.237.223.249 0 0 5.659.003 5.671.003 1.337 0 2.423-1.086 2.423-2.423 0-1.338-1.086-2.424-2.423-2.424z"/>
+    </svg>
+  ),
+  appleMusic: () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+      <path d="M23.994 6.124c0-.007 0-.015-.001-.023v-.022c0-.006 0-.012-.001-.019v-.015c0-.005 0-.01-.001-.015v-.012c0-.004 0-.009-.001-.013v-.01c0-.004 0-.008-.001-.012v-.009c0-.003 0-.007-.001-.01v-.008c0-.003 0-.006-.001-.009v-.006c0-.003 0-.005-.001-.008v-.005c0-.002 0-.004-.001-.007v-.004c0-.002 0-.004-.001-.006v-.004c0-.002 0-.003-.001-.005V6c0-.001 0-.003-.001-.004V5.99c0-.001 0-.002-.001-.004v-.004c0-.001 0-.002-.001-.003v-.002c0-.001 0-.002-.001-.003v-.002c0-.001 0-.001-.001-.002v-.001c0-.001 0-.001-.001-.002v-.001c0-.001-.001-.001-.001-.002v-.001c0-.001-.001-.001-.001-.001v-.001l-.001-.001v-.001l-.001-.001s0-.001-.001-.001l-.001-.001-.001-.001s0-.001-.001-.001l-.001-.001c0-.001-.001-.001-.001-.001l-.001-.001-.001-.001c-.001 0-.001-.001-.001-.001l-.001-.001c-.001 0-.001-.001-.002-.001 0 0-.001-.001-.001-.001l-.002-.001c0-.001-.001-.001-.001-.001l-.002-.001c0-.001-.001-.001-.001-.001l-.002-.001c-.001 0-.001-.001-.002-.001l-.001-.001c-.001 0-.001-.001-.002-.001l-.001-.001c-.001-.001-.002-.001-.002-.001l-.001-.001c-.001-.001-.002-.001-.002-.001l-.002-.001c-.001-.001-.002-.001-.002-.002l-.002-.001c-.001-.001-.002-.001-.002-.001l-.002-.002c-.001-.001-.002-.001-.002-.001l-.003-.002-.002-.001-.003-.002c-.001-.001-.002-.001-.003-.002l-.002-.001-.003-.002c-.001-.001-.002-.001-.003-.002l-.003-.001-.003-.002c-.001-.001-.002-.001-.003-.002l-.003-.001-.004-.002c-.001-.001-.002-.001-.003-.002l-.004-.001-.004-.002-.003-.002-.004-.001-.004-.002-.004-.001-.005-.002-.004-.001-.005-.002-.005-.001-.005-.002-.005-.001-.005-.002-.006-.001-.005-.002-.006-.001-.006-.001-.006-.002-.006-.001-.007-.001-.006-.002-.007-.001-.007-.001-.007-.001-.007-.002-.008-.001-.007-.001-.008-.001-.008-.001-.008-.001-.009-.001-.008-.001-.009-.001-.009 0-.009-.001-.009-.001-.01 0-.009-.001-.01 0-.01-.001-.01 0-.011-.001-.01 0-.011 0-.011-.001-.011 0-.011 0-.012 0-.011-.001-.012 0-.012 0-.012 0-.013 0-.012 0-.013 0-.013 0-.013 0-.014 0-.013 0-.014 0-.014 0-.014 0-.015 0-.014 0-.015 0-.015 0-.015 0-.016 0-.015 0-.016 0-.016 0-.016 0-.017 0-.016 0-.017 0-.017 0-.017 0-.018 0-.017 0-.018 0-.018 0-.018 0-.018 0h-.019c-.006 0-.012 0-.019 0H8.41c-.006 0-.013 0-.019 0h-.018c-.006 0-.012 0-.018 0h-.018c-.006 0-.012 0-.018 0h-.017c-.006 0-.011 0-.017 0h-.017c-.005 0-.011 0-.017 0h-.016c-.005 0-.011 0-.016 0h-.016c-.005 0-.01 0-.016 0h-.015c-.005 0-.01 0-.015 0h-.015c-.005 0-.01 0-.015 0h-.014c-.005 0-.01 0-.014 0h-.014c-.005 0-.01 0-.014 0h-.014c-.004 0-.009 0-.014 0h-.013c-.004 0-.009 0-.013 0h-.013c-.004 0-.009 0-.013 0h-.013c-.004 0-.008 0-.012 0h-.012c-.004 0-.008 0-.012 0h-.012c-.004 0-.008 0-.012 0h-.011c-.004 0-.008 0-.011 0h-.011c-.004 0-.007 0-.011 0h-.01c-.004 0-.007 0-.011 0h-.01c-.003 0-.007 0-.01 0h-.01c-.003 0-.007 0-.01 0h-.009c-.003 0-.006 0-.009 0h-.009c-.003 0-.006 0-.009 0h-.008c-.003 0-.006 0-.009 0h-.008l-.008-.001h-.008l-.008-.001h-.007l-.008-.001h-.007l-.008-.001h-.007l-.007-.001h-.007l-.007-.001h-.006l-.007-.001h-.006l-.007-.001h-.006l-.006-.001h-.006l-.006-.001h-.006l-.006-.001h-.005l-.006-.001h-.005l-.006-.002h-.005l-.005-.001h-.005l-.005-.001h-.005l-.005-.002h-.004l-.005-.001-.005-.001-.004-.001-.005-.001-.005-.001-.004-.001-.005-.001-.004-.001-.005-.002-.004-.001-.004-.001-.005-.001-.004-.002-.004-.001-.004-.001-.004-.001-.004-.002-.004-.001-.004-.001-.004-.002-.003-.001-.004-.001-.004-.002-.003-.001-.004-.002-.003-.001-.004-.002-.003-.001-.004-.002-.003-.001-.003-.002-.003-.001-.004-.002-.003-.002-.003-.001-.003-.002-.003-.001-.003-.002-.003-.002-.003-.001-.003-.002-.003-.002-.003-.001-.003-.002-.002-.002-.003-.002-.003-.002-.002-.001-.003-.002-.002-.002-.003-.002-.002-.002-.003-.002-.002-.002-.002-.002-.003-.002-.002-.002-.002-.002-.002-.002-.002-.002-.002-.002-.002-.002-.002-.003-.002-.002-.002-.002-.002-.002-.002-.002-.002-.003-.001-.002-.002-.002-.002-.003-.001-.002-.002-.002-.002-.003-.001-.002-.002-.003-.001-.002-.002-.002-.001-.003-.001-.002-.002-.003-.001-.002-.001-.003-.001-.002-.002-.003-.001-.002-.001-.003-.001-.002-.001-.003-.001-.002-.001-.003-.001-.003-.001-.002-.001-.003-.001-.003 0-.002-.001-.003-.001-.003 0-.002-.001-.003-.001-.003 0-.002-.001-.003 0-.003-.001-.002 0-.003-.001-.003 0-.003-.001-.002 0-.003-.001-.003 0-.003-.001-.003 0-.002 0-.003-.001-.003 0-.003 0-.003-.001-.003 0-.003 0-.003-.001-.003 0-.003 0-.003-.001-.003 0-.003 0-.003 0-.003-.001-.003 0-.003 0-.004 0-.003 0-.003-.001-.003 0-.004 0-.003 0-.003 0-.004 0-.003 0-.004 0-.003 0-.004 0-.003 0-.004 0-.004 0-.003 0-.004 0-.004 0-.003 0-.004 0-.004 0-.004 0-.004 0-.003 0-.004v-.004c0-.001 0-.003 0-.004v-.004c0-.001 0-.003 0-.004v-.004c0-.001 0-.003 0-.004v-.004c0-.001 0-.003 0-.004v-.004l-.001-.004v-.004l-.001-.004v-.003l-.001-.004v-.004l-.001-.004v-.003l-.001-.004v-.004l-.001-.004v-.003l-.001-.004v-.003c0-.001 0-.003-.001-.004v-.003l-.001-.004v-.003c0-.001 0-.003-.001-.004v-.003c0-.001 0-.003-.001-.004v-.003c0-.001-.001-.003-.001-.004v-.003c0-.001-.001-.003-.001-.004v-.003c0-.001-.001-.003-.001-.003 0-.001 0-.003-.001-.004 0-.001-.001-.003-.001-.003 0-.001 0-.003-.001-.003 0-.001-.001-.003-.001-.003 0-.001-.001-.003-.001-.003 0-.001-.001-.003-.001-.003 0-.001-.001-.002-.001-.003 0-.001-.001-.003-.001-.003s-.001-.002-.001-.003c0-.001-.001-.002-.001-.003 0-.001-.001-.002-.001-.003 0-.001-.001-.002-.001-.003s-.001-.002-.001-.003c-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.002-.001-.001-.001-.002-.002-.003 0-.001-.001-.002-.001-.002-.001-.001-.001-.002-.002-.003 0-.001-.001-.002-.002-.002 0-.001-.001-.002-.002-.002 0-.001-.001-.002-.002-.003 0 0-.001-.002-.002-.002 0-.001-.001-.002-.002-.002s-.001-.002-.002-.002c0-.001-.001-.002-.002-.002s-.001-.002-.002-.002c-.001-.001-.001-.002-.002-.002-.001-.001-.001-.002-.002-.002-.001-.001-.001-.002-.002-.002-.001-.001-.001-.002-.002-.002-.001-.001-.001-.001-.002-.002-.001-.001-.001-.002-.002-.002-.001-.001-.002-.001-.002-.002-.001-.001-.001-.001-.002-.002-.001-.001-.002-.001-.002-.002-.001-.001-.001-.001-.002-.002-.001-.001-.002-.001-.002-.002-.001 0-.002-.001-.002-.002-.001 0-.002-.001-.002-.002-.001 0-.002-.001-.003-.002 0 0-.002-.001-.002-.002-.001 0-.002-.001-.003-.001-.001-.001-.002-.001-.002-.002-.001 0-.002-.001-.003-.001-.001-.001-.002-.001-.002-.002-.001 0-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.002-.001 0-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.003-.001-.003-.001-.001-.001-.002-.001-.003-.001-.001-.001-.003-.001-.003-.001-.001-.001-.003-.001-.003-.001-.001-.001-.003-.001-.003-.001-.001-.001-.003-.001-.003-.001-.001-.001-.003-.001-.003-.001-.001-.001-.003-.001-.003-.001-.002 0-.003-.001-.003-.001-.001-.001-.003-.001-.004-.001-.001 0-.003-.001-.003-.001-.002-.001-.003-.001-.004-.001-.001 0-.003-.001-.004-.001-.001 0-.003 0-.004-.001-.001 0-.003-.001-.004-.001-.001 0-.003 0-.004-.001-.001 0-.003 0-.004-.001-.002 0-.003 0-.004-.001-.002 0-.003 0-.004 0-.002-.001-.003-.001-.004-.001-.002 0-.003 0-.004 0-.002-.001-.004 0-.004-.001-.002 0-.003 0-.005 0-.001-.001-.003-.001-.004-.001-.002 0-.004 0-.005 0-.001-.001-.003-.001-.005-.001-.002 0-.003 0-.005 0-.001-.001-.004 0-.005-.001h-.004c-.002 0-.004 0-.005 0h-.005c-.001-.001-.003-.001-.005-.001h-.004c-.002 0-.004 0-.005 0h-.005c-.002 0-.004 0-.005 0h-.005c-.002 0-.004 0-.005 0h-.005c-.002 0-.004 0-.005 0h-.006c-.002 0-.004 0-.005 0h-.006c-.002 0-.004 0-.005 0h-.006c-.002 0-.004 0-.006 0h-.005c-.002 0-.004 0-.006 0h-.006l-.006.001h-.006l-.006.001h-.006l-.006.001h-.006l-.006.001h-.006l-.006.001h-.006l-.006.001-.006.001h-.006l-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.001-.006.002-.006.001-.006.001-.006.002-.006.001-.006.002-.006.001-.006.002-.006.001-.006.002-.006.002-.006.001-.005.002-.006.002-.006.002-.006.001-.006.002-.005.002-.006.002-.006.002-.005.002-.006.002-.005.002-.006.002-.005.002-.006.002-.005.002-.006.002-.005.003-.005.002-.006.002-.005.003-.005.002-.005.002-.006.003-.005.002-.005.003-.005.002-.005.003-.005.002-.005.003-.005.003-.005.002-.005.003-.005.003-.005.003-.005.003-.005.003-.005.003-.005.003-.004.003-.005.003-.005.003-.004.003-.005.003-.005.004-.004.003-.005.003-.004.004-.005.003-.004.004-.005.003-.004.004-.004.003-.005.004-.004.004-.004.004-.004.003-.004.004-.004.004-.004.004-.004.004-.004.004-.004.004-.004.004-.004.004-.004.004-.004.004-.004.004-.003.005-.004.004-.004.004-.003.005-.004.004-.003.005-.004.004-.003.005-.004.004-.003.005-.004.005-.003.005-.003.005-.004.005-.003.005-.003.005-.003.005-.003.005-.003.005-.003.005-.003.006-.003.005-.003.006-.003.005-.003.006-.002.005-.003.006-.003.006-.002.005-.003.006-.002.006-.002.006-.003.006-.002.006-.002.006-.002.006-.002.006-.002.006-.002.006-.002.007-.001.006-.002.007-.002.006-.001.007-.002.006-.001.007-.002.007-.001.007-.001.007-.002.007-.001.007-.001.007-.001.007-.001.007-.001.008-.001.007 0 .008-.001.007-.001.008 0 .008-.001.008v.008c-.001.003-.001.005-.001.008v.008c0 .003 0 .006-.001.008v.008c0 .003 0 .006-.001.009v.008c0 .003 0 .006-.001.009v.009c0 .003 0 .006-.001.009v.009c0 .003 0 .006-.001.009v.009c0 .003 0 .006-.001.009v.01c0 .003 0 .006-.001.009v10.89c0 .003.001.006.001.009v.009c0 .003 0 .006.001.009v.009c0 .003 0 .006.001.009v.009c0 .003 0 .006.001.009v.009c0 .003 0 .006.001.009v.009c0 .003 0 .006.001.009v.008c0 .003 0 .006.001.008v.008c0 .003.001.006.001.008v.008c0 .003.001.006.001.008v.008l.001.008.001.007.001.008.001.007.001.008.001.007.001.008.001.007.001.007.002.007.001.007.001.007.002.007.001.007.002.007.002.006.001.007.002.007.002.006.002.007.002.006.002.007.002.006.002.006.002.007.003.006.002.006.002.006.003.006.002.006.003.006.002.006.003.006.003.006.003.006.003.005.003.006.003.006.003.005.003.006.003.005.004.006.003.005.003.005.004.005.003.006.004.005.004.005.003.005.004.005.004.005.004.005.004.005.004.005.004.005.004.005.005.004.004.005.004.005.005.004.004.005.005.005.005.004.004.005.005.004.005.005.005.004.005.004.005.005.005.004.005.004.006.004.005.004.005.004.006.004.005.004.006.004.006.004.005.004.006.004.006.003.006.004.006.004.006.003.006.004.006.003.007.004.006.003.006.003.007.004.006.003.007.003.007.003.006.003.007.003.007.003.007.003.007.003.007.003.007.003.007.003.007.003.007.002.008.003.007.003.008.002.007.003.008.002.008.003.007.002.008.002.008.003.008.002.008.002.008.002.008.002.008.002.008.002.009.002.008.002.008.002.009.002.008.001.009.002.009.002.008.001.009.002.009.001.009.002.009.001.009.001.009.002.009.001.01.001.009.001.009.001.01.001.009.001.01.001.009.001.01 0 .01.001.01 0 .01.001.01v.01c.001.003.001.007.001.01V18c0 2.206-1.794 4-4 4H8c-2.206 0-4-1.794-4-4V6c0-2.206 1.794-4 4-4h7.52l-.001.002h.001c.011 0 .022.002.033.003h.003c.01.001.021.002.031.004h.002c.01.001.02.003.031.005.001 0 .001 0 .002.001.01.002.02.004.03.006 0 0 .001 0 .002.001.01.002.019.005.029.008 0 0 .001 0 .002.001.009.003.019.005.028.009 0 0 .001 0 .002.001.009.003.018.006.027.01.001 0 .001.001.002.001.009.004.017.007.026.011.001 0 .001.001.002.001.008.004.017.008.025.013 0 0 .001.001.002.001.008.004.016.009.024.014 0 .001.001.001.002.002.008.004.015.009.023.014.001.001.001.001.002.002.008.005.015.01.022.015.001.001.001.001.002.002.007.005.014.01.021.016.001.001.001.001.002.002l5.25 4.125c.001.001.001.001.002.002.007.006.014.011.02.017.001.001.001.001.002.002.007.006.013.012.019.018l.002.002c.006.006.012.012.018.019l.002.002c.006.006.012.013.017.019l.002.003c.005.006.011.013.016.02l.002.003c.005.007.01.013.015.02l.001.003c.005.007.009.014.014.021l.001.003c.004.007.009.014.013.022l.001.003c.004.007.008.015.012.022l.001.003c.004.008.007.015.011.023l.001.004c.003.008.006.015.009.023l.001.004c.003.008.006.016.008.024 0 .001.001.003.001.004.002.008.005.016.007.024 0 .002 0 .003.001.005.002.008.004.016.006.025 0 .001 0 .003.001.004.002.009.003.017.005.026 0 .001 0 .003 0 .004.002.009.003.018.004.026 0 .002 0 .003 0 .005.001.009.002.018.003.027 0 .002 0 .003 0 .005.001.009.002.018.002.027 0 .002 0 .004 0 .005.001.01.001.019.001.028v.006c0 .01 0 .019 0 .028v11.06c0 .009 0 .019-.001.028v.005c-.001.009-.001.019-.002.028 0 .002 0 .003 0 .005-.001.009-.002.018-.003.027 0 .002 0 .003 0 .005-.001.009-.002.017-.004.026 0 .001 0 .003 0 .004-.002.009-.003.018-.005.026 0 .002 0 .003-.001.005-.002.008-.004.016-.006.024-.001.002-.001.003-.001.005-.002.008-.005.016-.007.024-.001.001-.001.003-.001.004-.003.008-.005.016-.008.024-.001.001-.001.003-.001.004-.003.008-.006.015-.009.023l-.001.004c-.003.008-.007.015-.011.023l-.001.003c-.004.007-.008.015-.012.022l-.001.003c-.004.007-.009.014-.013.021l-.002.003c-.004.007-.009.014-.014.021l-.001.003c-.005.007-.01.013-.015.02l-.002.003c-.005.007-.011.013-.016.02l-.002.002c-.006.006-.011.013-.017.019l-.002.002c-.006.006-.012.012-.018.018l-.002.002c-.006.006-.013.012-.02.017l-.001.002c-.007.006-.014.011-.021.016l-.002.002c-.007.005-.014.01-.022.015l-.002.002c-.008.005-.015.01-.023.014l-.002.002c-.008.005-.016.009-.024.014l-.002.001c-.008.004-.017.008-.025.012l-.002.001c-.009.004-.017.008-.026.011l-.002.001c-.009.004-.018.007-.027.01l-.002.001c-.009.003-.019.006-.028.008l-.002.001c-.01.003-.019.005-.029.007l-.002.001c-.01.002-.02.004-.031.005l-.002.001c-.01.002-.021.003-.031.004l-.003.001c-.011.001-.022.002-.032.002h-.004H15.5v-3.52c0-1.654-1.346-3-3-3s-3 1.346-3 3V22H8c-3.309 0-6-2.691-6-6V6c0-3.309 2.691-6 6-6h7.52c.003 0 .006.001.01.001.003 0 .006 0 .01.001.003 0 .006 0 .01.001.003 0 .006 0 .009.001.003 0 .006 0 .01.001.003 0 .006 0 .009.001.003 0 .006.001.009.001.003 0 .006 0 .009.001.003 0 .006.001.009.001.003 0 .006.001.009.001.003.001.006.001.009.001.003.001.006.001.009.001.003.001.005.001.008.002.003 0 .006.001.009.001.003.001.005.001.008.002.003.001.006.001.008.002.003 0 .006.001.008.002.003.001.005.001.008.002.003.001.005.001.008.002.003.001.005.001.008.002.003.001.005.002.008.002.002.001.005.001.008.002.002.001.005.002.007.002.003.001.005.002.008.002.002.001.005.002.007.003.003.001.005.002.007.002.003.001.005.002.007.003.003.001.005.002.007.003.003.001.005.002.007.003.002.001.005.002.007.003.002.001.005.002.007.003.002.001.005.002.007.003.002.001.004.002.007.003.002.001.004.002.007.003.002.002.004.002.006.004.003.001.005.002.007.003.002.001.004.002.006.004.002.001.005.002.007.004.002.001.004.002.006.004.002.001.004.002.006.004.002.001.004.003.006.004.002.001.004.002.006.004.002.002.004.002.006.004.002.001.004.003.006.004.002.002.004.003.006.004.002.002.003.003.005.004.002.002.004.003.006.004.002.002.003.003.005.005.002.001.004.003.005.004.002.002.004.003.005.005.002.002.003.003.005.005.002.002.003.003.005.005.002.002.003.003.005.005.001.002.003.003.005.005.001.002.003.003.005.005.001.002.003.003.004.005.002.002.003.003.005.005.001.002.003.003.004.005.002.002.003.004.004.005.002.002.003.003.004.005.001.002.003.004.004.005.001.002.003.004.004.006.001.002.003.003.004.005.001.002.002.004.004.006.001.002.002.003.004.005.001.002.002.004.003.006.002.002.002.004.004.006.001.002.002.004.003.006.001.002.002.004.003.006.001.002.002.004.003.006.001.002.002.004.003.006.001.002.002.004.003.006.001.002.002.004.003.006.001.002.002.004.002.006.001.002.002.004.003.006 0 .002.002.004.002.006.001.002.002.004.003.007 0 .002.001.004.002.006.001.002.002.004.002.006.001.003.002.004.002.007.001.002.001.004.002.006.001.002.001.005.002.007 0 .002.001.004.002.006 0 .003.001.004.002.007 0 .002.001.005.001.007.001.002.001.004.002.007 0 .002.001.004.001.007.001.002.001.005.001.007.001.002.001.004.001.007.001.002.001.005.001.007.001.003 0 .005.001.007.001.003 0 .005.001.007.001.003 0 .005.001.007 0 .003.001.005.001.008 0 .002 0 .005.001.007 0 .003 0 .005 0 .008.001.002 0 .005.001.008 0 .002 0 .005 0 .008 0 .003 0 .005 0 .008.001.003 0 .006 0 .008 0 .003 0 .006 0 .009 0 .003 0 .006 0 .009 0 .003 0 .006 0 .009z"/>
+    </svg>
+  ),
+  website: Globe,
+}
+
+const socialLabels = {
+  instagram: 'Instagram',
+  twitter: 'X (Twitter)',
+  youtube: 'YouTube',
+  tiktok: 'TikTok',
+  soundcloud: 'SoundCloud',
+  appleMusic: 'Apple Music',
+  website: 'Website',
+}
+
+export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
+  const navigate = useNavigate()
+  const { user, featuredPlaylist, isApproved } = useAuth()
+  const [copied, setCopied] = useState(false)
+
+  // For now, we only support viewing own profile
+  // In production, you'd fetch profile data by profileSlug
+  const profileData = isOwnProfile ? user : null
+
+  if (!profileData) {
+    return (
+      <div className="min-h-screen bg-background pt-20 flex items-center justify-center">
+        <div className="text-center">
+          <Music className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Profile Not Found</h2>
+          <p className="text-muted-foreground mb-6">
+            This profile doesn't exist or hasn't been approved yet.
+          </p>
+          <Button onClick={() => navigate('/')}>Back to Home</Button>
+        </div>
+      </div>
+    )
+  }
+
+  const handleCopyLink = async () => {
+    const url = `${window.location.origin}/u/${profileData.profileSlug}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      const textArea = document.createElement('textarea')
+      textArea.value = url
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const activeSocialLinks = Object.entries(profileData.socialLinks || {})
+    .filter(([, value]) => value && value.trim())
+
+  return (
+    <div className="min-h-screen bg-background pt-16">
+      {/* Hero Section */}
+      <div className="relative">
+        {/* Header Image / Gradient */}
+        <div className="h-48 md:h-64 relative overflow-hidden">
+          {profileData.headerImage ? (
+            <img
+              src={profileData.headerImage}
+              alt="Header"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-b from-primary/30 via-primary/10 to-transparent" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+        </div>
+
+        <div className="relative max-w-4xl mx-auto px-4 -mt-24">
+          <div className="flex flex-col md:flex-row gap-6 items-start md:items-end">
+            {/* Profile Image */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-32 h-32 md:w-40 md:h-40 rounded-2xl overflow-hidden shadow-2xl border-4 border-background flex-shrink-0 glow-green"
+            >
+              {profileData.profileImage ? (
+                <img
+                  src={profileData.profileImage}
+                  alt={profileData.artistName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-secondary flex items-center justify-center">
+                  <Music className="w-16 h-16 text-muted-foreground" />
+                </div>
+              )}
+            </motion.div>
+
+            {/* Profile Info */}
+            <div className="flex-1 pb-4">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="outline" className="gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {profileData.region || 'Tampa Bay'}
+                  </Badge>
+                  {isApproved && (
+                    <Badge className="gap-1 bg-primary/20 text-primary border-primary/30">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Verified Artist
+                    </Badge>
+                  )}
+                </div>
+
+                <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                  {profileData.artistName}
+                </h1>
+
+                {profileData.bio && (
+                  <p className="text-muted-foreground max-w-xl mb-4">
+                    {profileData.bio}
+                  </p>
+                )}
+
+                {/* Genres */}
+                {profileData.genres?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {profileData.genres.map((genre) => (
+                      <Badge key={genre} variant="secondary" className="capitalize">
+                        {genre}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 pb-4">
+              {isOwnProfile && (
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => navigate('/settings')}
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Edit Profile
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={handleCopyLink}
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 text-green-400" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Link className="w-4 h-4" />
+                    Share
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="overview" className="gap-2">
+              <Sparkles className="w-4 h-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="events" className="gap-2">
+              <Calendar className="w-4 h-4" />
+              Events
+            </TabsTrigger>
+            <TabsTrigger value="music" className="gap-2">
+              <Music className="w-4 h-4" />
+              Music
+            </TabsTrigger>
+            <TabsTrigger value="links" className="gap-2">
+              <Globe className="w-4 h-4" />
+              Links
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            {/* Stats */}
+            {profileData.spotifyProfile && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Users className="w-5 h-5 text-primary" />
+                    Stats
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 rounded-lg bg-secondary/50">
+                      <div className="text-2xl font-bold text-primary">
+                        {profileData.spotifyProfile.followers?.total?.toLocaleString() || '0'}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Spotify Followers</div>
+                    </div>
+                    <div className="text-center p-4 rounded-lg bg-secondary/50">
+                      <div className="text-2xl font-bold text-primary">
+                        {profileData.connectedPlatforms?.spotify ? '1' : '0'}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Connected Platforms</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Featured Playlist */}
+            {featuredPlaylist && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ListMusic className="w-5 h-5 text-primary" />
+                    Featured Playlist
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div
+                    className="flex items-center gap-4 p-4 rounded-lg bg-secondary/50 hover:bg-secondary/70 transition-colors cursor-pointer"
+                    onClick={() => window.open(featuredPlaylist.external_urls?.spotify, '_blank')}
+                  >
+                    {featuredPlaylist.images?.[0]?.url && (
+                      <img
+                        src={featuredPlaylist.images[0].url}
+                        alt={featuredPlaylist.name}
+                        className="w-20 h-20 rounded-lg"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <h4 className="font-semibold">{featuredPlaylist.name}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {featuredPlaylist.tracks?.total || 0} tracks
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <Play className="w-4 h-4" />
+                      Play
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Social Links Preview */}
+            {activeSocialLinks.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-primary" />
+                    Connect
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-3">
+                    {activeSocialLinks.map(([platform, url]) => {
+                      const Icon = socialIcons[platform] || Globe
+                      return (
+                        <Button
+                          key={platform}
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => window.open(url, '_blank')}
+                        >
+                          <Icon className="w-4 h-4" />
+                          {socialLabels[platform] || platform}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Events Tab */}
+          <TabsContent value="events">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  Upcoming Events
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(profileData.events || []).length > 0 ? (
+                  <div className="space-y-4">
+                    {profileData.events
+                      .filter(event => new Date(event.date) >= new Date(new Date().toDateString()))
+                      .sort((a, b) => new Date(a.date) - new Date(b.date))
+                      .map((event) => (
+                        <div
+                          key={event.id}
+                          className="flex items-start gap-4 p-4 rounded-lg bg-secondary/50 hover:bg-secondary/70 transition-colors"
+                        >
+                          <div className="flex flex-col items-center justify-center w-16 h-16 rounded-lg bg-primary/10 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground uppercase">
+                              {new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
+                            </span>
+                            <span className="text-xl font-bold text-primary">
+                              {new Date(event.date + 'T00:00:00').getDate()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold">{event.title}</h4>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {event.venue}
+                              </span>
+                              {event.time && (
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {event.time}
+                                </span>
+                              )}
+                              {event.price && (
+                                <Badge variant="secondary" className="text-xs gap-1">
+                                  <Ticket className="w-3 h-3" />
+                                  {event.price}
+                                </Badge>
+                              )}
+                            </div>
+                            {event.description && (
+                              <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                                {event.description}
+                              </p>
+                            )}
+                          </div>
+                          {event.ticketUrl && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(event.ticketUrl, '_blank')}
+                              className="gap-1 flex-shrink-0"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              Tickets
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground mb-4">No upcoming events scheduled.</p>
+                    {isOwnProfile && (
+                      <Button onClick={() => navigate('/settings')} variant="outline" className="gap-2">
+                        <Edit3 className="w-4 h-4" />
+                        Add Events
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Music Tab */}
+          <TabsContent value="music">
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Disc3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Music Coming Soon</h3>
+                <p className="text-muted-foreground mb-4">
+                  Connect your Spotify artist profile to display your music here.
+                </p>
+                {isOwnProfile && (
+                  <Button onClick={() => navigate('/settings')} className="gap-2">
+                    <Settings className="w-4 h-4" />
+                    Go to Settings
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Links Tab */}
+          <TabsContent value="links">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-primary" />
+                  All Links
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {activeSocialLinks.length > 0 ? (
+                  <div className="space-y-3">
+                    {activeSocialLinks.map(([platform, url]) => {
+                      const Icon = socialIcons[platform] || Globe
+                      return (
+                        <a
+                          key={platform}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-4 p-4 rounded-lg bg-secondary/50 hover:bg-secondary/70 transition-colors"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                            <Icon className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium">{socialLabels[platform] || platform}</div>
+                            <div className="text-sm text-muted-foreground truncate max-w-xs">
+                              {url}
+                            </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                        </a>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Link className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground mb-4">No social links added yet.</p>
+                    {isOwnProfile && (
+                      <Button onClick={() => navigate('/settings')} variant="outline" className="gap-2">
+                        <Edit3 className="w-4 h-4" />
+                        Add Links
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  )
+}
