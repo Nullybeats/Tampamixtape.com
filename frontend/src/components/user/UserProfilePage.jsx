@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
+import { Loader2 } from 'lucide-react'
 import {
   MapPin,
   Settings,
@@ -35,6 +36,11 @@ const socialIcons = {
   instagram: Instagram,
   twitter: Twitter,
   youtube: Youtube,
+  spotify: () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+    </svg>
+  ),
   tiktok: () => (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
       <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
@@ -57,22 +63,67 @@ const socialLabels = {
   instagram: 'Instagram',
   twitter: 'X (Twitter)',
   youtube: 'YouTube',
+  spotify: 'Spotify',
   tiktok: 'TikTok',
   soundcloud: 'SoundCloud',
   appleMusic: 'Apple Music',
   website: 'Website',
 }
 
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
+
 export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const navigate = useNavigate()
   const { user, featuredPlaylist, isApproved } = useAuth()
   const [copied, setCopied] = useState(false)
+  const [fetchedProfile, setFetchedProfile] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
-  // For now, we only support viewing own profile
-  // In production, you'd fetch profile data by profileSlug
-  const profileData = isOwnProfile ? user : null
+  // Fetch profile data for public profiles
+  useEffect(() => {
+    if (isOwnProfile || !profileSlug) {
+      setFetchedProfile(null)
+      return
+    }
 
-  if (!profileData) {
+    const fetchProfile = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch(`${API_URL}/api/profile/${profileSlug}`)
+        if (!response.ok) {
+          throw new Error('Profile not found')
+        }
+        const data = await response.json()
+        setFetchedProfile(data.profile)
+      } catch (err) {
+        console.error('Failed to fetch profile:', err)
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProfile()
+  }, [profileSlug, isOwnProfile])
+
+  // Use own profile data or fetched profile data
+  const profileData = isOwnProfile ? user : fetchedProfile
+
+  // Show loading state for public profiles
+  if (!isOwnProfile && loading) {
+    return (
+      <div className="min-h-screen bg-background pt-20 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!profileData || error) {
     return (
       <div className="min-h-screen bg-background pt-20 flex items-center justify-center">
         <div className="text-center">
@@ -86,6 +137,23 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
       </div>
     )
   }
+
+  // Determine if this is a verified/approved artist
+  const isVerifiedArtist = profileData.status === 'APPROVED'
+
+  // Transform individual URL fields to socialLinks object for consistency
+  const socialLinksFromProfile = {
+    ...(profileData.instagramUrl && { instagram: profileData.instagramUrl }),
+    ...(profileData.twitterUrl && { twitter: profileData.twitterUrl }),
+    ...(profileData.websiteUrl && { website: profileData.websiteUrl }),
+    ...(profileData.spotifyUrl && { spotify: profileData.spotifyUrl }),
+  }
+
+  // Use socialLinks from profile data or construct from individual fields
+  const socialLinks = profileData.socialLinks || socialLinksFromProfile
+
+  // Map avatar field (database uses 'avatar', component may expect 'profileImage')
+  const profileImage = profileData.profileImage || profileData.avatar
 
   const handleCopyLink = async () => {
     const url = `${window.location.origin}/u/${profileData.profileSlug}`
@@ -105,7 +173,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
     }
   }
 
-  const activeSocialLinks = Object.entries(profileData.socialLinks || {})
+  const activeSocialLinks = Object.entries(socialLinks)
     .filter(([, value]) => value && value.trim())
 
   return (
@@ -134,9 +202,9 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               animate={{ opacity: 1, scale: 1 }}
               className="w-32 h-32 md:w-40 md:h-40 rounded-2xl overflow-hidden shadow-2xl border-4 border-background flex-shrink-0 glow-green"
             >
-              {profileData.profileImage ? (
+              {profileImage ? (
                 <img
-                  src={profileData.profileImage}
+                  src={profileImage}
                   alt={profileData.artistName}
                   className="w-full h-full object-cover"
                 />
@@ -158,7 +226,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                     <MapPin className="w-3 h-3" />
                     {profileData.region || 'Tampa Bay'}
                   </Badge>
-                  {isApproved && (
+                  {isVerifiedArtist && (
                     <Badge className="gap-1 bg-primary/20 text-primary border-primary/30">
                       <CheckCircle2 className="w-3 h-3" />
                       Verified Artist

@@ -6,6 +6,7 @@ const artistsRouter = require('./routes/artists');
 const authRouter = require('./routes/auth');
 const adminRouter = require('./routes/admin');
 const spotifyRouter = require('./routes/spotify');
+const profileRouter = require('./routes/profile');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -53,6 +54,7 @@ app.use('/api/artists', artistsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/spotify', spotifyRouter);
+app.use('/api/profile', profileRouter);
 
 // Legacy route for backwards compatibility
 app.get('/api/hello', (req, res) => {
