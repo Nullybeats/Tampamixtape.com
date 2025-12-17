@@ -118,6 +118,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [copied, setCopied] = useState(false)
   const [fetchedProfile, setFetchedProfile] = useState(null)
   const [spotifyData, setSpotifyData] = useState(null)
+  const [eventsData, setEventsData] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -126,6 +127,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
     if (isOwnProfile || !profileSlug) {
       setFetchedProfile(null)
       setSpotifyData(null)
+      setEventsData([])
       return
     }
 
@@ -140,6 +142,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
         const data = await response.json()
         setFetchedProfile(data.profile)
         setSpotifyData(data.spotifyData)
+        setEventsData(data.events || [])
       } catch (err) {
         console.error('Failed to fetch profile:', err)
         setError(err.message)
@@ -851,10 +854,76 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-primary" />
                   Upcoming Events
+                  {eventsData.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {eventsData.length} show{eventsData.length !== 1 ? 's' : ''}
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {(profileData.events || []).length > 0 ? (
+                {eventsData.length > 0 ? (
+                  <div className="space-y-4">
+                    {eventsData
+                      .filter(event => event.date && new Date(event.date) >= new Date(new Date().toDateString()))
+                      .sort((a, b) => new Date(a.date) - new Date(b.date))
+                      .map((event, index) => (
+                        <motion.div
+                          key={event.id || index}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="flex items-start gap-4 p-4 rounded-lg bg-secondary/50 hover:bg-secondary/70 transition-colors"
+                        >
+                          <div className="flex flex-col items-center justify-center w-16 h-16 rounded-lg bg-primary/10 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground uppercase">
+                              {new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
+                            </span>
+                            <span className="text-xl font-bold text-primary">
+                              {new Date(event.date + 'T00:00:00').getDate()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold">{event.title}</h4>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {event.venue}
+                              </span>
+                              {event.location && event.location !== event.venue && (
+                                <span className="text-muted-foreground">
+                                  {event.location}
+                                </span>
+                              )}
+                              {event.time && (
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {event.time}
+                                </span>
+                              )}
+                            </div>
+                            {event.lineup && event.lineup.length > 1 && (
+                              <p className="text-sm text-muted-foreground mt-2">
+                                Also featuring: {event.lineup.slice(1).join(', ')}
+                              </p>
+                            )}
+                          </div>
+                          {event.ticketUrl && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(event.ticketUrl, '_blank')}
+                              className="gap-1 flex-shrink-0"
+                            >
+                              <Ticket className="w-3 h-3" />
+                              Tickets
+                            </Button>
+                          )}
+                        </motion.div>
+                      ))}
+                  </div>
+                ) : (profileData.events || []).length > 0 ? (
+                  // Fallback to profile events (user-added)
                   <div className="space-y-4">
                     {profileData.events
                       .filter(event => new Date(event.date) >= new Date(new Date().toDateString()))
@@ -915,9 +984,12 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 ) : (
                   <div className="text-center py-8">
                     <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground mb-4">No upcoming events scheduled.</p>
+                    <p className="text-muted-foreground mb-4">No upcoming events found.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Events are automatically fetched from Bandsintown when available.
+                    </p>
                     {isOwnProfile && (
-                      <Button onClick={() => navigate('/settings')} variant="outline" className="gap-2">
+                      <Button onClick={() => navigate('/settings')} variant="outline" className="gap-2 mt-4">
                         <Edit3 className="w-4 h-4" />
                         Add Events
                       </Button>
