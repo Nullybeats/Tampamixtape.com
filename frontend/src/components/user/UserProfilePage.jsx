@@ -8,6 +8,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
 import { Loader2 } from 'lucide-react'
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  RadialBarChart,
+  RadialBar,
+  Cell,
+} from 'recharts'
+import {
   MapPin,
   Settings,
   Music,
@@ -29,6 +40,11 @@ import {
   Calendar,
   Clock,
   Ticket,
+  TrendingUp,
+  Image,
+  Headphones,
+  Album,
+  Mic2,
 } from 'lucide-react'
 
 // Social icons mapping
@@ -72,11 +88,36 @@ const socialLabels = {
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
+// Custom tooltip for charts
+function CustomTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background/95 border border-border rounded-lg px-3 py-2 shadow-lg">
+        <p className="text-sm font-medium">{label}</p>
+        {payload.map((entry, index) => (
+          <p key={index} className="text-sm text-primary">
+            {entry.name}: {entry.value.toLocaleString()}
+          </p>
+        ))}
+      </div>
+    )
+  }
+  return null
+}
+
+// Format duration from ms to mm:ss
+function formatDuration(ms) {
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
 export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const navigate = useNavigate()
   const { user, featuredPlaylist, isApproved } = useAuth()
   const [copied, setCopied] = useState(false)
   const [fetchedProfile, setFetchedProfile] = useState(null)
+  const [spotifyData, setSpotifyData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -84,6 +125,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   useEffect(() => {
     if (isOwnProfile || !profileSlug) {
       setFetchedProfile(null)
+      setSpotifyData(null)
       return
     }
 
@@ -97,6 +139,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
         }
         const data = await response.json()
         setFetchedProfile(data.profile)
+        setSpotifyData(data.spotifyData)
       } catch (err) {
         console.error('Failed to fetch profile:', err)
         setError(err.message)
@@ -180,7 +223,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
     <div className="min-h-screen bg-background pt-16">
       {/* Hero Section */}
       <div className="relative">
-        {/* Header Image / Gradient */}
+        {/* Header Image / Gradient - Use album art or profile image as blurred banner */}
         <div className="h-48 md:h-64 relative overflow-hidden">
           {profileData.headerImage ? (
             <img
@@ -188,6 +231,15 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               alt="Header"
               className="w-full h-full object-cover"
             />
+          ) : spotifyData?.latestReleases?.[0]?.image || profileImage ? (
+            <>
+              <img
+                src={spotifyData?.latestReleases?.[0]?.image || profileImage}
+                alt="Header"
+                className="w-full h-full object-cover scale-110 blur-2xl opacity-60"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/50 to-background" />
+            </>
           ) : (
             <div className="w-full h-full bg-gradient-to-b from-primary/30 via-primary/10 to-transparent" />
           )}
@@ -244,10 +296,10 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   </p>
                 )}
 
-                {/* Genres */}
-                {profileData.genres?.length > 0 && (
+                {/* Genres - from Spotify data */}
+                {(spotifyData?.genres?.length > 0 || profileData.genres?.length > 0) && (
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {profileData.genres.map((genre) => (
+                    {(spotifyData?.genres || profileData.genres || []).map((genre) => (
                       <Badge key={genre} variant="secondary" className="capitalize">
                         {genre}
                       </Badge>
@@ -292,20 +344,24 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-4 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="overview" className="gap-2">
               <Sparkles className="w-4 h-4" />
               Overview
             </TabsTrigger>
-            <TabsTrigger value="events" className="gap-2">
-              <Calendar className="w-4 h-4" />
-              Events
-            </TabsTrigger>
             <TabsTrigger value="music" className="gap-2">
               <Music className="w-4 h-4" />
               Music
+            </TabsTrigger>
+            <TabsTrigger value="gallery" className="gap-2">
+              <Image className="w-4 h-4" />
+              Gallery
+            </TabsTrigger>
+            <TabsTrigger value="events" className="gap-2">
+              <Calendar className="w-4 h-4" />
+              Events
             </TabsTrigger>
             <TabsTrigger value="links" className="gap-2">
               <Globe className="w-4 h-4" />
@@ -315,65 +371,212 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
-            {/* Stats */}
-            {profileData.spotifyProfile && (
+            {/* Stats Cards */}
+            {spotifyData && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0 }}
+                >
+                  <Card className="glow-green-sm">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
+                          <Users className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-primary">
+                            {spotifyData.followers?.toLocaleString() || '0'}
+                          </div>
+                          <div className="text-sm text-muted-foreground">Followers</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <Card className="glow-green-sm">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
+                          <TrendingUp className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-primary">
+                            {spotifyData.popularity || 0}
+                          </div>
+                          <div className="text-sm text-muted-foreground">Popularity</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <Card className="glow-green-sm">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
+                          <Album className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-primary">
+                            {spotifyData.totalAlbums || 0}
+                          </div>
+                          <div className="text-sm text-muted-foreground">Albums</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <Card className="glow-green-sm">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
+                          <Mic2 className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-primary">
+                            {spotifyData.totalSingles || 0}
+                          </div>
+                          <div className="text-sm text-muted-foreground">Singles</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </div>
+            )}
+
+            {/* Popularity Chart */}
+            {spotifyData && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Users className="w-5 h-5 text-primary" />
-                    Stats
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Artist Analytics
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <div className="text-2xl font-bold text-primary">
-                        {profileData.spotifyProfile.followers?.total?.toLocaleString() || '0'}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Popularity Gauge */}
+                    <div className="flex flex-col items-center">
+                      <h4 className="text-sm font-medium text-muted-foreground mb-4">Spotify Popularity Score</h4>
+                      <div className="h-48 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadialBarChart
+                            cx="50%"
+                            cy="50%"
+                            innerRadius="60%"
+                            outerRadius="90%"
+                            barSize={20}
+                            data={[{ name: 'Popularity', value: spotifyData.popularity, fill: '#22c55e' }]}
+                            startAngle={180}
+                            endAngle={0}
+                          >
+                            <RadialBar
+                              background={{ fill: '#27272a' }}
+                              dataKey="value"
+                              cornerRadius={10}
+                            />
+                          </RadialBarChart>
+                        </ResponsiveContainer>
+                        <div className="text-center -mt-20">
+                          <div className="text-4xl font-bold text-primary">{spotifyData.popularity}</div>
+                          <div className="text-sm text-muted-foreground">out of 100</div>
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">Spotify Followers</div>
                     </div>
-                    <div className="text-center p-4 rounded-lg bg-secondary/50">
-                      <div className="text-2xl font-bold text-primary">
-                        {profileData.connectedPlatforms?.spotify ? '1' : '0'}
+
+                    {/* Top Tracks Popularity */}
+                    {spotifyData.topTracks?.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-4">Top Tracks Popularity</h4>
+                        <div className="h-48">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={spotifyData.topTracks.slice(0, 5).map(t => ({
+                                name: t.name.length > 15 ? t.name.substring(0, 15) + '...' : t.name,
+                                popularity: t.popularity
+                              }))}
+                              layout="vertical"
+                              margin={{ left: 0, right: 20 }}
+                            >
+                              <XAxis type="number" domain={[0, 100]} stroke="#71717a" fontSize={12} />
+                              <YAxis type="category" dataKey="name" width={100} stroke="#71717a" fontSize={11} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Bar dataKey="popularity" radius={[0, 4, 4, 0]}>
+                                {spotifyData.topTracks.slice(0, 5).map((_, index) => (
+                                  <Cell key={index} fill={index === 0 ? '#22c55e' : '#22c55e80'} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">Connected Platforms</div>
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Featured Playlist */}
-            {featuredPlaylist && (
-              <Card>
+            {/* Latest Release Highlight */}
+            {spotifyData?.latestReleases?.[0] && (
+              <Card className="overflow-hidden">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <ListMusic className="w-5 h-5 text-primary" />
-                    Featured Playlist
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    Latest Release
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div
-                    className="flex items-center gap-4 p-4 rounded-lg bg-secondary/50 hover:bg-secondary/70 transition-colors cursor-pointer"
-                    onClick={() => window.open(featuredPlaylist.external_urls?.spotify, '_blank')}
+                    className="flex flex-col md:flex-row items-center gap-6 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-transparent cursor-pointer hover:from-primary/20 transition-colors"
+                    onClick={() => window.open(spotifyData.latestReleases[0].url, '_blank')}
                   >
-                    {featuredPlaylist.images?.[0]?.url && (
-                      <img
-                        src={featuredPlaylist.images[0].url}
-                        alt={featuredPlaylist.name}
-                        className="w-20 h-20 rounded-lg"
-                      />
-                    )}
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{featuredPlaylist.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {featuredPlaylist.tracks?.total || 0} tracks
+                    <img
+                      src={spotifyData.latestReleases[0].image}
+                      alt={spotifyData.latestReleases[0].name}
+                      className="w-40 h-40 rounded-lg shadow-2xl"
+                    />
+                    <div className="flex-1 text-center md:text-left">
+                      <Badge variant="outline" className="mb-2 capitalize">
+                        {spotifyData.latestReleases[0].type}
+                      </Badge>
+                      <h3 className="text-2xl font-bold mb-2">{spotifyData.latestReleases[0].name}</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Released {new Date(spotifyData.latestReleases[0].releaseDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
                       </p>
+                      <div className="flex items-center gap-4 justify-center md:justify-start">
+                        <Badge variant="secondary">
+                          {spotifyData.latestReleases[0].totalTracks} track{spotifyData.latestReleases[0].totalTracks !== 1 ? 's' : ''}
+                        </Badge>
+                        <Button size="sm" className="gap-2">
+                          <Play className="w-4 h-4" />
+                          Listen on Spotify
+                        </Button>
+                      </div>
                     </div>
-                    <Button variant="ghost" size="sm" className="gap-2">
-                      <Play className="w-4 h-4" />
-                      Play
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -406,6 +609,236 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       )
                     })}
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* No Spotify Data Message */}
+            {!spotifyData && (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Music className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Spotify Data</h3>
+                  <p className="text-muted-foreground">
+                    This artist hasn't linked their Spotify profile yet.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Music Tab */}
+          <TabsContent value="music" className="space-y-6">
+            {spotifyData ? (
+              <>
+                {/* Top Tracks */}
+                {spotifyData.topTracks?.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Headphones className="w-5 h-5 text-primary" />
+                        Top Tracks
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {spotifyData.topTracks.map((track, index) => (
+                          <motion.div
+                            key={track.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group"
+                            onClick={() => window.open(track.url, '_blank')}
+                          >
+                            <span className="w-6 text-center text-muted-foreground font-medium">
+                              {index + 1}
+                            </span>
+                            <img
+                              src={track.albumImage}
+                              alt={track.albumName}
+                              className="w-12 h-12 rounded"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">{track.name}</div>
+                              <div className="text-sm text-muted-foreground truncate">{track.albumName}</div>
+                            </div>
+                            <div className="hidden md:flex items-center gap-4">
+                              <div className="w-24">
+                                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-primary rounded-full"
+                                    style={{ width: `${track.popularity}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <span className="text-sm text-muted-foreground w-12">
+                                {formatDuration(track.duration)}
+                              </span>
+                            </div>
+                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                              <Play className="w-4 h-4" />
+                            </Button>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Albums */}
+                {spotifyData.discography?.albums?.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Album className="w-5 h-5 text-primary" />
+                        Albums
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {spotifyData.discography.albums.map((album, index) => (
+                          <motion.div
+                            key={album.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="group cursor-pointer"
+                            onClick={() => window.open(album.url, '_blank')}
+                          >
+                            <div className="relative aspect-square rounded-lg overflow-hidden mb-3">
+                              <img
+                                src={album.image}
+                                alt={album.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play className="w-12 h-12 text-white" />
+                              </div>
+                            </div>
+                            <h4 className="font-medium truncate">{album.name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(album.releaseDate).getFullYear()} · {album.totalTracks} tracks
+                            </p>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Singles & EPs */}
+                {spotifyData.discography?.singles?.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Disc3 className="w-5 h-5 text-primary" />
+                        Singles & EPs
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {spotifyData.discography.singles.slice(0, 12).map((single, index) => (
+                          <motion.div
+                            key={single.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: index * 0.03 }}
+                            className="group cursor-pointer"
+                            onClick={() => window.open(single.url, '_blank')}
+                          >
+                            <div className="relative aspect-square rounded-lg overflow-hidden mb-2">
+                              <img
+                                src={single.image}
+                                alt={single.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play className="w-8 h-8 text-white" />
+                              </div>
+                            </div>
+                            <h4 className="font-medium text-sm truncate">{single.name}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(single.releaseDate).getFullYear()}
+                            </p>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Disc3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Music Data</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Connect a Spotify artist profile to display music here.
+                  </p>
+                  {isOwnProfile && (
+                    <Button onClick={() => navigate('/settings')} className="gap-2">
+                      <Settings className="w-4 h-4" />
+                      Go to Settings
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Gallery Tab */}
+          <TabsContent value="gallery">
+            {spotifyData?.latestReleases?.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Image className="w-5 h-5 text-primary" />
+                    Album Artwork Gallery
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {/* Collect all unique album art */}
+                    {[
+                      ...new Map(
+                        [...(spotifyData.discography?.albums || []), ...(spotifyData.discography?.singles || [])]
+                          .filter(item => item.image)
+                          .map(item => [item.image, item])
+                      ).values()
+                    ].slice(0, 16).map((item, index) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="group cursor-pointer relative aspect-square"
+                        onClick={() => window.open(item.url, '_blank')}
+                      >
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-end p-3">
+                          <div>
+                            <h4 className="font-medium text-white text-sm truncate">{item.name}</h4>
+                            <p className="text-xs text-white/70">{new Date(item.releaseDate).getFullYear()}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Image className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Gallery Images</h3>
+                  <p className="text-muted-foreground">
+                    Album artwork will appear here once Spotify data is connected.
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -490,25 +923,6 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       </Button>
                     )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Music Tab */}
-          <TabsContent value="music">
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Disc3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Music Coming Soon</h3>
-                <p className="text-muted-foreground mb-4">
-                  Connect your Spotify artist profile to display your music here.
-                </p>
-                {isOwnProfile && (
-                  <Button onClick={() => navigate('/settings')} className="gap-2">
-                    <Settings className="w-4 h-4" />
-                    Go to Settings
-                  </Button>
                 )}
               </CardContent>
             </Card>

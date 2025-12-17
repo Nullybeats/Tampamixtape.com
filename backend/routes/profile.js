@@ -1,5 +1,6 @@
 const express = require('express');
 const prisma = require('../services/db');
+const spotify = require('../services/spotify');
 
 const router = express.Router();
 
@@ -36,7 +37,21 @@ router.get('/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    res.json({ profile: user });
+    // If user has Spotify linked, fetch live data
+    let spotifyData = null;
+    if (user.spotifyId) {
+      try {
+        spotifyData = await spotify.getFullArtistData(user.spotifyId);
+      } catch (spotifyError) {
+        console.error('Failed to fetch Spotify data:', spotifyError.message);
+        // Continue without Spotify data - don't fail the request
+      }
+    }
+
+    res.json({
+      profile: user,
+      spotifyData,
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ error: 'Failed to get profile' });
