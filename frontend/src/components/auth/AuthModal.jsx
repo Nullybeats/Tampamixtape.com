@@ -34,7 +34,6 @@ import {
   ArrowRight,
   ArrowLeft,
   Clock,
-  Shield,
 } from 'lucide-react'
 
 // Florida cities - Tampa is active, others coming soon
@@ -68,7 +67,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { signUp, signIn, loginWithSpotify, spotifyUser, loginAsTestUser, loginAsAdmin } = useAuth()
+  const { signUp, signIn, loginWithSpotify, spotifyUser } = useAuth()
 
   const signUpForm = useForm({
     resolver: zodResolver(signUpSchema),
@@ -129,16 +128,6 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
 
   const handleSpotifyConnect = () => {
     loginWithSpotify()
-  }
-
-  const handleDemoLogin = () => {
-    loginAsTestUser()
-    onClose()
-  }
-
-  const handleAdminLogin = () => {
-    loginAsAdmin()
-    onClose()
   }
 
   const resetForms = () => {
@@ -526,36 +515,6 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                   </svg>
                   Continue with Spotify
                 </Button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">Demo</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="gap-2"
-                    onClick={handleDemoLogin}
-                  >
-                    <User className="w-4 h-4" />
-                    Test Creator
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2"
-                    onClick={handleAdminLogin}
-                  >
-                    <Shield className="w-4 h-4" />
-                    Test Admin
-                  </Button>
-                </div>
               </form>
             </motion.div>
           )}
