@@ -1,59 +1,71 @@
 const axios = require('axios');
 
-// Bandsintown API - free, no auth required for basic usage
-const BANDSINTOWN_APP_ID = process.env.BANDSINTOWN_APP_ID || 'tampamixtape';
+// Ticketmaster Discovery API - free tier (5000 calls/day)
+// Sign up at: https://developer.ticketmaster.com/
+const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY;
 
 /**
- * Fetch upcoming events for an artist from Bandsintown
+ * Fetch upcoming events for an artist from Ticketmaster
  * @param {string} artistName - The artist name to search for
  * @returns {Promise<Array>} - Array of event objects
  */
 async function getArtistEvents(artistName) {
   if (!artistName) return [];
 
-  try {
-    // URL encode the artist name
-    const encodedName = encodeURIComponent(artistName);
+  // If no API key configured, return empty (graceful degradation)
+  if (!TICKETMASTER_API_KEY) {
+    console.log('Ticketmaster API key not configured - skipping events fetch');
+    return [];
+  }
 
+  try {
+    // Search for events by artist/attraction name
     const response = await axios.get(
-      `https://rest.bandsintown.com/artists/${encodedName}/events`,
+      'https://app.ticketmaster.com/discovery/v2/events.json',
       {
         params: {
-          app_id: BANDSINTOWN_APP_ID,
+          apikey: TICKETMASTER_API_KEY,
+          keyword: artistName,
+          classificationName: 'music', // Filter to music events
+          size: 20, // Max events to return
+          sort: 'date,asc', // Sort by date ascending
         },
         timeout: 10000,
       }
     );
 
-    // Bandsintown returns an array of events or an error object
-    if (!Array.isArray(response.data)) {
+    // Ticketmaster returns _embedded.events array
+    const events = response.data?._embedded?.events;
+    if (!Array.isArray(events)) {
       return [];
     }
 
     // Transform to our format
-    return response.data.map(event => ({
+    return events.map(event => ({
       id: event.id,
-      title: event.title || `${artistName} Live`,
-      date: event.datetime ? event.datetime.split('T')[0] : null,
-      time: event.datetime ? formatTime(event.datetime) : null,
-      venue: event.venue?.name || 'TBA',
-      city: event.venue?.city || '',
-      region: event.venue?.region || '',
-      country: event.venue?.country || '',
-      location: formatLocation(event.venue),
-      ticketUrl: event.url || event.offers?.[0]?.url || null,
-      ticketStatus: event.offers?.[0]?.status || 'available',
-      description: event.description || null,
-      lineup: event.lineup || [artistName],
-      source: 'bandsintown',
+      title: event.name || `${artistName} Live`,
+      date: event.dates?.start?.localDate || null,
+      time: formatTime(event.dates?.start?.localTime),
+      venue: event._embedded?.venues?.[0]?.name || 'TBA',
+      city: event._embedded?.venues?.[0]?.city?.name || '',
+      state: event._embedded?.venues?.[0]?.state?.stateCode || '',
+      country: event._embedded?.venues?.[0]?.country?.countryCode || '',
+      location: formatLocation(event._embedded?.venues?.[0]),
+      ticketUrl: event.url || null,
+      ticketStatus: event.dates?.status?.code || 'onsale',
+      priceRange: formatPriceRange(event.priceRanges),
+      image: getBestImage(event.images),
+      lineup: getAttractions(event._embedded?.attractions, artistName),
+      source: 'ticketmaster',
     }));
   } catch (error) {
-    // Bandsintown returns 404 for artists not found
-    if (error.response?.status === 404) {
-      console.log(`No Bandsintown profile found for: ${artistName}`);
-      return [];
+    if (error.response?.status === 401) {
+      console.error('Ticketmaster API key invalid or expired');
+    } else if (error.response?.status === 429) {
+      console.error('Ticketmaster API rate limit exceeded');
+    } else {
+      console.error('Ticketmaster API error:', error.message);
     }
-    console.error('Bandsintown API error:', error.message);
     return [];
   }
 }
@@ -63,65 +75,104 @@ async function getArtistEvents(artistName) {
  */
 function formatLocation(venue) {
   if (!venue) return 'Location TBA';
-  const parts = [venue.city, venue.region, venue.country].filter(Boolean);
+  const parts = [
+    venue.city?.name,
+    venue.state?.stateCode || venue.state?.name,
+    venue.country?.countryCode
+  ].filter(Boolean);
   return parts.join(', ') || 'Location TBA';
 }
 
 /**
- * Format datetime to time string
+ * Format time string from 24h to 12h format
  */
-function formatTime(datetime) {
+function formatTime(time) {
+  if (!time) return null;
   try {
-    const date = new Date(datetime);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
   } catch {
     return null;
   }
 }
 
 /**
- * Get artist info from Bandsintown (includes upcoming event count)
+ * Format price range string
  */
-async function getArtistInfo(artistName) {
-  if (!artistName) return null;
+function formatPriceRange(priceRanges) {
+  if (!priceRanges || priceRanges.length === 0) return null;
+  const range = priceRanges[0];
+  if (range.min === range.max) {
+    return `$${range.min}`;
+  }
+  return `$${range.min} - $${range.max}`;
+}
+
+/**
+ * Get best quality image from Ticketmaster images array
+ */
+function getBestImage(images) {
+  if (!images || images.length === 0) return null;
+  // Prefer larger images
+  const sorted = [...images].sort((a, b) => (b.width || 0) - (a.width || 0));
+  return sorted[0]?.url || null;
+}
+
+/**
+ * Get attraction names (lineup)
+ */
+function getAttractions(attractions, defaultArtist) {
+  if (!attractions || attractions.length === 0) {
+    return [defaultArtist];
+  }
+  return attractions.map(a => a.name);
+}
+
+/**
+ * Search for an artist/attraction on Ticketmaster
+ */
+async function searchArtist(artistName) {
+  if (!artistName || !TICKETMASTER_API_KEY) return null;
 
   try {
-    const encodedName = encodeURIComponent(artistName);
-
     const response = await axios.get(
-      `https://rest.bandsintown.com/artists/${encodedName}`,
+      'https://app.ticketmaster.com/discovery/v2/attractions.json',
       {
         params: {
-          app_id: BANDSINTOWN_APP_ID,
+          apikey: TICKETMASTER_API_KEY,
+          keyword: artistName,
+          classificationName: 'music',
+          size: 5,
         },
         timeout: 10000,
       }
     );
 
-    if (response.data?.error || response.data?.message) {
+    const attractions = response.data?._embedded?.attractions;
+    if (!attractions || attractions.length === 0) {
       return null;
     }
 
+    // Return the first (most relevant) match
+    const artist = attractions[0];
     return {
-      name: response.data.name,
-      imageUrl: response.data.image_url,
-      thumbUrl: response.data.thumb_url,
-      facebookUrl: response.data.facebook_page_url,
-      upcomingEventCount: response.data.upcoming_event_count || 0,
-      trackerCount: response.data.tracker_count || 0,
-      bandsintownUrl: response.data.url,
+      id: artist.id,
+      name: artist.name,
+      image: getBestImage(artist.images),
+      upcomingEvents: artist.upcomingEvents?._total || 0,
+      url: artist.url,
+      externalLinks: artist.externalLinks,
     };
   } catch (error) {
-    console.error('Bandsintown artist info error:', error.message);
+    console.error('Ticketmaster search error:', error.message);
     return null;
   }
 }
 
 module.exports = {
   getArtistEvents,
-  getArtistInfo,
+  searchArtist,
 };

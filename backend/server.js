@@ -44,6 +44,7 @@ app.get('/api/health', (req, res) => {
       youtube: !!process.env.YOUTUBE_API_KEY,
       lastfm: !!process.env.LASTFM_API_KEY,
       genius: !!process.env.GENIUS_ACCESS_TOKEN,
+      ticketmaster: !!process.env.TICKETMASTER_API_KEY,
       database: !!process.env.DATABASE_URL,
     },
   });
@@ -71,5 +72,6 @@ app.listen(PORT, () => {
   console.log(`🎵 TampaCharts API running on port ${PORT}`);
   console.log(`   Database: ${process.env.DATABASE_URL ? '✓' : '✗'}`);
   console.log(`   Spotify API: ${process.env.SPOTIFY_CLIENT_ID ? '✓' : '✗'}`);
+  console.log(`   Ticketmaster API: ${process.env.TICKETMASTER_API_KEY ? '✓' : '✗'}`);
   console.log(`   Admin configured: ${process.env.ADMIN_EMAIL ? '✓' : '✗'}`);
 });
