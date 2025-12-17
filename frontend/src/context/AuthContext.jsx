@@ -3,52 +3,6 @@ import { createContext, useContext, useState, useEffect } from 'react'
 const AuthContext = createContext(null)
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
-const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || 'your_spotify_client_id'
-// Dynamically determine redirect URI based on current origin
-const getRedirectUri = () => {
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/callback`
-  }
-  return import.meta.env.VITE_REDIRECT_URI || 'http://localhost:5173/callback'
-}
-const SPOTIFY_SCOPES = [
-  'user-read-private',
-  'user-read-email',
-  'playlist-read-private',
-  'playlist-read-collaborative',
-  'user-top-read',
-  'user-read-recently-played',
-].join(' ')
-
-// PKCE helper functions for Spotify OAuth
-const generateRandomString = (length) => {
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
-  const values = crypto.getRandomValues(new Uint8Array(length))
-  return Array.from(values).map(x => possible[x % possible.length]).join('')
-}
-
-const sha256 = async (plain) => {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(plain)
-  return window.crypto.subtle.digest('SHA-256', data)
-}
-
-const base64urlEncode = (buffer) => {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
-}
-
-const generateCodeChallenge = async (codeVerifier) => {
-  const hashed = await sha256(codeVerifier)
-  return base64urlEncode(hashed)
-}
 
 // Approval status types (matches backend/Prisma values)
 export const APPROVAL_STATUS = {
@@ -202,10 +156,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [spotifyToken, setSpotifyToken] = useState(null)
-  const [spotifyUser, setSpotifyUser] = useState(null)
-  const [playlists, setPlaylists] = useState([])
-  const [featuredPlaylist, setFeaturedPlaylist] = useState(null)
   const [creators, setCreators] = useState([])
 
   // Fetch current user from API using token
@@ -236,16 +186,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const initAuth = async () => {
       const savedToken = localStorage.getItem('tampamixtape_token')
-      const savedSpotifyToken = localStorage.getItem('spotify_access_token')
       const savedCreators = localStorage.getItem('tampamixtape_creators')
 
       if (savedToken) {
         setToken(savedToken)
         await fetchCurrentUser(savedToken)
-      }
-      if (savedSpotifyToken) {
-        setSpotifyToken(savedSpotifyToken)
-        fetchSpotifyUser(savedSpotifyToken)
       }
       if (savedCreators) {
         setCreators(JSON.parse(savedCreators))
@@ -259,145 +204,6 @@ export function AuthProvider({ children }) {
     }
     initAuth()
   }, [])
-
-  // Handle Spotify callback (PKCE flow - authorization code exchange)
-  useEffect(() => {
-    const handleSpotifyCallback = async () => {
-      // Check for authorization code in query params (PKCE flow)
-      const urlParams = new URLSearchParams(window.location.search)
-      const code = urlParams.get('code')
-      const error = urlParams.get('error')
-
-      if (error) {
-        console.error('Spotify auth error:', error)
-        sessionStorage.removeItem('spotify_code_verifier')
-        window.history.replaceState(null, '', window.location.pathname)
-        return
-      }
-
-      if (code) {
-        const codeVerifier = sessionStorage.getItem('spotify_code_verifier')
-        if (!codeVerifier) {
-          console.error('No code verifier found - auth flow may have been interrupted')
-          window.history.replaceState(null, '', window.location.pathname)
-          return
-        }
-
-        try {
-          // Exchange authorization code for tokens
-          const response = await fetch('https://accounts.spotify.com/api/token', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-              client_id: SPOTIFY_CLIENT_ID,
-              grant_type: 'authorization_code',
-              code,
-              redirect_uri: getRedirectUri(),
-              code_verifier: codeVerifier,
-            }),
-          })
-
-          const data = await response.json()
-
-          if (data.access_token) {
-            setSpotifyToken(data.access_token)
-            localStorage.setItem('spotify_access_token', data.access_token)
-            if (data.refresh_token) {
-              localStorage.setItem('spotify_refresh_token', data.refresh_token)
-            }
-            fetchSpotifyUser(data.access_token)
-          } else {
-            console.error('Token exchange failed:', data)
-          }
-        } catch (err) {
-          console.error('Token exchange error:', err)
-        } finally {
-          sessionStorage.removeItem('spotify_code_verifier')
-          // Clean up URL
-          window.history.replaceState(null, '', window.location.pathname)
-        }
-      }
-
-      // Legacy: check for hash params (implicit grant flow - for backwards compatibility)
-      const hash = window.location.hash
-      if (hash && !code) {
-        const hashParams = new URLSearchParams(hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        if (accessToken) {
-          setSpotifyToken(accessToken)
-          localStorage.setItem('spotify_access_token', accessToken)
-          fetchSpotifyUser(accessToken)
-          window.history.replaceState(null, '', window.location.pathname)
-        }
-      }
-    }
-
-    handleSpotifyCallback()
-  }, [])
-
-  // Load featured playlist when user and playlists are available
-  useEffect(() => {
-    if (user?.featuredPlaylistId && playlists.length > 0) {
-      const playlist = playlists.find(p => p.id === user.featuredPlaylistId)
-      if (playlist) {
-        setFeaturedPlaylist(playlist)
-      }
-    }
-  }, [user?.featuredPlaylistId, playlists])
-
-  const fetchSpotifyUser = async (token) => {
-    try {
-      const response = await fetch('https://api.spotify.com/v1/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setSpotifyUser(data)
-        fetchPlaylists(token)
-      }
-    } catch (error) {
-      console.error('Error fetching Spotify user:', error)
-    }
-  }
-
-  const fetchPlaylists = async (token) => {
-    try {
-      const response = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setPlaylists(data.items || [])
-      }
-    } catch (error) {
-      console.error('Error fetching playlists:', error)
-    }
-  }
-
-  const loginWithSpotify = async () => {
-    const redirectUri = getRedirectUri()
-    const codeVerifier = generateRandomString(64)
-    const codeChallenge = await generateCodeChallenge(codeVerifier)
-
-    // Store code_verifier for token exchange after callback
-    sessionStorage.setItem('spotify_code_verifier', codeVerifier)
-
-    console.log('Spotify OAuth redirect URI:', redirectUri)
-
-    const params = new URLSearchParams({
-      client_id: SPOTIFY_CLIENT_ID,
-      response_type: 'code',
-      redirect_uri: redirectUri,
-      scope: SPOTIFY_SCOPES,
-      code_challenge_method: 'S256',
-      code_challenge: codeChallenge,
-      show_dialog: 'true',
-    })
-
-    window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`
-  }
 
   const generateProfileSlug = (artistName) => {
     return artistName
@@ -419,17 +225,14 @@ export function AuthProvider({ children }) {
     })
   }
 
-  // Search Spotify for artists
-  const searchSpotifyArtists = async (query, token = spotifyToken) => {
-    if (!token || !query) return []
+  // Search Spotify for artists via backend
+  const searchSpotifyArtists = async (query) => {
+    if (!query) return []
     try {
-      const response = await fetch(
-        `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=artist&limit=10`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
+      const response = await fetch(`${API_URL}/api/spotify/search?q=${encodeURIComponent(query)}`)
       if (response.ok) {
         const data = await response.json()
-        return data.artists?.items || []
+        return data.artists || []
       }
     } catch (error) {
       console.error('Error searching Spotify artists:', error)
@@ -532,14 +335,8 @@ export function AuthProvider({ children }) {
   const signOut = () => {
     setUser(null)
     setToken(null)
-    setSpotifyToken(null)
-    setSpotifyUser(null)
-    setPlaylists([])
-    setFeaturedPlaylist(null)
     localStorage.removeItem('tampamixtape_token')
     localStorage.removeItem('tampamixtape_user')
-    localStorage.removeItem('spotify_access_token')
-    localStorage.removeItem('spotify_refresh_token')
   }
 
   const updateUser = (updates) => {
@@ -587,13 +384,6 @@ export function AuthProvider({ children }) {
     return updateUser({ events: updatedEvents })
   }
 
-  const setFeaturedPlaylistById = (playlistId) => {
-    const playlist = playlists.find(p => p.id === playlistId)
-    if (playlist) {
-      setFeaturedPlaylist(playlist)
-      updateUser({ featuredPlaylistId: playlistId })
-    }
-  }
 
   // For demo purposes - approve user (in production this would be admin action)
   const approveUser = () => {
@@ -705,10 +495,6 @@ export function AuthProvider({ children }) {
     isPending: user?.status === APPROVAL_STATUS.PENDING || user?.approvalStatus === APPROVAL_STATUS.PENDING,
     isAdmin: user?.role === USER_ROLES.ADMIN,
     isCreator: user?.role === USER_ROLES.CREATOR || user?.role === USER_ROLES.ARTIST,
-    spotifyToken,
-    spotifyUser,
-    playlists,
-    featuredPlaylist,
     creators,
     signUp,
     signIn,
@@ -717,8 +503,6 @@ export function AuthProvider({ children }) {
     updateProfile,
     updateSocialLinks,
     updateSettings,
-    loginWithSpotify,
-    setFeaturedPlaylistById,
     approveUser, // For demo
     addEvent,
     updateEvent,

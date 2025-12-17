@@ -5,6 +5,7 @@ require('dotenv').config();
 const artistsRouter = require('./routes/artists');
 const authRouter = require('./routes/auth');
 const adminRouter = require('./routes/admin');
+const spotifyRouter = require('./routes/spotify');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -51,6 +52,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/artists', artistsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/spotify', spotifyRouter);
 
 // Legacy route for backwards compatibility
 app.get('/api/hello', (req, res) => {

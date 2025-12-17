@@ -65,6 +65,9 @@ import {
   Bell,
   Palette,
   Database,
+  Plug,
+  Unplug,
+  ExternalLink,
 } from 'lucide-react'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
@@ -112,6 +115,90 @@ export function AdminDashboard() {
     maxUploadSize: '10',
     defaultUserRole: 'USER',
   })
+
+  // Spotify linking state for edit user dialog
+  const [spotifyUrlInput, setSpotifyUrlInput] = useState('')
+  const [spotifyLoading, setSpotifyLoading] = useState(false)
+  const [spotifyPreview, setSpotifyPreview] = useState(null)
+
+  // Fetch Spotify artist preview
+  const handleSpotifyPreview = async () => {
+    if (!spotifyUrlInput.trim()) {
+      toast.error('Please enter a Spotify artist URL')
+      return
+    }
+
+    setSpotifyLoading(true)
+    setSpotifyPreview(null)
+
+    try {
+      const response = await fetch(`${API_URL}/api/spotify/artist?url=${encodeURIComponent(spotifyUrlInput)}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch artist')
+      }
+
+      setSpotifyPreview(data)
+    } catch (error) {
+      toast.error('Could not find artist', {
+        description: error.message || 'Please check the URL and try again',
+      })
+    } finally {
+      setSpotifyLoading(false)
+    }
+  }
+
+  // Link Spotify to user (admin action)
+  const handleAdminSpotifyLink = async () => {
+    if (!spotifyPreview || !selectedUser) return
+
+    setSpotifyLoading(true)
+    try {
+      // For now, just update the local state. In production, you'd call an admin API endpoint
+      const updatedUser = {
+        ...selectedUser,
+        spotifyId: spotifyPreview.id,
+        spotifyUrl: spotifyPreview.url,
+      }
+      setSelectedUser(updatedUser)
+      setUsers(users.map(u => u.id === selectedUser.id ? updatedUser : u))
+      setSpotifyPreview(null)
+      setSpotifyUrlInput('')
+
+      toast.success('Spotify linked!', {
+        description: `Connected ${selectedUser.artistName || selectedUser.name} to ${spotifyPreview.name}`,
+      })
+    } catch (error) {
+      toast.error('Failed to link Spotify', {
+        description: error.message,
+      })
+    } finally {
+      setSpotifyLoading(false)
+    }
+  }
+
+  // Clear Spotify from user (admin action)
+  const handleAdminSpotifyUnlink = () => {
+    if (!selectedUser) return
+    const updatedUser = {
+      ...selectedUser,
+      spotifyId: null,
+      spotifyUrl: null,
+    }
+    setSelectedUser(updatedUser)
+    setUsers(users.map(u => u.id === selectedUser.id ? updatedUser : u))
+    toast.success('Spotify unlinked')
+  }
+
+  // Reset Spotify state when dialog closes
+  const handleEditDialogChange = (open) => {
+    setShowEditUser(open)
+    if (!open) {
+      setSpotifyUrlInput('')
+      setSpotifyPreview(null)
+    }
+  }
 
   // Fetch stats
   const fetchStats = async () => {
@@ -1029,20 +1116,20 @@ export function AdminDashboard() {
         </Tabs>
 
         {/* Edit User Dialog */}
-        <Dialog open={showEditUser} onOpenChange={setShowEditUser}>
-          <DialogContent className="sm:max-w-md">
+        <Dialog open={showEditUser} onOpenChange={handleEditDialogChange}>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserCog className="w-5 h-5 text-primary" />
                 Edit User
               </DialogTitle>
               <DialogDescription>
-                Update user role and status
+                Update user role, status, and Spotify profile
               </DialogDescription>
             </DialogHeader>
 
             {selectedUser && (
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
                 <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
                   <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
                     <Music className="w-5 h-5 text-primary" />
@@ -1099,11 +1186,107 @@ export function AdminDashboard() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Spotify Profile Section */}
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <Label className="flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" fill="#1DB954" className="w-4 h-4">
+                      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                    </svg>
+                    Spotify Artist Profile
+                  </Label>
+
+                  {selectedUser.spotifyId ? (
+                    <div className="p-3 rounded-lg border border-green-500/30 bg-green-500/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-400" />
+                          <span className="text-sm">Linked: {selectedUser.spotifyId}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {selectedUser.spotifyUrl && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(selectedUser.spotifyUrl, '_blank')}
+                              className="h-8 w-8 p-0"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleAdminSpotifyUnlink}
+                            className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+                          >
+                            <Unplug className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <Input
+                          value={spotifyUrlInput}
+                          onChange={(e) => setSpotifyUrlInput(e.target.value)}
+                          placeholder="https://open.spotify.com/artist/..."
+                          className="flex-1"
+                        />
+                        <Button
+                          onClick={handleSpotifyPreview}
+                          disabled={spotifyLoading || !spotifyUrlInput.trim()}
+                          size="sm"
+                        >
+                          {spotifyLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Search className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+
+                      {spotifyPreview && (
+                        <div className="p-3 rounded-lg border border-border bg-secondary/30">
+                          <div className="flex items-center gap-3">
+                            {spotifyPreview.image ? (
+                              <img
+                                src={spotifyPreview.image}
+                                alt={spotifyPreview.name}
+                                className="w-12 h-12 rounded object-cover"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded bg-secondary flex items-center justify-center">
+                                <Music className="w-6 h-6 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{spotifyPreview.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {spotifyPreview.followers?.toLocaleString()} followers
+                              </p>
+                            </div>
+                            <Button
+                              onClick={handleAdminSpotifyLink}
+                              disabled={spotifyLoading}
+                              size="sm"
+                              className="gap-1 bg-[#1DB954] hover:bg-[#1ed760]"
+                            >
+                              <Plug className="w-3 h-3" />
+                              Link
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowEditUser(false)}>
+              <Button variant="outline" onClick={() => handleEditDialogChange(false)}>
                 Cancel
               </Button>
               <Button

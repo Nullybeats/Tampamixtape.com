@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,7 +38,11 @@ import {
   Ticket,
   Plus,
   X,
+  Loader2,
+  Search,
 } from 'lucide-react'
+
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
 // Social platform configurations
 const socialPlatforms = [
@@ -72,16 +77,15 @@ export function UserSettings() {
   const navigate = useNavigate()
   const {
     user,
+    token,
     updateProfile,
     updateSocialLinks,
     updateSettings,
+    updateUser,
     playlists,
     featuredPlaylist,
     setFeaturedPlaylistById,
     signOut,
-    loginWithSpotify,
-    spotifyUser,
-    spotifyToken,
     addEvent,
     deleteEvent,
   } = useAuth()
@@ -106,6 +110,109 @@ export function UserSettings() {
     ticketUrl: '',
     price: '',
   })
+
+  // Spotify URL linking state
+  const [spotifyUrlInput, setSpotifyUrlInput] = useState('')
+  const [spotifyLoading, setSpotifyLoading] = useState(false)
+  const [spotifyData, setSpotifyData] = useState(null)
+  const [spotifyPreview, setSpotifyPreview] = useState(null)
+
+  // Fetch Spotify artist preview
+  const handleSpotifyPreview = async () => {
+    if (!spotifyUrlInput.trim()) {
+      toast.error('Please enter a Spotify artist URL')
+      return
+    }
+
+    setSpotifyLoading(true)
+    setSpotifyPreview(null)
+
+    try {
+      const response = await fetch(`${API_URL}/api/spotify/artist?url=${encodeURIComponent(spotifyUrlInput)}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch artist')
+      }
+
+      setSpotifyPreview(data)
+    } catch (error) {
+      toast.error('Could not find artist', {
+        description: error.message || 'Please check the URL and try again',
+      })
+    } finally {
+      setSpotifyLoading(false)
+    }
+  }
+
+  // Link Spotify artist to profile
+  const handleSpotifyLink = async () => {
+    if (!spotifyPreview) return
+
+    setSpotifyLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/api/spotify/link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ spotifyUrl: spotifyUrlInput }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to link Spotify')
+      }
+
+      // Update local user state
+      updateUser(data.user)
+      setSpotifyData(data.spotifyData)
+      setSpotifyPreview(null)
+      setSpotifyUrlInput('')
+
+      toast.success('Spotify linked!', {
+        description: `Connected as ${data.spotifyData.name}`,
+      })
+    } catch (error) {
+      toast.error('Failed to link Spotify', {
+        description: error.message,
+      })
+    } finally {
+      setSpotifyLoading(false)
+    }
+  }
+
+  // Unlink Spotify from profile
+  const handleSpotifyUnlink = async () => {
+    setSpotifyLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/api/spotify/link`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to unlink Spotify')
+      }
+
+      updateUser(data.user)
+      setSpotifyData(null)
+
+      toast.success('Spotify unlinked')
+    } catch (error) {
+      toast.error('Failed to unlink Spotify', {
+        description: error.message,
+      })
+    } finally {
+      setSpotifyLoading(false)
+    }
+  }
 
   const handleProfileSave = () => {
     updateProfile({
@@ -501,96 +608,198 @@ export function UserSettings() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Plug className="w-5 h-5 text-primary" />
-                  Connected Platforms
+                  Spotify Artist Profile
                 </CardTitle>
                 <CardDescription>
-                  Connect your streaming platforms to sync your music and playlists.
+                  Link your Spotify artist profile to display your music, stats, and top tracks.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Spotify Connection */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-[#1DB954]/20 flex items-center justify-center">
-                      <svg viewBox="0 0 24 24" fill="#1DB954" className="w-7 h-7">
-                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Spotify</h4>
-                      {spotifyUser ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle2 className="w-3 h-3 text-green-400" />
-                          Connected as {spotifyUser.display_name || spotifyUser.email}
+                {/* Currently linked Spotify */}
+                {user?.spotifyId ? (
+                  <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-[#1DB954]/20 flex items-center justify-center">
+                          <svg viewBox="0 0 24 24" fill="#1DB954" className="w-7 h-7">
+                            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                          </svg>
                         </div>
-                      ) : (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold">Spotify Connected</h4>
+                            <Badge variant="outline" className="gap-1 text-green-400 border-green-400/30">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Linked
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Artist ID: {user.spotifyId}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {user.spotifyUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(user.spotifyUrl, '_blank')}
+                            className="gap-1"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            View
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleSpotifyUnlink}
+                          disabled={spotifyLoading}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          {spotifyLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Unplug className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Spotify URL Input */}
+                    <div className="space-y-3">
+                      <Label htmlFor="spotifyUrl">Spotify Artist URL</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="spotifyUrl"
+                          value={spotifyUrlInput}
+                          onChange={(e) => setSpotifyUrlInput(e.target.value)}
+                          placeholder="https://open.spotify.com/artist/..."
+                          className="flex-1"
+                        />
+                        <Button
+                          onClick={handleSpotifyPreview}
+                          disabled={spotifyLoading || !spotifyUrlInput.trim()}
+                          className="gap-2"
+                        >
+                          {spotifyLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Search className="w-4 h-4" />
+                          )}
+                          Find
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Paste your Spotify artist profile URL to link your music
+                      </p>
+                    </div>
+
+                    {/* Spotify Preview */}
+                    {spotifyPreview && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 rounded-lg border border-border bg-secondary/30"
+                      >
+                        <div className="flex items-center gap-4">
+                          {spotifyPreview.image ? (
+                            <img
+                              src={spotifyPreview.image}
+                              alt={spotifyPreview.name}
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-secondary flex items-center justify-center">
+                              <Music className="w-8 h-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold truncate">{spotifyPreview.name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {spotifyPreview.followers?.toLocaleString()} followers
+                            </p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {spotifyPreview.genres?.slice(0, 3).map((genre) => (
+                                <Badge key={genre} variant="secondary" className="text-xs">
+                                  {genre}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <Button
+                            onClick={handleSpotifyLink}
+                            disabled={spotifyLoading}
+                            className="gap-2 bg-[#1DB954] hover:bg-[#1ed760]"
+                          >
+                            {spotifyLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Plug className="w-4 h-4" />
+                            )}
+                            Link Profile
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </>
+                )}
+
+                {/* Other Platforms - Coming Soon */}
+                <div className="pt-4 border-t border-border space-y-4">
+                  <h4 className="text-sm font-medium text-muted-foreground">More platforms coming soon</h4>
+
+                  {/* Apple Music - Coming Soon */}
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border opacity-60">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#FA233B] to-[#FB5C74] flex items-center justify-center">
+                        <Music className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">Apple Music</h4>
                         <p className="text-sm text-muted-foreground">
-                          Connect to sync playlists and display your music
+                          Link your Apple Music artist profile
                         </p>
-                      )}
+                      </div>
                     </div>
+                    <Badge variant="secondary">Coming Soon</Badge>
                   </div>
-                  {spotifyUser ? (
-                    <Badge variant="outline" className="gap-1 text-green-400 border-green-400/30">
-                      <CheckCircle2 className="w-3 h-3" />
-                      Connected
-                    </Badge>
-                  ) : (
-                    <Button onClick={loginWithSpotify} className="gap-2 bg-[#1DB954] hover:bg-[#1ed760]">
-                      <Plug className="w-4 h-4" />
-                      Connect
-                    </Button>
-                  )}
-                </div>
 
-                {/* Apple Music - Coming Soon */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border opacity-60">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#FA233B] to-[#FB5C74] flex items-center justify-center">
-                      <Music className="w-6 h-6 text-white" />
+                  {/* SoundCloud - Coming Soon */}
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border opacity-60">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-[#FF5500]/20 flex items-center justify-center">
+                        <svg viewBox="0 0 24 24" fill="#FF5500" className="w-6 h-6">
+                          <path d="M1.175 12.225c-.051 0-.094.046-.101.1l-.233 2.154.233 2.105c.007.058.05.098.101.098.05 0 .09-.04.099-.098l.255-2.105-.27-2.154c-.009-.06-.052-.1-.084-.1zm-.899 1.185c-.041 0-.075.036-.084.087l-.175 1.072.18 1.081c.007.048.043.084.084.084.043 0 .075-.036.084-.085l.204-1.08-.204-1.072c-.01-.05-.041-.087-.089-.087zm1.775-.727c-.059 0-.104.052-.109.1l-.21 1.78.21 1.767c.005.058.05.104.109.104.059 0 .104-.046.11-.104l.237-1.767-.237-1.78c-.006-.06-.051-.1-.11-.1z"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">SoundCloud</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Link your SoundCloud profile
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold">Apple Music</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Sync your Apple Music catalog
-                      </p>
-                    </div>
+                    <Badge variant="secondary">Coming Soon</Badge>
                   </div>
-                  <Badge variant="secondary">Coming Soon</Badge>
-                </div>
 
-                {/* SoundCloud - Coming Soon */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border opacity-60">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-[#FF5500]/20 flex items-center justify-center">
-                      <svg viewBox="0 0 24 24" fill="#FF5500" className="w-6 h-6">
-                        <path d="M1.175 12.225c-.051 0-.094.046-.101.1l-.233 2.154.233 2.105c.007.058.05.098.101.098.05 0 .09-.04.099-.098l.255-2.105-.27-2.154c-.009-.06-.052-.1-.084-.1zm-.899 1.185c-.041 0-.075.036-.084.087l-.175 1.072.18 1.081c.007.048.043.084.084.084.043 0 .075-.036.084-.085l.204-1.08-.204-1.072c-.01-.05-.041-.087-.089-.087zm1.775-.727c-.059 0-.104.052-.109.1l-.21 1.78.21 1.767c.005.058.05.104.109.104.059 0 .104-.046.11-.104l.237-1.767-.237-1.78c-.006-.06-.051-.1-.11-.1zm.867-.195c-.068 0-.117.059-.124.115l-.189 1.89.189 1.867c.007.06.056.115.124.115.065 0 .114-.055.123-.115l.213-1.867-.213-1.89c-.009-.065-.058-.115-.123-.115zm.875-.235c-.076 0-.131.062-.137.127l-.166 2.013.166 1.965c.006.065.061.127.137.127.074 0 .129-.062.136-.127l.189-1.965-.189-2.013c-.007-.065-.062-.127-.136-.127z"/>
-                      </svg>
+                  {/* YouTube Music - Coming Soon */}
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border opacity-60">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-[#FF0000]/20 flex items-center justify-center">
+                        <Youtube className="w-6 h-6 text-[#FF0000]" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">YouTube</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Link your YouTube channel
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold">SoundCloud</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Import your SoundCloud tracks
-                      </p>
-                    </div>
+                    <Badge variant="secondary">Coming Soon</Badge>
                   </div>
-                  <Badge variant="secondary">Coming Soon</Badge>
-                </div>
-
-                {/* YouTube Music - Coming Soon */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border opacity-60">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-[#FF0000]/20 flex items-center justify-center">
-                      <Youtube className="w-6 h-6 text-[#FF0000]" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">YouTube Music</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Connect your YouTube channel
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="secondary">Coming Soon</Badge>
                 </div>
               </CardContent>
             </Card>

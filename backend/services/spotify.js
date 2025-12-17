@@ -3,6 +3,39 @@ const axios = require('axios');
 let accessToken = null;
 let tokenExpiry = null;
 
+/**
+ * Extract Spotify artist ID from various URL formats
+ * Supports:
+ * - https://open.spotify.com/artist/ABC123
+ * - https://open.spotify.com/artist/ABC123?si=xxx
+ * - spotify:artist:ABC123
+ * - ABC123 (raw ID)
+ */
+function extractArtistId(input) {
+  if (!input) return null;
+
+  const trimmed = input.trim();
+
+  // Raw ID (22 character alphanumeric)
+  if (/^[a-zA-Z0-9]{22}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Spotify URI format: spotify:artist:ABC123
+  const uriMatch = trimmed.match(/spotify:artist:([a-zA-Z0-9]+)/);
+  if (uriMatch) {
+    return uriMatch[1];
+  }
+
+  // URL format: https://open.spotify.com/artist/ABC123
+  const urlMatch = trimmed.match(/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/);
+  if (urlMatch) {
+    return urlMatch[1];
+  }
+
+  return null;
+}
+
 async function getAccessToken() {
   // Return cached token if still valid
   if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
@@ -188,6 +221,7 @@ async function getFullArtistData(artistId) {
 }
 
 module.exports = {
+  extractArtistId,
   searchArtist,
   getArtist,
   getArtistTopTracks,
