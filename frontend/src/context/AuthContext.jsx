@@ -14,17 +14,20 @@ const SPOTIFY_SCOPES = [
   'user-read-recently-played',
 ].join(' ')
 
-// Approval status types
+// Approval status types (matches backend/Prisma values)
 export const APPROVAL_STATUS = {
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
 }
 
-// User roles
+// User roles (matches backend/Prisma values)
 export const USER_ROLES = {
-  CREATOR: 'creator',
-  ADMIN: 'admin',
+  USER: 'USER',
+  ARTIST: 'ARTIST',
+  ADMIN: 'ADMIN',
+  // Legacy alias
+  CREATOR: 'ARTIST',
 }
 
 // Sample creators for demo
@@ -577,13 +580,15 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    token,
     isLoading,
     isAuthenticated: !!user,
     isVerified: user?.isVerified || false,
-    isApproved: user?.approvalStatus === APPROVAL_STATUS.APPROVED,
-    isPending: user?.approvalStatus === APPROVAL_STATUS.PENDING,
+    // Check both 'status' (from API) and 'approvalStatus' (legacy/local) for compatibility
+    isApproved: user?.status === APPROVAL_STATUS.APPROVED || user?.approvalStatus === APPROVAL_STATUS.APPROVED,
+    isPending: user?.status === APPROVAL_STATUS.PENDING || user?.approvalStatus === APPROVAL_STATUS.PENDING,
     isAdmin: user?.role === USER_ROLES.ADMIN,
-    isCreator: user?.role === USER_ROLES.CREATOR,
+    isCreator: user?.role === USER_ROLES.CREATOR || user?.role === USER_ROLES.ARTIST,
     spotifyToken,
     spotifyUser,
     playlists,
