@@ -12,6 +12,19 @@ import {
   Music
 } from 'lucide-react'
 
+function formatNumber(num) {
+  if (num >= 1000000000) {
+    return (num / 1000000000).toFixed(1) + 'B'
+  }
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M'
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K'
+  }
+  return num.toLocaleString()
+}
+
 function AnimatedNumber({ value, suffix = '' }) {
   const [count, setCount] = useState(0)
 
@@ -36,7 +49,7 @@ function AnimatedNumber({ value, suffix = '' }) {
 
   return (
     <span>
-      {count.toLocaleString()}{suffix}
+      {formatNumber(count)}{suffix}
     </span>
   )
 }
