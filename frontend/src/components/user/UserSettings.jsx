@@ -368,8 +368,15 @@ export function UserSettings() {
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <div className="text-sm text-muted-foreground">
-                    Profile URL: <code className="text-primary">/u/{user?.profileSlug}</code>
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    Profile URL:
+                    <button
+                      onClick={() => navigate(`/u/${user?.profileSlug}`)}
+                      className="text-primary hover:underline font-mono"
+                    >
+                      /u/{user?.profileSlug}
+                    </button>
+                    <ExternalLink className="w-3 h-3 text-muted-foreground" />
                   </div>
                   <Button onClick={handleProfileSave} className="gap-2">
                     {saved.profile ? (
