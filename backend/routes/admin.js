@@ -233,12 +233,17 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
     }
 
     // Generate profile slug from artist name
-    const baseSlug = spotifyData.name
+    let baseSlug = spotifyData.name
       .toLowerCase()
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
-      .trim();
+      .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+
+    // Fallback if slug is empty (artist name had no alphanumeric chars)
+    if (!baseSlug) {
+      baseSlug = `artist-${artistId.substring(0, 8)}`;
+    }
 
     // Ensure unique slug
     let profileSlug = baseSlug;
@@ -290,7 +295,11 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Create artist from Spotify error:', error);
-    res.status(500).json({ error: 'Failed to create artist profile' });
+    // Return more detailed error for debugging
+    const errorMessage = error.code === 'P2002'
+      ? 'Artist with this email or profile already exists'
+      : error.message || 'Failed to create artist profile';
+    res.status(500).json({ error: errorMessage, code: error.code });
   }
 });
 
