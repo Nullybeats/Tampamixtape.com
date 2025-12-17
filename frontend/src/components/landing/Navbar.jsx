@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/AuthContext'
@@ -14,14 +15,41 @@ import {
   LogOut,
   LayoutDashboard,
   CheckCircle2,
-  Calendar,
+  Bell,
+  Clock,
+  XCircle,
 } from 'lucide-react'
 
 export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
   const [isOpen, setIsOpen] = useState(false)
-  const { user, isAuthenticated, isVerified, isAdmin, signOut } = useAuth()
+  const [notificationOpen, setNotificationOpen] = useState(false)
+  const { user, isAuthenticated, isVerified, isAdmin, isApproved, isPending, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Get status info for notification badge
+  const getStatusInfo = () => {
+    if (isAdmin) {
+      return { icon: CheckCircle2, label: 'Admin', color: 'text-primary', bgColor: 'bg-primary/20' }
+    }
+    if (isApproved) {
+      return { icon: CheckCircle2, label: 'Approved', color: 'text-green-400', bgColor: 'bg-green-500/20' }
+    }
+    if (isPending) {
+      return { icon: Clock, label: 'Pending Review', color: 'text-yellow-400', bgColor: 'bg-yellow-500/20' }
+    }
+    return { icon: XCircle, label: 'Rejected', color: 'text-red-400', bgColor: 'bg-red-500/20' }
+  }
+
+  const statusInfo = getStatusInfo()
+
+  const handleSignOut = () => {
+    signOut()
+    toast.success('Signed out', {
+      description: 'You have been successfully signed out.',
+    })
+    navigate('/')
+  }
 
   const navLinks = [
     { name: 'Features', href: '#features' },
@@ -147,6 +175,57 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
                     Dashboard
                   </Button>
                 )}
+
+                {/* Notification Bell */}
+                <div className="relative">
+                  <button
+                    onClick={() => setNotificationOpen(!notificationOpen)}
+                    className="relative p-2 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    <Bell className="w-5 h-5" />
+                    <span className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full ${
+                      isApproved || isAdmin ? 'bg-green-500' : isPending ? 'bg-yellow-500' : 'bg-red-500'
+                    }`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {notificationOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-2 w-72 bg-card border border-border rounded-lg shadow-xl z-50"
+                      >
+                        <div className="p-4 border-b border-border">
+                          <h3 className="text-sm font-semibold">Account Status</h3>
+                        </div>
+                        <div className="p-4">
+                          <div className={`flex items-center gap-3 p-3 rounded-lg ${statusInfo.bgColor}`}>
+                            <statusInfo.icon className={`w-5 h-5 ${statusInfo.color}`} />
+                            <div>
+                              <p className={`text-sm font-medium ${statusInfo.color}`}>
+                                {statusInfo.label}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {isAdmin && 'Full admin access enabled'}
+                                {isApproved && !isAdmin && 'Your account is active and verified'}
+                                {isPending && 'Your application is being reviewed'}
+                                {!isApproved && !isPending && !isAdmin && 'Please contact support'}
+                              </p>
+                            </div>
+                          </div>
+                          {isPending && (
+                            <p className="text-xs text-muted-foreground mt-3">
+                              We typically review applications within 24-48 hours.
+                            </p>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary">
                   <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
                     <User className="w-4 h-4 text-primary" />
@@ -159,7 +238,7 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={signOut}
+                  onClick={handleSignOut}
                   className="text-red-400 hover:text-red-300"
                 >
                   <LogOut className="w-4 h-4" />
@@ -271,7 +350,7 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
                   <Button
                     variant="ghost"
                     className="w-full gap-2 text-red-400"
-                    onClick={() => { signOut(); setIsOpen(false); }}
+                    onClick={() => { handleSignOut(); setIsOpen(false); }}
                   >
                     <LogOut className="w-4 h-4" />
                     Sign Out

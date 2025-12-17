@@ -4,7 +4,13 @@ const AuthContext = createContext(null)
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || 'your_spotify_client_id'
-const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || 'http://localhost:5173/callback'
+// Dynamically determine redirect URI based on current origin
+const getRedirectUri = () => {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/callback`
+  }
+  return import.meta.env.VITE_REDIRECT_URI || 'http://localhost:5173/callback'
+}
 const SPOTIFY_SCOPES = [
   'user-read-private',
   'user-read-email',
@@ -280,7 +286,9 @@ export function AuthProvider({ children }) {
   }
 
   const loginWithSpotify = () => {
-    const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SPOTIFY_SCOPES)}&show_dialog=true`
+    const redirectUri = getRedirectUri()
+    console.log('Spotify OAuth redirect URI:', redirectUri) // Debug log
+    const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(SPOTIFY_SCOPES)}&show_dialog=true`
     window.location.href = authUrl
   }
 

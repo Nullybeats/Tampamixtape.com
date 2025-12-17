@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -105,9 +106,15 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
         state: 'Florida',
         region: selectedCityData?.region || 'Tampa Bay',
       })
+      toast.success('Application submitted!', {
+        description: 'Your application is pending review. We\'ll notify you once approved.',
+      })
       onClose()
     } catch (err) {
       setError(err.message || 'Failed to create account')
+      toast.error('Sign up failed', {
+        description: err.message || 'Please try again.',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -118,9 +125,15 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
     setError('')
     try {
       await signIn(data.email, data.password)
+      toast.success('Welcome back!', {
+        description: 'You have successfully signed in.',
+      })
       onClose()
     } catch (err) {
       setError(err.message || 'Invalid credentials')
+      toast.error('Sign in failed', {
+        description: err.message || 'Please check your credentials.',
+      })
     } finally {
       setIsLoading(false)
     }

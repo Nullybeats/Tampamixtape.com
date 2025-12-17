@@ -5,16 +5,14 @@ import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/AuthContext'
 import {
   Clock,
-  CheckCircle2,
   Mail,
   Music,
   MapPin,
   Sparkles,
-  ArrowRight,
 } from 'lucide-react'
 
 export function PendingApproval() {
-  const { user, signOut, approveUser } = useAuth()
+  const { user, signOut } = useAuth()
 
   return (
     <div className="min-h-screen bg-background pt-20 px-4">
@@ -140,24 +138,6 @@ export function PendingApproval() {
           transition={{ delay: 0.3 }}
           className="flex flex-col gap-3"
         >
-          {/* Demo: Self-approve button (remove in production) */}
-          <Card className="border-dashed border-2 border-primary/30 bg-primary/5">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-primary">Demo Mode</p>
-                  <p className="text-xs text-muted-foreground">
-                    Click to simulate approval (for testing)
-                  </p>
-                </div>
-                <Button onClick={approveUser} size="sm" className="gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Approve Now
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1 gap-2" asChild>
               <a href={`mailto:support@tampamixtape.com?subject=Application Status - ${user?.artistName}`}>

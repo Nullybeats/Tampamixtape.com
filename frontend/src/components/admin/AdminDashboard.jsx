@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -197,11 +198,12 @@ export function AdminDashboard() {
     setIsRefreshing(true)
     await Promise.all([fetchStats(), fetchUsers(pagination.page)])
     setIsRefreshing(false)
-    setSuccess('Data refreshed')
+    toast.success('Data refreshed')
   }
 
   // Approve user
   const handleApprove = async (userId) => {
+    const targetUser = users.find(u => u.id === userId)
     try {
       const response = await fetch(`${API_URL}/api/admin/users/${userId}/approve`, {
         method: 'POST',
@@ -210,18 +212,23 @@ export function AdminDashboard() {
       if (response.ok) {
         setUsers(users.map(u => u.id === userId ? { ...u, status: 'APPROVED' } : u))
         setStats(s => ({ ...s, pendingUsers: s.pendingUsers - 1, approvedUsers: s.approvedUsers + 1 }))
-        setSuccess('User approved successfully')
+        toast.success('User approved', {
+          description: `${targetUser?.artistName || 'User'} has been approved.`,
+        })
       } else {
         const data = await response.json()
-        setError(data.error || 'Failed to approve user')
+        toast.error('Failed to approve user', {
+          description: data.error || 'Please try again.',
+        })
       }
     } catch (err) {
-      setError('Failed to approve user')
+      toast.error('Failed to approve user')
     }
   }
 
   // Reject user
   const handleReject = async (userId) => {
+    const targetUser = users.find(u => u.id === userId)
     try {
       const response = await fetch(`${API_URL}/api/admin/users/${userId}/reject`, {
         method: 'POST',
@@ -230,13 +237,17 @@ export function AdminDashboard() {
       if (response.ok) {
         setUsers(users.map(u => u.id === userId ? { ...u, status: 'REJECTED' } : u))
         setStats(s => ({ ...s, pendingUsers: s.pendingUsers - 1 }))
-        setSuccess('User rejected')
+        toast.success('User rejected', {
+          description: `${targetUser?.artistName || 'User'} has been rejected.`,
+        })
       } else {
         const data = await response.json()
-        setError(data.error || 'Failed to reject user')
+        toast.error('Failed to reject user', {
+          description: data.error || 'Please try again.',
+        })
       }
     } catch (err) {
-      setError('Failed to reject user')
+      toast.error('Failed to reject user')
     }
   }
 
@@ -253,14 +264,18 @@ export function AdminDashboard() {
       })
       if (response.ok) {
         setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u))
-        setSuccess('Role updated successfully')
+        toast.success('Role updated', {
+          description: `User role has been changed to ${newRole}.`,
+        })
         setShowEditUser(false)
       } else {
         const data = await response.json()
-        setError(data.error || 'Failed to update role')
+        toast.error('Failed to update role', {
+          description: data.error || 'Please try again.',
+        })
       }
     } catch (err) {
-      setError('Failed to update role')
+      toast.error('Failed to update role')
     }
   }
 
@@ -273,17 +288,22 @@ export function AdminDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (response.ok) {
+        const deletedName = selectedUser.artistName || selectedUser.name
         setUsers(users.filter(u => u.id !== selectedUser.id))
         setStats(s => ({ ...s, totalUsers: s.totalUsers - 1 }))
-        setSuccess('User deleted successfully')
+        toast.success('User deleted', {
+          description: `${deletedName} has been removed.`,
+        })
         setShowDeleteConfirm(false)
         setSelectedUser(null)
       } else {
         const data = await response.json()
-        setError(data.error || 'Failed to delete user')
+        toast.error('Failed to delete user', {
+          description: data.error || 'Please try again.',
+        })
       }
     } catch (err) {
-      setError('Failed to delete user')
+      toast.error('Failed to delete user')
     }
   }
 
@@ -995,7 +1015,9 @@ export function AdminDashboard() {
               <Button
                 onClick={() => {
                   localStorage.setItem('tampamixtape_admin_settings', JSON.stringify(settings))
-                  setSuccess('Settings saved successfully')
+                  toast.success('Settings saved', {
+                    description: 'Your settings have been saved locally.',
+                  })
                 }}
                 className="gap-2"
               >
