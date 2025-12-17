@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react'
 
 const AuthContext = createContext(null)
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || 'your_spotify_client_id'
 const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || 'http://localhost:5173/callback'
 const SPOTIFY_SCOPES = [
@@ -160,6 +161,7 @@ const getSampleCreators = () => [
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
+  const [token, setToken] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [spotifyToken, setSpotifyToken] = useState(null)
   const [spotifyUser, setSpotifyUser] = useState(null)
@@ -167,28 +169,56 @@ export function AuthProvider({ children }) {
   const [featuredPlaylist, setFeaturedPlaylist] = useState(null)
   const [creators, setCreators] = useState([])
 
+  // Fetch current user from API using token
+  const fetchCurrentUser = async (authToken) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+        localStorage.setItem('tampamixtape_user', JSON.stringify(data.user))
+        return data.user
+      } else {
+        // Token invalid, clear it
+        localStorage.removeItem('tampamixtape_token')
+        localStorage.removeItem('tampamixtape_user')
+        setToken(null)
+        setUser(null)
+      }
+    } catch (error) {
+      console.error('Error fetching current user:', error)
+    }
+    return null
+  }
+
   // Load user and creators from localStorage on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('tampamixtape_user')
-    const savedSpotifyToken = localStorage.getItem('spotify_access_token')
-    const savedCreators = localStorage.getItem('tampamixtape_creators')
+    const initAuth = async () => {
+      const savedToken = localStorage.getItem('tampamixtape_token')
+      const savedSpotifyToken = localStorage.getItem('spotify_access_token')
+      const savedCreators = localStorage.getItem('tampamixtape_creators')
 
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+      if (savedToken) {
+        setToken(savedToken)
+        await fetchCurrentUser(savedToken)
+      }
+      if (savedSpotifyToken) {
+        setSpotifyToken(savedSpotifyToken)
+        fetchSpotifyUser(savedSpotifyToken)
+      }
+      if (savedCreators) {
+        setCreators(JSON.parse(savedCreators))
+      } else {
+        // Initialize with sample creators for demo
+        const sampleCreators = getSampleCreators()
+        setCreators(sampleCreators)
+        localStorage.setItem('tampamixtape_creators', JSON.stringify(sampleCreators))
+      }
+      setIsLoading(false)
     }
-    if (savedSpotifyToken) {
-      setSpotifyToken(savedSpotifyToken)
-      fetchSpotifyUser(savedSpotifyToken)
-    }
-    if (savedCreators) {
-      setCreators(JSON.parse(savedCreators))
-    } else {
-      // Initialize with sample creators for demo
-      const sampleCreators = getSampleCreators()
-      setCreators(sampleCreators)
-      localStorage.setItem('tampamixtape_creators', JSON.stringify(sampleCreators))
-    }
-    setIsLoading(false)
+    initAuth()
   }, [])
 
   // Handle Spotify callback
@@ -296,88 +326,99 @@ export function AuthProvider({ children }) {
   }
 
   const signUp = async (userData) => {
-    // Check for duplicate artist
-    if (isArtistRegistered(userData.artistName, userData.spotifyArtistId)) {
-      throw new Error('This artist is already registered on TampaMixtape')
+    try {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userData.email,
+          password: userData.password,
+          name: userData.name,
+          artistName: userData.artistName,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed')
+      }
+
+      // Store token and user
+      setToken(data.token)
+      setUser(data.user)
+      localStorage.setItem('tampamixtape_token', data.token)
+      localStorage.setItem('tampamixtape_user', JSON.stringify(data.user))
+
+      return data.user
+    } catch (error) {
+      console.error('Sign up error:', error)
+      throw error
     }
-
-    // Create user with pending approval status
-    const profileSlug = generateProfileSlug(userData.artistName)
-
-    const newUser = {
-      id: crypto.randomUUID(),
-      ...userData,
-      profileSlug,
-      role: USER_ROLES.CREATOR,
-      approvalStatus: APPROVAL_STATUS.PENDING,
-      isVerified: userData.city === 'Tampa',
-      createdAt: new Date().toISOString(),
-      // Profile info
-      bio: '',
-      profileImage: spotifyUser?.images?.[0]?.url || null,
-      headerImage: null,
-      region: 'Tampa Bay',
-      genres: [],
-      // Social links
-      socialLinks: {
-        instagram: '',
-        twitter: '',
-        tiktok: '',
-        youtube: '',
-        soundcloud: '',
-        appleMusic: '',
-        website: '',
-      },
-      // Connected platforms
-      connectedPlatforms: {
-        spotify: !!spotifyUser,
-        apple: false,
-        soundcloud: false,
-        youtube: false,
-      },
-      // Spotify data
-      spotifyId: spotifyUser?.id || null,
-      spotifyArtistId: userData.spotifyArtistId || null,
-      spotifyProfile: spotifyUser || null,
-      // Settings
-      settings: {
-        profileVisible: true,
-        showStats: true,
-        allowMessages: true,
-        emailNotifications: true,
-      },
-      // Events
-      events: [],
-    }
-
-    // Add to creators list
-    const updatedCreators = [...creators, newUser]
-    saveCreators(updatedCreators)
-
-    setUser(newUser)
-    localStorage.setItem('tampamixtape_user', JSON.stringify(newUser))
-    return newUser
   }
 
   const signIn = async (email, password) => {
-    // Simulate API call - in production this would authenticate against your backend
-    const savedUser = localStorage.getItem('tampamixtape_user')
-    if (savedUser) {
-      const user = JSON.parse(savedUser)
-      if (user.email === email) {
-        setUser(user)
-        return user
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed')
       }
+
+      // Store token and user
+      setToken(data.token)
+      setUser(data.user)
+      localStorage.setItem('tampamixtape_token', data.token)
+      localStorage.setItem('tampamixtape_user', JSON.stringify(data.user))
+
+      return data.user
+    } catch (error) {
+      console.error('Sign in error:', error)
+      throw error
     }
-    throw new Error('Invalid credentials')
+  }
+
+  const adminSignIn = async (email, password) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/admin-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Admin login failed')
+      }
+
+      // Store token and user
+      setToken(data.token)
+      setUser(data.user)
+      localStorage.setItem('tampamixtape_token', data.token)
+      localStorage.setItem('tampamixtape_user', JSON.stringify(data.user))
+
+      return data.user
+    } catch (error) {
+      console.error('Admin sign in error:', error)
+      throw error
+    }
   }
 
   const signOut = () => {
     setUser(null)
+    setToken(null)
     setSpotifyToken(null)
     setSpotifyUser(null)
     setPlaylists([])
     setFeaturedPlaylist(null)
+    localStorage.removeItem('tampamixtape_token')
     localStorage.removeItem('tampamixtape_user')
     localStorage.removeItem('spotify_access_token')
   }
@@ -438,115 +479,6 @@ export function AuthProvider({ children }) {
   // For demo purposes - approve user (in production this would be admin action)
   const approveUser = () => {
     return updateUser({ approvalStatus: APPROVAL_STATUS.APPROVED })
-  }
-
-  // Test user login for development/demo purposes
-  const loginAsTestUser = () => {
-    const testUser = {
-      id: 'test-user-001',
-      artistName: 'Demo Artist',
-      email: 'demo@tampamixtape.com',
-      profileSlug: 'demo-artist',
-      approvalStatus: APPROVAL_STATUS.APPROVED,
-      isVerified: true,
-      city: 'Tampa',
-      state: 'Florida',
-      region: 'Tampa Bay',
-      createdAt: new Date().toISOString(),
-      bio: 'Tampa Bay artist bringing the heat with fresh beats and authentic Florida vibes.',
-      profileImage: 'https://picsum.photos/seed/demoartist/400/400',
-      headerImage: 'https://picsum.photos/seed/demoheader/1200/400',
-      genres: ['Hip-Hop', 'R&B', 'Florida Rap'],
-      socialLinks: {
-        instagram: 'https://instagram.com/demoartist',
-        twitter: 'https://x.com/demoartist',
-        tiktok: 'https://tiktok.com/@demoartist',
-        youtube: 'https://youtube.com/@demoartist',
-        soundcloud: '',
-        appleMusic: '',
-        website: 'https://demoartist.com',
-      },
-      connectedPlatforms: {
-        spotify: false,
-        apple: false,
-        soundcloud: false,
-        youtube: false,
-      },
-      spotifyId: null,
-      spotifyProfile: null,
-      settings: {
-        profileVisible: true,
-        showStats: true,
-        allowMessages: true,
-        emailNotifications: true,
-      },
-      events: [
-        {
-          id: 'demo-event-1',
-          title: 'Live at The Ritz Ybor',
-          venue: 'The Ritz Ybor',
-          address: '1503 E 7th Ave, Tampa, FL',
-          date: '2025-12-28',
-          time: '21:00',
-          description: 'End of year showcase featuring Tampa Bay\'s hottest artists.',
-          ticketUrl: 'https://example.com/tickets',
-          price: '$25',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 'demo-event-2',
-          title: 'New Year\'s Eve Bash',
-          venue: 'Crowbar Tampa',
-          address: '1812 N 17th St, Tampa, FL',
-          date: '2025-12-31',
-          time: '22:00',
-          description: 'Ring in 2026 with live performances and DJ sets all night.',
-          ticketUrl: 'https://example.com/tickets',
-          price: '$40',
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    }
-
-    setUser(testUser)
-    localStorage.setItem('tampamixtape_user', JSON.stringify(testUser))
-    return testUser
-  }
-
-  // Admin test user login
-  const loginAsAdmin = () => {
-    const adminUser = {
-      id: 'admin-001',
-      artistName: 'Admin',
-      email: 'admin@tampamixtape.com',
-      profileSlug: 'admin',
-      role: USER_ROLES.ADMIN,
-      approvalStatus: APPROVAL_STATUS.APPROVED,
-      isVerified: true,
-      city: 'Tampa',
-      state: 'Florida',
-      region: 'Tampa Bay',
-      createdAt: new Date().toISOString(),
-      bio: 'TampaMixtape Administrator',
-      profileImage: null,
-      headerImage: null,
-      genres: [],
-      socialLinks: {},
-      connectedPlatforms: {},
-      spotifyId: null,
-      spotifyProfile: null,
-      settings: {
-        profileVisible: false,
-        showStats: false,
-        allowMessages: true,
-        emailNotifications: true,
-      },
-      events: [],
-    }
-
-    setUser(adminUser)
-    localStorage.setItem('tampamixtape_user', JSON.stringify(adminUser))
-    return adminUser
   }
 
   // Admin: Add a new creator
@@ -667,8 +599,7 @@ export function AuthProvider({ children }) {
     loginWithSpotify,
     setFeaturedPlaylistById,
     approveUser, // For demo
-    loginAsTestUser, // For demo/testing
-    loginAsAdmin, // For demo/testing admin
+    adminSignIn, // Real admin login via API
     addEvent,
     updateEvent,
     deleteEvent,

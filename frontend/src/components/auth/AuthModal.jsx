@@ -34,6 +34,7 @@ import {
   ArrowRight,
   ArrowLeft,
   Clock,
+  Shield,
 } from 'lucide-react'
 
 // Florida cities - Tampa is active, others coming soon
@@ -62,12 +63,17 @@ const signInSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 })
 
+const adminSchema = z.object({
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(1, 'Password is required'),
+})
+
 export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
   const [tab, setTab] = useState(defaultTab)
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { signUp, signIn, loginWithSpotify, spotifyUser } = useAuth()
+  const { signUp, signIn, adminSignIn, loginWithSpotify, spotifyUser } = useAuth()
 
   const signUpForm = useForm({
     resolver: zodResolver(signUpSchema),
@@ -81,6 +87,14 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
 
   const signInForm = useForm({
     resolver: zodResolver(signInSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    }
+  })
+
+  const adminForm = useForm({
+    resolver: zodResolver(adminSchema),
     defaultValues: {
       email: '',
       password: '',
@@ -130,9 +144,23 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
     loginWithSpotify()
   }
 
+  const handleAdminSignIn = async (data) => {
+    setIsLoading(true)
+    setError('')
+    try {
+      await adminSignIn(data.email, data.password)
+      onClose()
+    } catch (err) {
+      setError(err.message || 'Invalid admin credentials')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const resetForms = () => {
     signUpForm.reset()
     signInForm.reset()
+    adminForm.reset()
     setStep(1)
     setError('')
   }
@@ -147,12 +175,18 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Music className="w-5 h-5 text-primary" />
-            {tab === 'signup' ? 'Join TampaMixtape' : 'Welcome Back'}
+            {tab === 'admin' ? (
+              <Shield className="w-5 h-5 text-primary" />
+            ) : (
+              <Music className="w-5 h-5 text-primary" />
+            )}
+            {tab === 'signup' ? 'Join TampaMixtape' : tab === 'admin' ? 'Admin Login' : 'Welcome Back'}
           </DialogTitle>
           <DialogDescription>
             {tab === 'signup'
               ? 'Create your artist account to track your stats'
+              : tab === 'admin'
+              ? 'Sign in to the admin dashboard'
               : 'Sign in to access your dashboard'
             }
           </DialogDescription>
@@ -176,6 +210,15 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
           >
             Sign In
           </Button>
+          <Button
+            variant={tab === 'admin' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => switchTab('admin')}
+            className="flex-1"
+          >
+            <Shield className="w-3 h-3 mr-1" />
+            Admin
+          </Button>
         </div>
 
         {error && (
@@ -186,7 +229,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
         )}
 
         <AnimatePresence mode="wait">
-          {tab === 'signup' ? (
+          {tab === 'signup' && (
             <motion.div
               key="signup"
               initial={{ opacity: 0, x: 20 }}
@@ -437,7 +480,9 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                 )}
               </form>
             </motion.div>
-          ) : (
+          )}
+
+          {tab === 'signin' && (
             <motion.div
               key="signin"
               initial={{ opacity: 0, x: -20 }}
@@ -514,6 +559,77 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                     <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
                   </svg>
                   Continue with Spotify
+                </Button>
+              </form>
+            </motion.div>
+          )}
+
+          {tab === 'admin' && (
+            <motion.div
+              key="admin"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+            >
+              <form onSubmit={adminForm.handleSubmit(handleAdminSignIn)} className="space-y-4">
+                <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg mb-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Shield className="w-4 h-4 text-primary" />
+                    <span className="font-medium">Admin Access</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This login is for TampaMixtape administrators only.
+                  </p>
+                </div>
+
+                {/* Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="admin-email">Admin Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="admin-email"
+                      type="email"
+                      placeholder="admin@tampamixtape.com"
+                      className="pl-10"
+                      {...adminForm.register('email')}
+                    />
+                  </div>
+                  {adminForm.formState.errors.email && (
+                    <p className="text-xs text-red-400">{adminForm.formState.errors.email.message}</p>
+                  )}
+                </div>
+
+                {/* Password */}
+                <div className="space-y-2">
+                  <Label htmlFor="admin-password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="admin-password"
+                      type="password"
+                      placeholder="Admin password"
+                      className="pl-10"
+                      {...adminForm.register('password')}
+                    />
+                  </div>
+                  {adminForm.formState.errors.password && (
+                    <p className="text-xs text-red-400">{adminForm.formState.errors.password.message}</p>
+                  )}
+                </div>
+
+                <Button type="submit" className="w-full gap-2" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="w-4 h-4" />
+                      Admin Sign In
+                    </>
+                  )}
                 </Button>
               </form>
             </motion.div>
