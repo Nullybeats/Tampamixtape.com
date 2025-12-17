@@ -20,6 +20,36 @@ const SPOTIFY_SCOPES = [
   'user-read-recently-played',
 ].join(' ')
 
+// PKCE helper functions for Spotify OAuth
+const generateRandomString = (length) => {
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+  const values = crypto.getRandomValues(new Uint8Array(length))
+  return Array.from(values).map(x => possible[x % possible.length]).join('')
+}
+
+const sha256 = async (plain) => {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(plain)
+  return window.crypto.subtle.digest('SHA-256', data)
+}
+
+const base64urlEncode = (buffer) => {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+const generateCodeChallenge = async (codeVerifier) => {
+  const hashed = await sha256(codeVerifier)
+  return base64urlEncode(hashed)
+}
+
 // Approval status types (matches backend/Prisma values)
 export const APPROVAL_STATUS = {
   PENDING: 'PENDING',
@@ -230,20 +260,81 @@ export function AuthProvider({ children }) {
     initAuth()
   }, [])
 
-  // Handle Spotify callback
+  // Handle Spotify callback (PKCE flow - authorization code exchange)
   useEffect(() => {
-    const hash = window.location.hash
-    if (hash) {
-      const params = new URLSearchParams(hash.substring(1))
-      const accessToken = params.get('access_token')
-      if (accessToken) {
-        setSpotifyToken(accessToken)
-        localStorage.setItem('spotify_access_token', accessToken)
-        fetchSpotifyUser(accessToken)
-        // Clean up URL
+    const handleSpotifyCallback = async () => {
+      // Check for authorization code in query params (PKCE flow)
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get('code')
+      const error = urlParams.get('error')
+
+      if (error) {
+        console.error('Spotify auth error:', error)
+        sessionStorage.removeItem('spotify_code_verifier')
         window.history.replaceState(null, '', window.location.pathname)
+        return
+      }
+
+      if (code) {
+        const codeVerifier = sessionStorage.getItem('spotify_code_verifier')
+        if (!codeVerifier) {
+          console.error('No code verifier found - auth flow may have been interrupted')
+          window.history.replaceState(null, '', window.location.pathname)
+          return
+        }
+
+        try {
+          // Exchange authorization code for tokens
+          const response = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              client_id: SPOTIFY_CLIENT_ID,
+              grant_type: 'authorization_code',
+              code,
+              redirect_uri: getRedirectUri(),
+              code_verifier: codeVerifier,
+            }),
+          })
+
+          const data = await response.json()
+
+          if (data.access_token) {
+            setSpotifyToken(data.access_token)
+            localStorage.setItem('spotify_access_token', data.access_token)
+            if (data.refresh_token) {
+              localStorage.setItem('spotify_refresh_token', data.refresh_token)
+            }
+            fetchSpotifyUser(data.access_token)
+          } else {
+            console.error('Token exchange failed:', data)
+          }
+        } catch (err) {
+          console.error('Token exchange error:', err)
+        } finally {
+          sessionStorage.removeItem('spotify_code_verifier')
+          // Clean up URL
+          window.history.replaceState(null, '', window.location.pathname)
+        }
+      }
+
+      // Legacy: check for hash params (implicit grant flow - for backwards compatibility)
+      const hash = window.location.hash
+      if (hash && !code) {
+        const hashParams = new URLSearchParams(hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        if (accessToken) {
+          setSpotifyToken(accessToken)
+          localStorage.setItem('spotify_access_token', accessToken)
+          fetchSpotifyUser(accessToken)
+          window.history.replaceState(null, '', window.location.pathname)
+        }
       }
     }
+
+    handleSpotifyCallback()
   }, [])
 
   // Load featured playlist when user and playlists are available
@@ -285,11 +376,27 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const loginWithSpotify = () => {
+  const loginWithSpotify = async () => {
     const redirectUri = getRedirectUri()
-    console.log('Spotify OAuth redirect URI:', redirectUri) // Debug log
-    const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(SPOTIFY_SCOPES)}&show_dialog=true`
-    window.location.href = authUrl
+    const codeVerifier = generateRandomString(64)
+    const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+    // Store code_verifier for token exchange after callback
+    sessionStorage.setItem('spotify_code_verifier', codeVerifier)
+
+    console.log('Spotify OAuth redirect URI:', redirectUri)
+
+    const params = new URLSearchParams({
+      client_id: SPOTIFY_CLIENT_ID,
+      response_type: 'code',
+      redirect_uri: redirectUri,
+      scope: SPOTIFY_SCOPES,
+      code_challenge_method: 'S256',
+      code_challenge: codeChallenge,
+      show_dialog: 'true',
+    })
+
+    window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`
   }
 
   const generateProfileSlug = (artistName) => {
@@ -432,6 +539,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('tampamixtape_token')
     localStorage.removeItem('tampamixtape_user')
     localStorage.removeItem('spotify_access_token')
+    localStorage.removeItem('spotify_refresh_token')
   }
 
   const updateUser = (updates) => {
