@@ -121,6 +121,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [eventsData, setEventsData] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [singlesVisible, setSinglesVisible] = useState(12)
 
   // Fetch profile data for public profiles
   useEffect(() => {
@@ -128,12 +129,14 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
       setFetchedProfile(null)
       setSpotifyData(null)
       setEventsData([])
+      setSinglesVisible(12)
       return
     }
 
     const fetchProfile = async () => {
       setLoading(true)
       setError(null)
+      setSinglesVisible(12) // Reset lazy loading on new profile
       try {
         const response = await fetch(`${API_URL}/api/profile/${profileSlug}`)
         if (!response.ok) {
@@ -737,16 +740,19 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       <CardTitle className="text-lg flex items-center gap-2">
                         <Disc3 className="w-5 h-5 text-primary" />
                         Singles & EPs
+                        <Badge variant="secondary" className="ml-2">
+                          {spotifyData.discography.singles.length}
+                        </Badge>
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {spotifyData.discography.singles.slice(0, 12).map((single, index) => (
+                        {spotifyData.discography.singles.slice(0, singlesVisible).map((single, index) => (
                           <motion.div
                             key={single.id}
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: index * 0.03 }}
+                            transition={{ delay: Math.min(index, 11) * 0.03 }}
                             className="group cursor-pointer"
                             onClick={() => window.open(single.url, '_blank')}
                           >
@@ -767,6 +773,18 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                           </motion.div>
                         ))}
                       </div>
+                      {spotifyData.discography.singles.length > singlesVisible && (
+                        <div className="flex justify-center pt-4">
+                          <Button
+                            variant="outline"
+                            onClick={() => setSinglesVisible(prev => prev + 12)}
+                            className="gap-2"
+                          >
+                            <ListMusic className="w-4 h-4" />
+                            Load More ({spotifyData.discography.singles.length - singlesVisible} remaining)
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}
