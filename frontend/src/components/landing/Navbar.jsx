@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -30,9 +30,43 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
     { name: 'Events', href: '/events', isRoute: true },
   ]
 
+  // Handle anchor link navigation from any page
+  const handleAnchorClick = (e, href) => {
+    e.preventDefault()
+    const hash = href.replace('#', '')
+
+    if (location.pathname === '/') {
+      // Already on landing page, just scroll to element
+      const element = document.getElementById(hash)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' })
+      }
+    } else {
+      // Navigate to landing page with hash
+      navigate('/' + href)
+    }
+    setIsOpen(false)
+  }
+
+  // Handle scroll to anchor after navigation
+  useEffect(() => {
+    if (location.pathname === '/' && location.hash) {
+      const hash = location.hash.replace('#', '')
+      // Small delay to ensure page is rendered
+      setTimeout(() => {
+        const element = document.getElementById(hash)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' })
+        }
+      }, 100)
+    }
+  }, [location])
+
   const handleLogoClick = () => {
     if (onLogoClick) {
       onLogoClick()
+    } else if (location.pathname !== '/') {
+      navigate('/')
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
@@ -76,13 +110,13 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
                   {link.name}
                 </button>
               ) : (
-                <a
+                <button
                   key={link.name}
-                  href={link.href}
+                  onClick={(e) => handleAnchorClick(e, link.href)}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {link.name}
-                </a>
+                </button>
               )
             ))}
           </div>
@@ -186,14 +220,13 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
                   {link.name}
                 </button>
               ) : (
-                <a
+                <button
                   key={link.name}
-                  href={link.href}
-                  className="block py-2 text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setIsOpen(false)}
+                  onClick={(e) => handleAnchorClick(e, link.href)}
+                  className="block py-2 w-full text-left text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {link.name}
-                </a>
+                </button>
               )
             ))}
             <div className="pt-3 space-y-2">

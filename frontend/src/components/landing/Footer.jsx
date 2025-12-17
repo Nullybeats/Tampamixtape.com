@@ -136,7 +136,7 @@ export function Footer() {
                   <BarChart3 className="w-6 h-6 text-primary" />
                 </div>
                 <span className="text-xl font-bold">
-                  Tampa<span className="text-primary">Charts</span>
+                  Tampa<span className="text-primary">Mixtape</span>
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
