@@ -83,6 +83,7 @@ export function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('newest')
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 })
 
   // Stats state
@@ -323,9 +324,11 @@ export function AdminDashboard() {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: pagination.limit.toString(),
+        sortBy,
       })
       if (statusFilter !== 'all') params.append('status', statusFilter)
       if (roleFilter !== 'all') params.append('role', roleFilter)
+      if (searchQuery.trim()) params.append('search', searchQuery.trim())
 
       const response = await fetch(`${API_URL}/api/admin/users?${params}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -352,7 +355,15 @@ export function AdminDashboard() {
   // Refetch when filters change
   useEffect(() => {
     fetchUsers(1)
-  }, [statusFilter, roleFilter])
+  }, [statusFilter, roleFilter, sortBy])
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchUsers(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   // Clear messages after delay
   useEffect(() => {
@@ -369,12 +380,8 @@ export function AdminDashboard() {
     }
   }, [error])
 
-  // Filter users by search (client-side for quick filtering)
-  const filteredUsers = users.filter(u =>
-    u.artistName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // Users are now filtered server-side
+  const filteredUsers = users
 
   // Refresh data
   const handleRefresh = async () => {
@@ -784,6 +791,18 @@ export function AdminDashboard() {
                       <SelectItem value="ADMIN">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="oldest">Oldest First</SelectItem>
+                      <SelectItem value="name">Name (A-Z)</SelectItem>
+                      <SelectItem value="name_desc">Name (Z-A)</SelectItem>
+                      <SelectItem value="email">Email (A-Z)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Users List */}
@@ -835,7 +854,7 @@ export function AdminDashboard() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => navigate(`/u/${u.profileSlug}`)}
+                                onClick={() => navigate(`/${u.profileSlug}`)}
                                 className="gap-1"
                               >
                                 <Eye className="w-4 h-4" />
@@ -1577,7 +1596,7 @@ export function AdminDashboard() {
                     <ul className="text-sm space-y-1">
                       <li className="flex items-center gap-2">
                         <CheckCircle2 className="w-3 h-3 text-green-400" />
-                        Artist profile: <strong>/u/{addArtistPreview.name?.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}</strong>
+                        Artist profile: <strong>/{addArtistPreview.name?.toLowerCase().replace(/[^a-z0-9]/g, '')}</strong>
                       </li>
                       <li className="flex items-center gap-2">
                         <CheckCircle2 className="w-3 h-3 text-green-400" />

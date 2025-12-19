@@ -29,28 +29,58 @@ const requireAdmin = async (req, res, next) => {
   }
 };
 
-// Get all users (paginated)
+// Get all users (paginated with search and sorting)
 router.get('/users', requireAdmin, async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, role } = req.query;
+    const { page = 1, limit = 20, status, role, search, sortBy = 'newest' } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = {};
     if (status) where.status = status;
     if (role) where.role = role;
 
+    // Add search filter (searches artistName, name, and email)
+    if (search) {
+      where.OR = [
+        { artistName: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Build orderBy based on sortBy parameter
+    let orderBy = {};
+    switch (sortBy) {
+      case 'name':
+        orderBy = { artistName: 'asc' };
+        break;
+      case 'name_desc':
+        orderBy = { artistName: 'desc' };
+        break;
+      case 'email':
+        orderBy = { email: 'asc' };
+        break;
+      case 'oldest':
+        orderBy = { createdAt: 'asc' };
+        break;
+      case 'newest':
+      default:
+        orderBy = { createdAt: 'desc' };
+    }
+
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
         skip,
         take: parseInt(limit),
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         select: {
           id: true,
           email: true,
           name: true,
           artistName: true,
           profileSlug: true,
+          avatar: true,
           role: true,
           status: true,
           createdAt: true,
@@ -232,17 +262,14 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Artist not found on Spotify' });
     }
 
-    // Generate profile slug from artist name
+    // Generate profile slug from artist name (no dashes, just lowercase alphanumeric)
     let baseSlug = spotifyData.name
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+      .replace(/[^a-z0-9]/g, ''); // Remove everything except letters and numbers
 
     // Fallback if slug is empty (artist name had no alphanumeric chars)
     if (!baseSlug) {
-      baseSlug = `artist-${artistId.substring(0, 8)}`;
+      baseSlug = `artist${artistId.substring(0, 8)}`;
     }
 
     // Ensure unique slug

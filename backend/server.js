@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const artistsRouter = require('./routes/artists');
+const releasesRouter = require('./routes/releases');
 const authRouter = require('./routes/auth');
 const adminRouter = require('./routes/admin');
 const spotifyRouter = require('./routes/spotify');
@@ -52,6 +53,7 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 app.use('/api/artists', artistsRouter);
+app.use('/api/releases', releasesRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/spotify', spotifyRouter);

@@ -226,7 +226,7 @@ function FeaturedEventCard({ event }) {
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold truncate">{event.title}</h3>
                 <button
-                  onClick={() => navigate(`/u/${event.artistSlug}`)}
+                  onClick={() => navigate(`/${event.artistSlug}`)}
                   className="text-sm text-primary hover:underline truncate block"
                 >
                   {event.artist}
@@ -303,7 +303,7 @@ function EventListItem({ event, index }) {
                     )}
                   </div>
                   <button
-                    onClick={() => navigate(`/u/${event.artistSlug}`)}
+                    onClick={() => navigate(`/${event.artistSlug}`)}
                     className="text-sm text-primary hover:underline"
                   >
                     {event.artist}

@@ -364,10 +364,10 @@ export function UserSettings() {
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     Profile URL:
                     <button
-                      onClick={() => navigate(`/u/${user?.profileSlug}`)}
+                      onClick={() => navigate(`/${user?.profileSlug}`)}
                       className="text-primary hover:underline font-mono"
                     >
-                      /u/{user?.profileSlug}
+                      /{user?.profileSlug}
                     </button>
                     <ExternalLink className="w-3 h-3 text-muted-foreground" />
                   </div>

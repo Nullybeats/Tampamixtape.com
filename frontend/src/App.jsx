@@ -17,6 +17,8 @@ import { PendingApproval } from '@/components/user/PendingApproval'
 import { UserProfilePage } from '@/components/user/UserProfilePage'
 import { UserSettings } from '@/components/user/UserSettings'
 import { EventsPage } from '@/components/events/EventsPage'
+import { ArtistsPage } from '@/components/artists/ArtistsPage'
+import { ReleasesPage } from '@/components/releases/ReleasesPage'
 import { AdminDashboard } from '@/components/admin/AdminDashboard'
 
 function LandingPage({ onAuthClick, onArtistClick }) {
@@ -287,6 +289,58 @@ function EventsPageWrapper({ onAuthClick }) {
   )
 }
 
+function ArtistsPageWrapper({ onAuthClick }) {
+  const navigate = useNavigate()
+  const { isAuthenticated, isApproved } = useAuth()
+
+  const handleLogoClick = () => {
+    navigate('/')
+  }
+
+  const handleDashboardClick = () => {
+    if (isAuthenticated && isApproved) {
+      navigate('/profile')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <Navbar
+        onAuthClick={onAuthClick}
+        onDashboardClick={handleDashboardClick}
+        onLogoClick={handleLogoClick}
+      />
+      <ArtistsPage />
+    </div>
+  )
+}
+
+function ReleasesPageWrapper({ onAuthClick }) {
+  const navigate = useNavigate()
+  const { isAuthenticated, isApproved } = useAuth()
+
+  const handleLogoClick = () => {
+    navigate('/')
+  }
+
+  const handleDashboardClick = () => {
+    if (isAuthenticated && isApproved) {
+      navigate('/profile')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <Navbar
+        onAuthClick={onAuthClick}
+        onDashboardClick={handleDashboardClick}
+        onLogoClick={handleLogoClick}
+      />
+      <ReleasesPage />
+    </div>
+  )
+}
+
 function AdminDashboardWrapper({ onAuthClick }) {
   const navigate = useNavigate()
   const { isAuthenticated, isAdmin, isLoading } = useAuth()
@@ -371,12 +425,16 @@ function AppRoutes() {
           element={<UserSettingsPageWrapper onAuthClick={handleAuthClick} />}
         />
         <Route
-          path="/u/:profileSlug"
-          element={<PublicProfilePageWrapper onAuthClick={handleAuthClick} />}
-        />
-        <Route
           path="/events"
           element={<EventsPageWrapper onAuthClick={handleAuthClick} />}
+        />
+        <Route
+          path="/artists"
+          element={<ArtistsPageWrapper onAuthClick={handleAuthClick} />}
+        />
+        <Route
+          path="/releases"
+          element={<ReleasesPageWrapper onAuthClick={handleAuthClick} />}
         />
 
         {/* Admin Routes */}
@@ -394,8 +452,11 @@ function AppRoutes() {
         {/* Spotify OAuth Callback - redirects to home after token is captured */}
         <Route path="/callback" element={<Navigate to="/" replace />} />
 
-        {/* Catch-all redirect */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Public Profile Route - MUST be last to avoid catching other routes */}
+        <Route
+          path="/:profileSlug"
+          element={<PublicProfilePageWrapper onAuthClick={handleAuthClick} />}
+        />
       </Routes>
 
       <AuthModal

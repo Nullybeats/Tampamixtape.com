@@ -205,7 +205,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const profileImage = profileData.profileImage || profileData.avatar
 
   const handleCopyLink = async () => {
-    const url = `${window.location.origin}/u/${profileData.profileSlug}`
+    const url = `${window.location.origin}/${profileData.profileSlug}`
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)

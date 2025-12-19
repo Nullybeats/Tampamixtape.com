@@ -55,6 +55,8 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
     { name: 'Features', href: '#features' },
     { name: 'Charts', href: '#charts' },
     { name: 'Tampa Hot 100', href: '#hot100' },
+    { name: 'Artists', href: '/artists', isRoute: true },
+    { name: 'Releases', href: '/releases', isRoute: true },
     { name: 'Events', href: '/events', isRoute: true },
   ]
 
