@@ -116,9 +116,11 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
             onClick={handleLogoClick}
             className="flex items-center gap-2"
           >
-            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-primary" />
-            </div>
+            <img
+              src="/favicon.png"
+              alt="TampaMixtape"
+              className="w-10 h-10 rounded-xl"
+            />
             <span className="text-xl font-bold">
               Tampa<span className="text-primary">Mixtape</span>
             </span>
