@@ -336,7 +336,7 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
     let profileSlug = baseSlug;
     let slugCounter = 1;
     while (await prisma.user.findUnique({ where: { profileSlug } })) {
-      profileSlug = `${baseSlug}-${slugCounter}`;
+      profileSlug = `${baseSlug}${slugCounter}`;
       slugCounter++;
     }
 
@@ -387,6 +387,86 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
       ? 'Artist with this email or profile already exists'
       : error.message || 'Failed to create artist profile';
     res.status(500).json({ error: errorMessage, code: error.code });
+  }
+});
+
+// Fix all profile slugs (remove hyphens)
+router.post('/fix-slugs', requireAdmin, async (req, res) => {
+  try {
+    // Get all users with hyphens in their profileSlug
+    const usersWithHyphens = await prisma.user.findMany({
+      where: {
+        profileSlug: {
+          contains: '-',
+        },
+      },
+      select: {
+        id: true,
+        profileSlug: true,
+        artistName: true,
+      },
+    });
+
+    let updated = 0;
+    let skipped = 0;
+    const results = [];
+
+    for (const user of usersWithHyphens) {
+      // Remove all hyphens from the slug
+      const newSlug = user.profileSlug.replace(/-/g, '');
+
+      // Check if new slug already exists (collision)
+      const existingUser = await prisma.user.findUnique({
+        where: { profileSlug: newSlug },
+      });
+
+      if (existingUser && existingUser.id !== user.id) {
+        // Collision - add a number suffix
+        let uniqueSlug = newSlug;
+        let counter = 1;
+        while (await prisma.user.findUnique({ where: { profileSlug: uniqueSlug } })) {
+          uniqueSlug = `${newSlug}${counter}`;
+          counter++;
+        }
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { profileSlug: uniqueSlug },
+        });
+
+        results.push({
+          artistName: user.artistName,
+          oldSlug: user.profileSlug,
+          newSlug: uniqueSlug,
+          note: 'Added suffix to avoid collision',
+        });
+        updated++;
+      } else {
+        // No collision - update directly
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { profileSlug: newSlug },
+        });
+
+        results.push({
+          artistName: user.artistName,
+          oldSlug: user.profileSlug,
+          newSlug: newSlug,
+        });
+        updated++;
+      }
+    }
+
+    res.json({
+      message: 'Profile slugs updated',
+      updated,
+      skipped,
+      total: usersWithHyphens.length,
+      results,
+    });
+  } catch (error) {
+    console.error('Fix slugs error:', error);
+    res.status(500).json({ error: 'Failed to fix slugs' });
   }
 });
 

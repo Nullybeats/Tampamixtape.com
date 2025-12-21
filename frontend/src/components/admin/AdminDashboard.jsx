@@ -114,6 +114,8 @@ export function AdminDashboard() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isFixingSlugs, setIsFixingSlugs] = useState(false)
+  const [isRefreshingArtists, setIsRefreshingArtists] = useState(false)
 
   // Settings state
   const [settings, setSettings] = useState({
@@ -201,6 +203,80 @@ export function AdminDashboard() {
     toast.info('Spotify unlinked', {
       description: 'Click "Save Changes" to apply.',
     })
+  }
+
+  // Fix all profile slugs (remove hyphens)
+  const handleFixSlugs = async () => {
+    setIsFixingSlugs(true)
+    try {
+      const response = await fetch(`${API_URL}/api/admin/fix-slugs`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fix slugs')
+      }
+
+      if (data.updated === 0) {
+        toast.info('No slugs to fix', {
+          description: 'All profile URLs are already clean.',
+        })
+      } else {
+        toast.success(`Fixed ${data.updated} profile URL${data.updated > 1 ? 's' : ''}`, {
+          description: 'Hyphens have been removed from profile slugs.',
+        })
+        // Refresh users list to see updated slugs
+        fetchUsers(pagination.page)
+      }
+    } catch (error) {
+      toast.error('Failed to fix slugs', {
+        description: error.message,
+      })
+    } finally {
+      setIsFixingSlugs(false)
+    }
+  }
+
+  // Refresh all artist data from Spotify (popularity, followers, genres)
+  const handleRefreshArtistData = async () => {
+    setIsRefreshingArtists(true)
+    try {
+      const response = await fetch(`${API_URL}/api/artists/hot100/refresh`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to refresh artist data')
+      }
+
+      if (data.updated === 0) {
+        toast.info('No artists to update', {
+          description: 'No artists with Spotify IDs found.',
+        })
+      } else {
+        toast.success(`Updated ${data.updated} artist${data.updated > 1 ? 's' : ''}`, {
+          description: `Popularity, followers, and genres refreshed from Spotify.${data.failed > 0 ? ` (${data.failed} failed)` : ''}`,
+        })
+        // Refresh users list to see updated data
+        fetchUsers(pagination.page)
+      }
+    } catch (error) {
+      toast.error('Failed to refresh artist data', {
+        description: error.message,
+      })
+    } finally {
+      setIsRefreshingArtists(false)
+    }
   }
 
   // Reset Spotify state when dialog closes
@@ -1265,6 +1341,66 @@ export function AdminDashboard() {
                       value={settings.maxUploadSize}
                       onChange={(e) => setSettings({ ...settings, maxUploadSize: e.target.value })}
                     />
+                  </div>
+
+                  {/* Refresh Artist Data from Spotify */}
+                  <div className="pt-4 border-t border-border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Refresh Artist Data</p>
+                        <p className="text-sm text-muted-foreground">
+                          Update popularity, followers, genres & avatars from Spotify for all artists
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={handleRefreshArtistData}
+                        disabled={isRefreshingArtists}
+                        className="gap-2"
+                      >
+                        {isRefreshingArtists ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Refreshing...
+                          </>
+                        ) : (
+                          <>
+                            <TrendingUp className="w-4 h-4" />
+                            Refresh Data
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Fix Profile Slugs */}
+                  <div className="pt-4 border-t border-border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Fix Profile URLs</p>
+                        <p className="text-sm text-muted-foreground">
+                          Remove hyphens from all profile slugs (e.g., artist-name → artistname)
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={handleFixSlugs}
+                        disabled={isFixingSlugs}
+                        className="gap-2"
+                      >
+                        {isFixingSlugs ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Fixing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4" />
+                            Fix Slugs
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -52,7 +52,7 @@ router.get('/hot100', async (req, res) => {
   }
 });
 
-// Refresh popularity data for all artists (admin use)
+// Refresh all artist data from Spotify (popularity, followers, genres, avatar)
 router.post('/hot100/refresh', async (req, res) => {
   try {
     // Get all artists with Spotify IDs
@@ -63,23 +63,44 @@ router.post('/hot100/refresh', async (req, res) => {
       select: {
         id: true,
         spotifyId: true,
+        artistName: true,
       },
     });
 
     let updated = 0;
     let failed = 0;
+    const results = [];
 
-    // Update each artist's popularity from Spotify
+    // Update each artist's data from Spotify
     for (const artist of artists) {
       try {
         const spotifyData = await spotify.getArtist(artist.spotifyId);
         if (spotifyData) {
+          const updateData = {
+            popularity: spotifyData.popularity || 0,
+            followers: spotifyData.followers?.total || 0,
+          };
+
+          // Update genres if available (convert array to comma-separated string)
+          if (spotifyData.genres && spotifyData.genres.length > 0) {
+            updateData.genres = spotifyData.genres.join(', ');
+          }
+
+          // Update avatar if available and not already set
+          if (spotifyData.images && spotifyData.images.length > 0) {
+            updateData.avatar = spotifyData.images[0].url;
+          }
+
           await prisma.user.update({
             where: { id: artist.id },
-            data: {
-              popularity: spotifyData.popularity || 0,
-              followers: spotifyData.followers?.total || 0,
-            },
+            data: updateData,
+          });
+
+          results.push({
+            artistName: artist.artistName,
+            popularity: updateData.popularity,
+            followers: updateData.followers,
+            genres: updateData.genres || 'none',
           });
           updated++;
         }
@@ -92,14 +113,15 @@ router.post('/hot100/refresh', async (req, res) => {
     }
 
     res.json({
-      message: 'Popularity refresh complete',
+      message: 'Artist data refresh complete',
       updated,
       failed,
       total: artists.length,
+      results,
     });
   } catch (error) {
     console.error('Refresh Hot 100 error:', error);
-    res.status(500).json({ error: 'Failed to refresh Hot 100 data' });
+    res.status(500).json({ error: 'Failed to refresh artist data' });
   }
 });
 

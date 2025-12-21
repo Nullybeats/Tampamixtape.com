@@ -24,7 +24,7 @@ router.post('/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const profileSlug = artistName
-      ? artistName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      ? artistName.toLowerCase().replace(/[^a-z0-9]/g, '')
       : null;
 
     const user = await prisma.user.create({
