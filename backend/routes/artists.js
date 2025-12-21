@@ -1,12 +1,112 @@
 const express = require('express');
 const prisma = require('../services/db');
+const spotify = require('../services/spotify');
 
 const router = express.Router();
+
+// Get Hot 100 - Top artists ranked by popularity
+router.get('/hot100', async (req, res) => {
+  try {
+    const { limit = 100 } = req.query;
+
+    // Get all approved artists with Spotify IDs
+    const artists = await prisma.user.findMany({
+      where: {
+        status: 'APPROVED',
+        role: 'ARTIST',
+        spotifyId: { not: null },
+      },
+      orderBy: [
+        { popularity: 'desc' },
+        { followers: 'desc' },
+      ],
+      take: parseInt(limit),
+      select: {
+        id: true,
+        artistName: true,
+        profileSlug: true,
+        avatar: true,
+        spotifyId: true,
+        spotifyUrl: true,
+        popularity: true,
+        followers: true,
+        genres: true,
+        region: true,
+      },
+    });
+
+    // Add rank to each artist
+    const rankedArtists = artists.map((artist, index) => ({
+      ...artist,
+      rank: index + 1,
+    }));
+
+    res.json({
+      artists: rankedArtists,
+      total: rankedArtists.length,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Get Hot 100 error:', error);
+    res.status(500).json({ error: 'Failed to get Hot 100' });
+  }
+});
+
+// Refresh popularity data for all artists (admin use)
+router.post('/hot100/refresh', async (req, res) => {
+  try {
+    // Get all artists with Spotify IDs
+    const artists = await prisma.user.findMany({
+      where: {
+        spotifyId: { not: null },
+      },
+      select: {
+        id: true,
+        spotifyId: true,
+      },
+    });
+
+    let updated = 0;
+    let failed = 0;
+
+    // Update each artist's popularity from Spotify
+    for (const artist of artists) {
+      try {
+        const spotifyData = await spotify.getArtist(artist.spotifyId);
+        if (spotifyData) {
+          await prisma.user.update({
+            where: { id: artist.id },
+            data: {
+              popularity: spotifyData.popularity || 0,
+              followers: spotifyData.followers?.total || 0,
+            },
+          });
+          updated++;
+        }
+      } catch (err) {
+        console.error(`Failed to update artist ${artist.spotifyId}:`, err.message);
+        failed++;
+      }
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    res.json({
+      message: 'Popularity refresh complete',
+      updated,
+      failed,
+      total: artists.length,
+    });
+  } catch (error) {
+    console.error('Refresh Hot 100 error:', error);
+    res.status(500).json({ error: 'Failed to refresh Hot 100 data' });
+  }
+});
 
 // Get all approved artists (public endpoint)
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 24, search, sortBy = 'name' } = req.query;
+    const { page = 1, limit = 24, search, sortBy = 'name', genre, region } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Build where clause
@@ -23,6 +123,19 @@ router.get('/', async (req, res) => {
       };
     }
 
+    // Add genre filter (searches for genre in comma-separated string)
+    if (genre && genre !== 'all') {
+      where.genres = {
+        contains: genre,
+        mode: 'insensitive',
+      };
+    }
+
+    // Add region filter
+    if (region && region !== 'all') {
+      where.region = region;
+    }
+
     // Build orderBy
     let orderBy = {};
     switch (sortBy) {
@@ -37,6 +150,12 @@ router.get('/', async (req, res) => {
         break;
       case 'oldest':
         orderBy = { createdAt: 'asc' };
+        break;
+      case 'popular':
+        orderBy = [{ popularity: 'desc' }, { followers: 'desc' }];
+        break;
+      case 'followers':
+        orderBy = { followers: 'desc' };
         break;
       default:
         orderBy = { artistName: 'asc' };
@@ -55,6 +174,10 @@ router.get('/', async (req, res) => {
           avatar: true,
           bio: true,
           spotifyId: true,
+          genres: true,
+          region: true,
+          popularity: true,
+          followers: true,
           createdAt: true,
         },
       }),

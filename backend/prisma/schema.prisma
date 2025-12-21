@@ -18,10 +18,16 @@ model User {
   avatar        String?
   role          Role     @default(USER)
   status        Status   @default(PENDING)
+  region        String   @default("Tampa Bay")
+  genres        String?  // Comma-separated genres
+  popularity    Int      @default(0) // Cached Spotify popularity score (0-100)
+  followers     Int      @default(0) // Cached Spotify follower count
   spotifyId     String?
   spotifyUrl    String?
   instagramUrl  String?
   twitterUrl    String?
+  youtubeUrl    String?
+  tiktokUrl     String?
   websiteUrl    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

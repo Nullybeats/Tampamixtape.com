@@ -353,12 +353,86 @@ function EventListItem({ event, index }) {
   )
 }
 
+function ComingSoonView() {
+  const navigate = useNavigate()
+
+  return (
+    <div className="min-h-screen bg-background pt-20 pb-12">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center py-24"
+        >
+          <div className="relative mb-8">
+            <div className="w-32 h-32 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+              <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center">
+                <Calendar className="w-12 h-12 text-primary" />
+              </div>
+            </div>
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+              className="absolute inset-0 w-32 h-32 mx-auto rounded-full border-2 border-dashed border-primary/20"
+            />
+          </div>
+
+          <Badge variant="outline" className="mb-6">
+            <Sparkles className="w-4 h-4 mr-1" />
+            Coming Soon
+          </Badge>
+
+          <h1 className="text-4xl sm:text-5xl font-bold mb-4">
+            Events <span className="text-gradient">Coming Soon</span>
+          </h1>
+
+          <p className="text-xl text-muted-foreground mb-8 max-w-lg mx-auto">
+            We're working on bringing you the best live music events in Tampa Bay.
+            Check back soon for concert listings, ticket links, and more!
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button size="lg" className="gap-2" onClick={() => navigate('/artists')}>
+              <Music className="w-5 h-5" />
+              Explore Artists
+            </Button>
+            <Button variant="outline" size="lg" className="gap-2" onClick={() => navigate('/releases')}>
+              <Zap className="w-5 h-5" />
+              View Releases
+            </Button>
+          </div>
+
+          <Card className="mt-12 bg-card/50 border-dashed">
+            <CardContent className="p-6">
+              <h3 className="font-semibold mb-2 flex items-center justify-center gap-2">
+                <Star className="w-5 h-5 text-yellow-500" />
+                Want to be notified?
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Follow your favorite Tampa Bay artists to stay updated on their upcoming shows.
+              </p>
+              <Button variant="secondary" size="sm" onClick={() => navigate('/artists')}>
+                Browse Artists
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
+
 export function EventsPage() {
   const navigate = useNavigate()
-  const { isAuthenticated, isApproved } = useAuth()
+  const { isAuthenticated, isApproved, isAdmin } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [viewMode, setViewMode] = useState('list')
+
+  // Show "Coming Soon" for non-admins
+  if (!isAdmin) {
+    return <ComingSoonView />
+  }
 
   const featuredEvents = allEvents.filter(e => e.featured)
 

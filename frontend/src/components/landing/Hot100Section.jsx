@@ -1,77 +1,32 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Trophy,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Play,
-  Share2,
   Crown,
   Medal,
   Award,
-  ExternalLink
+  ExternalLink,
+  Music,
+  Users,
+  Loader2,
+  TrendingUp,
 } from 'lucide-react'
 
-const hot100Data = [
-  {
-    rank: 1,
-    previousRank: 1,
-    title: 'Tampa Dreams',
-    artist: 'Tom Petty',
-    spotifyId: '2UZMlIwnkgAEDBsw1Rejkn',
-    cover: 'https://picsum.photos/seed/hot1/100/100',
-    streams: '2.4M',
-    weeksOnChart: 12,
-    peak: 1
-  },
-  {
-    rank: 2,
-    previousRank: 4,
-    title: 'Sunshine State',
-    artist: 'Flo Rida',
-    spotifyId: '0jnsk9HBra6NMjO2oANoPY',
-    cover: 'https://picsum.photos/seed/hot2/100/100',
-    streams: '1.8M',
-    weeksOnChart: 8,
-    peak: 2
-  },
-  {
-    rank: 3,
-    previousRank: 2,
-    title: 'Downtown Vibes',
-    artist: 'Rick Ross',
-    spotifyId: '1sBkRIssrMs1AbVkOJbc7a',
-    cover: 'https://picsum.photos/seed/hot3/100/100',
-    streams: '1.6M',
-    weeksOnChart: 15,
-    peak: 1
-  },
-  {
-    rank: 4,
-    previousRank: 6,
-    title: 'Gulf Coast Anthem',
-    artist: 'Pitbull',
-    spotifyId: '0TnOYISbd1XYRBk9myaseg',
-    cover: 'https://picsum.photos/seed/hot4/100/100',
-    streams: '1.2M',
-    weeksOnChart: 6,
-    peak: 4
-  },
-  {
-    rank: 5,
-    previousRank: 3,
-    title: 'Ybor Nights',
-    artist: 'Trick Daddy',
-    spotifyId: '5gAT3wNqPbHYgxyarLkpbj',
-    cover: 'https://picsum.photos/seed/hot5/100/100',
-    streams: '1.1M',
-    weeksOnChart: 20,
-    peak: 1
-  },
-]
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
+
+function formatNumber(num) {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M'
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K'
+  }
+  return num?.toLocaleString() || '0'
+}
 
 function getRankIcon(rank) {
   switch (rank) {
@@ -86,97 +41,110 @@ function getRankIcon(rank) {
   }
 }
 
-function getMovement(current, previous) {
-  const diff = previous - current
-  if (diff > 0) {
-    return (
-      <span className="flex items-center gap-1 text-green-400 text-sm">
-        <TrendingUp className="w-4 h-4" />
-        +{diff}
-      </span>
-    )
-  } else if (diff < 0) {
-    return (
-      <span className="flex items-center gap-1 text-red-400 text-sm">
-        <TrendingDown className="w-4 h-4" />
-        {diff}
-      </span>
-    )
-  }
-  return (
-    <span className="flex items-center gap-1 text-muted-foreground text-sm">
-      <Minus className="w-4 h-4" />
-    </span>
-  )
-}
+function ArtistRow({ artist, index }) {
+  const navigate = useNavigate()
 
-function ChartRow({ item, index, onArtistClick }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       whileInView={{ opacity: 1, x: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.05 }}
-      className={`group flex items-center gap-4 p-4 rounded-xl transition-all ${
-        item.rank <= 3 ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-secondary/50'
+      onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
+      className={`group flex items-center gap-4 p-4 rounded-xl transition-all cursor-pointer ${
+        artist.rank <= 3 ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-secondary/50'
       }`}
     >
       {/* Rank */}
       <div className="w-12 text-center">
         <div className="flex items-center justify-center gap-1">
-          {getRankIcon(item.rank)}
-          <span className={`text-2xl font-bold ${item.rank <= 3 ? 'text-gradient-gold' : ''}`}>
-            {item.rank}
+          {getRankIcon(artist.rank)}
+          <span className={`text-2xl font-bold ${artist.rank <= 3 ? 'text-gradient-gold' : ''}`}>
+            {artist.rank}
           </span>
         </div>
-        {getMovement(item.rank, item.previousRank)}
       </div>
 
-      {/* Album Art */}
-      <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0">
-        <img
-          src={item.cover}
-          alt={item.title}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Play className="w-6 h-6 text-white fill-white" />
-        </div>
+      {/* Artist Image */}
+      <div className="relative w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-secondary">
+        {artist.avatar ? (
+          <img
+            src={artist.avatar}
+            alt={artist.artistName}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Music className="w-6 h-6 text-muted-foreground" />
+          </div>
+        )}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <h4 className="font-semibold truncate">{item.title}</h4>
-        <button
-          onClick={() => onArtistClick?.(item.spotifyId, item.artist)}
-          className="text-sm text-muted-foreground truncate hover:text-primary hover:underline transition-colors text-left"
-        >
-          {item.artist}
-        </button>
+        <h4 className="font-semibold truncate group-hover:text-primary transition-colors">
+          {artist.artistName}
+        </h4>
+        <div className="flex items-center gap-2 flex-wrap">
+          {artist.genres && (
+            <span className="text-sm text-muted-foreground truncate">
+              {artist.genres.split(',')[0]}
+            </span>
+          )}
+          {artist.region && (
+            <Badge variant="secondary" className="text-xs">
+              {artist.region}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
       <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
         <div className="text-center">
-          <div className="font-semibold text-foreground">{item.streams}</div>
-          <div className="text-xs">streams</div>
+          <div className="font-semibold text-foreground flex items-center gap-1 justify-center">
+            <TrendingUp className="w-3 h-3 text-primary" />
+            {artist.popularity}
+          </div>
+          <div className="text-xs">popularity</div>
         </div>
         <div className="text-center">
-          <div className="font-semibold text-foreground">{item.weeksOnChart}</div>
-          <div className="text-xs">weeks</div>
-        </div>
-        <div className="text-center">
-          <div className="font-semibold text-foreground">#{item.peak}</div>
-          <div className="text-xs">peak</div>
+          <div className="font-semibold text-foreground flex items-center gap-1 justify-center">
+            <Users className="w-3 h-3" />
+            {formatNumber(artist.followers)}
+          </div>
+          <div className="text-xs">followers</div>
         </div>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-          <Share2 className="w-4 h-4" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+        {artist.spotifyUrl && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={(e) => {
+              e.stopPropagation()
+              window.open(artist.spotifyUrl, '_blank')
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="#1DB954" className="w-4 h-4">
+              <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+            </svg>
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (artist.profileSlug) {
+              navigate(`/${artist.profileSlug}`)
+            }
+          }}
+        >
           <ExternalLink className="w-4 h-4" />
         </Button>
       </div>
@@ -184,7 +152,30 @@ function ChartRow({ item, index, onArtistClick }) {
   )
 }
 
-export function Hot100Section({ onArtistClick }) {
+export function Hot100Section() {
+  const navigate = useNavigate()
+  const [artists, setArtists] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    const fetchHot100 = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/artists/hot100?limit=10`)
+        if (!response.ok) throw new Error('Failed to fetch Hot 100')
+        const data = await response.json()
+        setArtists(data.artists || [])
+      } catch (err) {
+        console.error('Hot 100 fetch error:', err)
+        setError(err.message)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchHot100()
+  }, [])
+
   return (
     <section id="hot100" className="py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -197,13 +188,13 @@ export function Hot100Section({ onArtistClick }) {
         >
           <Badge variant="outline" className="mb-4">
             <Trophy className="w-4 h-4 mr-1" />
-            Weekly Charts
+            Artist Rankings
           </Badge>
           <h2 className="text-4xl sm:text-5xl font-bold mb-4">
             Tampa <span className="text-gradient-gold">Hot 100</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            The definitive ranking of Tampa Bay's top 100 songs, updated every Sunday based on streaming data, radio airplay, and social engagement.
+            The definitive ranking of Tampa Bay's top artists, ranked by Spotify popularity and follower count.
           </p>
         </motion.div>
 
@@ -218,37 +209,78 @@ export function Hot100Section({ onArtistClick }) {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-yellow-400" />
-                  This Week's Chart
+                  Top Artists
                 </CardTitle>
-                <Badge variant="secondary">Updated Dec 15, 2025</Badge>
+                <Badge variant="secondary">
+                  {artists.length > 0 ? `${artists.length} Artists` : 'Live Rankings'}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-4 space-y-2">
-              {hot100Data.map((item, index) => (
-                <ChartRow key={item.rank} item={item} index={index} onArtistClick={onArtistClick} />
-              ))}
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : error ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Music className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Unable to load rankings</p>
+                </div>
+              ) : artists.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No artists ranked yet</p>
+                  <p className="text-sm mt-2">Check back soon!</p>
+                </div>
+              ) : (
+                <>
+                  {artists.map((artist, index) => (
+                    <ArtistRow key={artist.id} artist={artist} index={index} />
+                  ))}
 
-              <div className="pt-4 text-center">
-                <Button variant="outline" size="lg" className="gap-2">
-                  View Full Hot 100
-                  <ExternalLink className="w-4 h-4" />
-                </Button>
-              </div>
+                  <div className="pt-4 text-center">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="gap-2"
+                      onClick={() => navigate('/artists')}
+                    >
+                      View All Artists
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Additional Charts */}
+        {/* Quick Stats Cards */}
         <div className="grid md:grid-cols-3 gap-6 mt-12">
           {[
-            { title: 'Biggest Gainers', icon: TrendingUp, color: 'text-green-400' },
-            { title: 'New Entries', icon: Award, color: 'text-primary' },
-            { title: 'All-Time Legends', icon: Crown, color: 'text-yellow-400' },
-          ].map((chart, index) => {
-            const Icon = chart.icon
+            {
+              title: 'Most Popular',
+              description: 'Artists with the highest Spotify popularity scores.',
+              icon: TrendingUp,
+              color: 'text-green-400',
+            },
+            {
+              title: 'Rising Stars',
+              description: 'New artists making waves in Tampa Bay.',
+              icon: Award,
+              color: 'text-primary',
+            },
+            {
+              title: 'Tampa Legends',
+              description: 'The all-time greats from the Tampa Bay area.',
+              icon: Crown,
+              color: 'text-yellow-400',
+            },
+          ].map((card, index) => {
+            const Icon = card.icon
             return (
               <motion.div
-                key={chart.title}
+                key={card.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -257,13 +289,18 @@ export function Hot100Section({ onArtistClick }) {
                 <Card className="hover:glow-green-sm transition-shadow cursor-pointer group">
                   <CardContent className="p-6">
                     <div className="flex items-center gap-3 mb-4">
-                      <Icon className={`w-6 h-6 ${chart.color}`} />
-                      <h3 className="font-semibold">{chart.title}</h3>
+                      <Icon className={`w-6 h-6 ${card.color}`} />
+                      <h3 className="font-semibold">{card.title}</h3>
                     </div>
                     <p className="text-sm text-muted-foreground mb-4">
-                      See who's making moves on this week's chart.
+                      {card.description}
                     </p>
-                    <Button variant="ghost" size="sm" className="group-hover:text-primary transition-colors">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="group-hover:text-primary transition-colors"
+                      onClick={() => navigate('/artists')}
+                    >
                       Explore
                       <ExternalLink className="w-4 h-4 ml-1" />
                     </Button>

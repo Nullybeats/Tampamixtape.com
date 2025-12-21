@@ -4,12 +4,9 @@ import { Toaster } from 'sonner'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { Navbar } from '@/components/landing/Navbar'
 import { Hero } from '@/components/landing/Hero'
-import { ChartsSection } from '@/components/landing/ChartsSection'
 import { DiscoverySection } from '@/components/landing/DiscoverySection'
 import { Hot100Section } from '@/components/landing/Hot100Section'
-import { AnalyticsCards } from '@/components/landing/AnalyticsCards'
 import { Footer } from '@/components/landing/Footer'
-import { EventsSection } from '@/components/landing/EventsSection'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { Dashboard } from '@/components/dashboard/Dashboard'
 import { ArtistPage } from '@/components/artist/ArtistPage'
@@ -21,7 +18,7 @@ import { ArtistsPage } from '@/components/artists/ArtistsPage'
 import { ReleasesPage } from '@/components/releases/ReleasesPage'
 import { AdminDashboard } from '@/components/admin/AdminDashboard'
 
-function LandingPage({ onAuthClick, onArtistClick }) {
+function LandingPage({ onAuthClick }) {
   const navigate = useNavigate()
   const { isAuthenticated, isApproved } = useAuth()
 
@@ -43,11 +40,8 @@ function LandingPage({ onAuthClick, onArtistClick }) {
       />
       <main>
         <Hero />
-        <ChartsSection />
         <DiscoverySection />
-        <Hot100Section onArtistClick={onArtistClick} />
-        <EventsSection />
-        <AnalyticsCards />
+        <Hot100Section />
       </main>
       <Footer />
     </div>
@@ -382,15 +376,10 @@ function AdminDashboardWrapper({ onAuthClick }) {
 function AppRoutes() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalTab, setAuthModalTab] = useState('signup')
-  const navigate = useNavigate()
 
   const handleAuthClick = (tab) => {
     setAuthModalTab(tab)
     setAuthModalOpen(true)
-  }
-
-  const handleArtistClick = (artistId, artistName) => {
-    navigate(`/artist/${artistId}`)
   }
 
   return (
@@ -399,12 +388,7 @@ function AppRoutes() {
         {/* Public Routes */}
         <Route
           path="/"
-          element={
-            <LandingPage
-              onAuthClick={handleAuthClick}
-              onArtistClick={handleArtistClick}
-            />
-          }
+          element={<LandingPage onAuthClick={handleAuthClick} />}
         />
         <Route
           path="/artist/:artistId"

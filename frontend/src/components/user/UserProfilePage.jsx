@@ -45,6 +45,7 @@ import {
   Headphones,
   Album,
   Mic2,
+  Trophy,
 } from 'lucide-react'
 
 // Social icons mapping
@@ -122,6 +123,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [singlesVisible, setSinglesVisible] = useState(12)
+  const [rankingData, setRankingData] = useState({ rank: null, total: 0 })
 
   // Fetch profile data for public profiles
   useEffect(() => {
@@ -156,6 +158,47 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
 
     fetchProfile()
   }, [profileSlug, isOwnProfile])
+
+  // Fetch ranking data
+  useEffect(() => {
+    const fetchRanking = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/artists/hot100?limit=1000`)
+        if (response.ok) {
+          const data = await response.json()
+          const artists = data.artists || []
+
+          // Determine which profile to check
+          const targetProfile = isOwnProfile ? user : fetchedProfile
+
+          if (targetProfile?.spotifyId) {
+            const artistIndex = artists.findIndex(a => a.spotifyId === targetProfile.spotifyId)
+            if (artistIndex !== -1) {
+              setRankingData({
+                rank: artistIndex + 1,
+                total: artists.length,
+              })
+            }
+          } else if (targetProfile?.id) {
+            const artistIndex = artists.findIndex(a => a.id === targetProfile.id)
+            if (artistIndex !== -1) {
+              setRankingData({
+                rank: artistIndex + 1,
+                total: artists.length,
+              })
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch ranking:', err)
+      }
+    }
+
+    // Only fetch if we have profile data
+    if ((isOwnProfile && user) || fetchedProfile) {
+      fetchRanking()
+    }
+  }, [isOwnProfile, user, fetchedProfile])
 
   // Use own profile data or fetched profile data
   const profileData = isOwnProfile ? user : fetchedProfile
@@ -410,14 +453,27 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   <Card className="glow-green-sm">
                     <CardContent className="pt-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
-                          <TrendingUp className="w-6 h-6 text-primary" />
+                        <div className="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                          <Trophy className="w-6 h-6 text-yellow-500" />
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-primary">
-                            {spotifyData.popularity || 0}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Popularity</div>
+                          {rankingData.rank ? (
+                            <>
+                              <div className="text-2xl font-bold text-yellow-500">
+                                #{rankingData.rank}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                of {rankingData.total} artists
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-2xl font-bold text-muted-foreground">
+                                —
+                              </div>
+                              <div className="text-sm text-muted-foreground">Tampa Ranking</div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </CardContent>

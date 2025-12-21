@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-  TrendingUp,
+  Users,
   Play,
   ArrowRight,
   Sparkles,
-  BarChart3,
-  Users,
+  Disc3,
   Music
 } from 'lucide-react'
 
@@ -55,11 +55,12 @@ function AnimatedNumber({ value, suffix = '' }) {
 }
 
 export function Hero() {
+  const navigate = useNavigate()
   const stats = [
-    { label: 'Artists Tracked', value: 2847, icon: Users },
-    { label: 'Total Streams', value: 1200000000, suffix: '+', icon: Play },
-    { label: 'Chart Updates', value: 24, suffix: '/day', icon: BarChart3 },
-    { label: 'New Releases', value: 150, suffix: '/week', icon: Music },
+    { label: 'Artists', value: 50, suffix: '+', icon: Users },
+    { label: 'Albums Released', value: 120, suffix: '+', icon: Disc3 },
+    { label: 'Singles Released', value: 350, suffix: '+', icon: Music },
+    { label: 'Weekly Listeners', value: 2500000, suffix: '+', icon: Play },
   ]
 
   return (
@@ -104,9 +105,8 @@ export function Hero() {
             transition={{ delay: 0.3 }}
             className="text-xl text-muted-foreground max-w-2xl mx-auto"
           >
-            The definitive source for Tampa Bay music analytics. Real-time charts,
-            streaming data, and discovery tools powered by Spotify, Apple Music,
-            YouTube, and more.
+            Discover Tampa Bay's hottest artists. Artist rankings, new releases,
+            and music discovery powered by Spotify.
           </motion.p>
 
           {/* CTA Buttons */}
@@ -116,14 +116,14 @@ export function Hero() {
             transition={{ delay: 0.4 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Button size="xl" className="gap-2 glow-green">
-              <TrendingUp className="w-5 h-5" />
-              Explore Charts
+            <Button size="xl" className="gap-2 glow-green" onClick={() => navigate('/artists')}>
+              <Users className="w-5 h-5" />
+              Explore Artists
               <ArrowRight className="w-5 h-5" />
             </Button>
-            <Button variant="outline" size="xl" className="gap-2">
-              <Play className="w-5 h-5" />
-              Watch Demo
+            <Button variant="outline" size="xl" className="gap-2" onClick={() => navigate('/releases')}>
+              <Disc3 className="w-5 h-5" />
+              View Releases
             </Button>
           </motion.div>
 

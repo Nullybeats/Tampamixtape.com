@@ -52,12 +52,9 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
   }
 
   const navLinks = [
-    { name: 'Features', href: '#features' },
-    { name: 'Charts', href: '#charts' },
-    { name: 'Tampa Hot 100', href: '#hot100' },
     { name: 'Artists', href: '/artists', isRoute: true },
     { name: 'Releases', href: '/releases', isRoute: true },
-    { name: 'Events', href: '/events', isRoute: true },
+    { name: 'Tampa Hot 100', href: '#hot100' },
   ]
 
   // Handle anchor link navigation from any page

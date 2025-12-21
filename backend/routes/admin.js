@@ -83,6 +83,16 @@ router.get('/users', requireAdmin, async (req, res) => {
           avatar: true,
           role: true,
           status: true,
+          region: true,
+          genres: true,
+          popularity: true,
+          followers: true,
+          spotifyId: true,
+          instagramUrl: true,
+          twitterUrl: true,
+          youtubeUrl: true,
+          tiktokUrl: true,
+          websiteUrl: true,
           createdAt: true,
         },
       }),
@@ -154,10 +164,22 @@ router.patch('/users/:id/role', requireAdmin, async (req, res) => {
   }
 });
 
-// Comprehensive user update (role, status, spotify)
+// Comprehensive user update (role, status, spotify, region, genres, links)
 router.patch('/users/:id', requireAdmin, async (req, res) => {
   try {
-    const { role, status, spotifyId, spotifyUrl } = req.body;
+    const {
+      role,
+      status,
+      spotifyId,
+      spotifyUrl,
+      region,
+      genres,
+      instagramUrl,
+      twitterUrl,
+      youtubeUrl,
+      tiktokUrl,
+      websiteUrl,
+    } = req.body;
     const updateData = {};
 
     // Validate and set role
@@ -176,12 +198,42 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
       updateData.status = status;
     }
 
+    // Validate and set region
+    if (region !== undefined) {
+      if (!['Tampa Bay', 'St. Pete'].includes(region)) {
+        return res.status(400).json({ error: 'Invalid region' });
+      }
+      updateData.region = region;
+    }
+
+    // Set genres (comma-separated string)
+    if (genres !== undefined) {
+      updateData.genres = genres;
+    }
+
     // Set Spotify fields (can be null to unlink)
     if (spotifyId !== undefined) {
       updateData.spotifyId = spotifyId;
     }
     if (spotifyUrl !== undefined) {
       updateData.spotifyUrl = spotifyUrl;
+    }
+
+    // Set social link fields (can be null to remove)
+    if (instagramUrl !== undefined) {
+      updateData.instagramUrl = instagramUrl;
+    }
+    if (twitterUrl !== undefined) {
+      updateData.twitterUrl = twitterUrl;
+    }
+    if (youtubeUrl !== undefined) {
+      updateData.youtubeUrl = youtubeUrl;
+    }
+    if (tiktokUrl !== undefined) {
+      updateData.tiktokUrl = tiktokUrl;
+    }
+    if (websiteUrl !== undefined) {
+      updateData.websiteUrl = websiteUrl;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -197,10 +249,18 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
         name: true,
         artistName: true,
         profileSlug: true,
+        avatar: true,
         role: true,
         status: true,
+        region: true,
+        genres: true,
         spotifyId: true,
         spotifyUrl: true,
+        instagramUrl: true,
+        twitterUrl: true,
+        youtubeUrl: true,
+        tiktokUrl: true,
+        websiteUrl: true,
       },
     });
 
