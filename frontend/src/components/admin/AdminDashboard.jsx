@@ -116,6 +116,7 @@ export function AdminDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isFixingSlugs, setIsFixingSlugs] = useState(false)
   const [isRefreshingArtists, setIsRefreshingArtists] = useState(false)
+  const [isSyncingReleases, setIsSyncingReleases] = useState(false)
 
   // Settings state
   const [settings, setSettings] = useState({
@@ -276,6 +277,35 @@ export function AdminDashboard() {
       })
     } finally {
       setIsRefreshingArtists(false)
+    }
+  }
+
+  // Sync releases from Spotify to database
+  const handleSyncReleases = async () => {
+    setIsSyncingReleases(true)
+    try {
+      const response = await fetch(`${API_URL}/api/admin/sync-releases`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sync releases')
+      }
+
+      toast.success(`Synced ${data.processed} releases`, {
+        description: `${data.totalReleases} total releases in database.${data.failed > 0 ? ` (${data.failed} artists failed)` : ''}`,
+      })
+    } catch (error) {
+      toast.error('Failed to sync releases', {
+        description: error.message,
+      })
+    } finally {
+      setIsSyncingReleases(false)
     }
   }
 
@@ -1397,6 +1427,36 @@ export function AdminDashboard() {
                           <>
                             <RefreshCw className="w-4 h-4" />
                             Fix Slugs
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Sync Releases to Database */}
+                  <div className="pt-4 border-t border-border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Sync Releases</p>
+                        <p className="text-sm text-muted-foreground">
+                          Fetch all releases from Spotify and store in database (survives server restarts)
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={handleSyncReleases}
+                        disabled={isSyncingReleases}
+                        className="gap-2"
+                      >
+                        {isSyncingReleases ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Syncing...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4" />
+                            Sync Releases
                           </>
                         )}
                       </Button>

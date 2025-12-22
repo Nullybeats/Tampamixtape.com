@@ -473,11 +473,12 @@ router.post('/fix-slugs', requireAdmin, async (req, res) => {
 // Get dashboard stats
 router.get('/stats', requireAdmin, async (req, res) => {
   try {
-    const [totalUsers, pendingUsers, approvedUsers, artists] = await Promise.all([
+    const [totalUsers, pendingUsers, approvedUsers, artists, totalReleases] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { status: 'PENDING' } }),
       prisma.user.count({ where: { status: 'APPROVED' } }),
       prisma.user.count({ where: { role: 'ARTIST' } }),
+      prisma.release.count(),
     ]);
 
     res.json({
@@ -485,10 +486,136 @@ router.get('/stats', requireAdmin, async (req, res) => {
       pendingUsers,
       approvedUsers,
       artists,
+      totalReleases,
     });
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
+// Helper to check if error is rate limiting
+function isRateLimitError(err) {
+  return err.response?.status === 429 ||
+         (err.message && err.message.includes('429'));
+}
+
+// Sync releases from Spotify to database
+router.post('/sync-releases', requireAdmin, async (req, res) => {
+  try {
+    console.log('Starting releases sync...');
+
+    // Get all approved artists with Spotify IDs
+    const artists = await prisma.user.findMany({
+      where: {
+        status: 'APPROVED',
+        role: 'ARTIST',
+        spotifyId: { not: null },
+      },
+      select: {
+        id: true,
+        artistName: true,
+        profileSlug: true,
+        spotifyId: true,
+      },
+    });
+
+    console.log(`Syncing releases for ${artists.length} artists`);
+
+    let totalAdded = 0;
+    let totalUpdated = 0;
+    let totalFailed = 0;
+    const errors = [];
+
+    // Fetch releases from Spotify for each artist
+    for (const artist of artists) {
+      let retries = 0;
+      const maxRetries = 3;
+
+      while (retries < maxRetries) {
+        try {
+          const albums = await spotify.getArtistAlbums(artist.spotifyId);
+
+          if (albums && albums.length > 0) {
+            for (const album of albums) {
+              const releaseData = {
+                id: album.id,
+                name: album.name,
+                type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
+                image: album.images?.[0]?.url || null,
+                releaseDate: album.release_date || null,
+                spotifyUrl: album.external_urls?.spotify || null,
+                artistId: artist.id,
+                artistName: artist.artistName,
+                artistSlug: artist.profileSlug,
+              };
+
+              // Upsert - create if doesn't exist, update if it does
+              await prisma.release.upsert({
+                where: { id: album.id },
+                create: releaseData,
+                update: {
+                  name: releaseData.name,
+                  type: releaseData.type,
+                  image: releaseData.image,
+                  releaseDate: releaseData.releaseDate,
+                  spotifyUrl: releaseData.spotifyUrl,
+                  artistName: releaseData.artistName,
+                  artistSlug: releaseData.artistSlug,
+                },
+              });
+
+              totalAdded++;
+            }
+          }
+          console.log(`Synced ${albums?.length || 0} releases for ${artist.artistName}`);
+          break; // Success, exit retry loop
+        } catch (err) {
+          const isRateLimit = isRateLimitError(err);
+          if (isRateLimit && retries < maxRetries - 1) {
+            const retryAfter = parseInt(err.response?.headers?.['retry-after']) || (Math.pow(2, retries + 1));
+            console.log(`Rate limited for ${artist.artistName}, waiting ${retryAfter}s (retry ${retries + 1}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+            retries++;
+          } else {
+            console.error(`Failed to sync releases for ${artist.artistName}:`, err.message);
+            errors.push({ artistName: artist.artistName, error: err.message });
+            totalFailed++;
+            break;
+          }
+        }
+      }
+
+      // Delay between artists to avoid rate limiting (500ms)
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Get final count
+    const totalReleases = await prisma.release.count();
+
+    console.log(`Sync complete: ${totalAdded} releases processed, ${totalFailed} artists failed`);
+
+    res.json({
+      message: 'Releases sync complete',
+      processed: totalAdded,
+      failed: totalFailed,
+      totalReleases,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    console.error('Sync releases error:', error);
+    res.status(500).json({ error: 'Failed to sync releases', details: error.message });
+  }
+});
+
+// Clear all releases (for troubleshooting)
+router.delete('/releases', requireAdmin, async (req, res) => {
+  try {
+    const result = await prisma.release.deleteMany({});
+    res.json({ message: 'All releases deleted', count: result.count });
+  } catch (error) {
+    console.error('Delete releases error:', error);
+    res.status(500).json({ error: 'Failed to delete releases' });
   }
 });
 

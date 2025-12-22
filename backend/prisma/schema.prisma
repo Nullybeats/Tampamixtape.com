@@ -46,3 +46,21 @@ enum Status {
   APPROVED
   REJECTED
 }
+
+model Release {
+  id           String   @id // Spotify album ID
+  name         String
+  type         String   // Album, Single, EP
+  image        String?
+  releaseDate  String?
+  spotifyUrl   String?
+  artistId     String   // Reference to User.id
+  artistName   String
+  artistSlug   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([artistId])
+  @@index([releaseDate])
+  @@map("releases")
+}
