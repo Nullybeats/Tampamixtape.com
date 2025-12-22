@@ -46,30 +46,45 @@ router.get('/', async (req, res) => {
 
       // Fetch releases from Spotify for each artist (just albums, faster than full data)
       for (const artist of artists) {
-        try {
-          // Use getArtistAlbums directly instead of getFullArtistData (1 API call vs 3)
-          const albums = await spotify.getArtistAlbums(artist.spotifyId);
+        let retries = 0;
+        const maxRetries = 3;
 
-          if (albums && albums.length > 0) {
-            for (const album of albums) {
-              allReleases.push({
-                id: album.id,
-                name: album.name,
-                type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
-                image: album.images?.[0]?.url,
-                releaseDate: album.release_date,
-                url: album.external_urls?.spotify,
-                artistName: artist.artistName,
-                artistSlug: artist.profileSlug,
-                artistId: artist.id,
-              });
+        while (retries < maxRetries) {
+          try {
+            // Use getArtistAlbums directly instead of getFullArtistData (1 API call vs 3)
+            const albums = await spotify.getArtistAlbums(artist.spotifyId);
+
+            if (albums && albums.length > 0) {
+              for (const album of albums) {
+                allReleases.push({
+                  id: album.id,
+                  name: album.name,
+                  type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
+                  image: album.images?.[0]?.url,
+                  releaseDate: album.release_date,
+                  url: album.external_urls?.spotify,
+                  artistName: artist.artistName,
+                  artistSlug: artist.profileSlug,
+                  artistId: artist.id,
+                });
+              }
+            }
+            break; // Success, exit retry loop
+          } catch (err) {
+            if (err.response?.status === 429 && retries < maxRetries - 1) {
+              // Rate limited - wait longer and retry
+              const retryAfter = parseInt(err.response.headers?.['retry-after']) || (2 ** retries);
+              console.log(`Rate limited for ${artist.artistName}, waiting ${retryAfter}s...`);
+              await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+              retries++;
+            } else {
+              console.error(`Failed to fetch releases for ${artist.artistName}:`, err.message);
+              break; // Non-retryable error or max retries reached
             }
           }
-        } catch (err) {
-          console.error(`Failed to fetch releases for ${artist.artistName}:`, err.message);
         }
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Delay between requests to avoid rate limiting (300ms)
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       // Sort by release date (newest first)

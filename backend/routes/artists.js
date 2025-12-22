@@ -76,71 +76,86 @@ router.post('/hot100/refresh', async (req, res) => {
 
     // Update each artist's data from Spotify
     for (const artist of artists) {
-      try {
-        console.log(`Fetching data for ${artist.artistName} (${artist.spotifyId})`);
-        const spotifyData = await spotify.getArtist(artist.spotifyId);
+      let retries = 0;
+      const maxRetries = 3;
 
-        if (spotifyData) {
-          // Log the raw Spotify response for debugging
-          console.log(`Spotify data for ${artist.artistName}:`, {
-            popularity: spotifyData.popularity,
-            followers: spotifyData.followers,
-            genres: spotifyData.genres,
-          });
+      while (retries < maxRetries) {
+        try {
+          console.log(`Fetching data for ${artist.artistName} (${artist.spotifyId})`);
+          const spotifyData = await spotify.getArtist(artist.spotifyId);
 
-          const updateData = {};
-
-          // Only update popularity if it's a valid number
-          if (typeof spotifyData.popularity === 'number') {
-            updateData.popularity = spotifyData.popularity;
-          }
-
-          // Only update followers if valid
-          if (spotifyData.followers?.total !== undefined) {
-            updateData.followers = spotifyData.followers.total;
-          }
-
-          // Update genres if available (convert array to comma-separated string)
-          if (spotifyData.genres && spotifyData.genres.length > 0) {
-            updateData.genres = spotifyData.genres.join(', ');
-          }
-
-          // Update avatar if available
-          if (spotifyData.images && spotifyData.images.length > 0) {
-            updateData.avatar = spotifyData.images[0].url;
-          }
-
-          // Only update if we have data to update
-          if (Object.keys(updateData).length > 0) {
-            await prisma.user.update({
-              where: { id: artist.id },
-              data: updateData,
+          if (spotifyData) {
+            // Log the raw Spotify response for debugging
+            console.log(`Spotify data for ${artist.artistName}:`, {
+              popularity: spotifyData.popularity,
+              followers: spotifyData.followers,
+              genres: spotifyData.genres,
             });
 
-            results.push({
-              artistName: artist.artistName,
-              popularity: updateData.popularity ?? 'unchanged',
-              followers: updateData.followers ?? 'unchanged',
-              genres: updateData.genres || 'unchanged',
-            });
-            updated++;
+            const updateData = {};
+
+            // Only update popularity if it's a valid number
+            if (typeof spotifyData.popularity === 'number') {
+              updateData.popularity = spotifyData.popularity;
+            }
+
+            // Only update followers if valid
+            if (spotifyData.followers?.total !== undefined) {
+              updateData.followers = spotifyData.followers.total;
+            }
+
+            // Update genres if available (convert array to comma-separated string)
+            if (spotifyData.genres && spotifyData.genres.length > 0) {
+              updateData.genres = spotifyData.genres.join(', ');
+            }
+
+            // Update avatar if available
+            if (spotifyData.images && spotifyData.images.length > 0) {
+              updateData.avatar = spotifyData.images[0].url;
+            }
+
+            // Only update if we have data to update
+            if (Object.keys(updateData).length > 0) {
+              await prisma.user.update({
+                where: { id: artist.id },
+                data: updateData,
+              });
+
+              results.push({
+                artistName: artist.artistName,
+                popularity: updateData.popularity ?? 'unchanged',
+                followers: updateData.followers ?? 'unchanged',
+                genres: updateData.genres || 'unchanged',
+              });
+              updated++;
+            } else {
+              console.log(`No data to update for ${artist.artistName}`);
+              errors.push({ artistName: artist.artistName, error: 'No valid data from Spotify' });
+              failed++;
+            }
           } else {
-            console.log(`No data to update for ${artist.artistName}`);
-            errors.push({ artistName: artist.artistName, error: 'No valid data from Spotify' });
+            console.log(`No Spotify data returned for ${artist.artistName}`);
+            errors.push({ artistName: artist.artistName, error: 'No data returned' });
             failed++;
           }
-        } else {
-          console.log(`No Spotify data returned for ${artist.artistName}`);
-          errors.push({ artistName: artist.artistName, error: 'No data returned' });
-          failed++;
+          break; // Success, exit retry loop
+        } catch (err) {
+          if (err.response?.status === 429 && retries < maxRetries - 1) {
+            // Rate limited - wait longer and retry
+            const retryAfter = parseInt(err.response.headers?.['retry-after']) || (2 ** retries);
+            console.log(`Rate limited for ${artist.artistName}, waiting ${retryAfter}s...`);
+            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+            retries++;
+          } else {
+            console.error(`Failed to update artist ${artist.artistName} (${artist.spotifyId}):`, err.message);
+            errors.push({ artistName: artist.artistName, error: err.message });
+            failed++;
+            break; // Non-retryable error or max retries reached
+          }
         }
-      } catch (err) {
-        console.error(`Failed to update artist ${artist.artistName} (${artist.spotifyId}):`, err.message);
-        errors.push({ artistName: artist.artistName, error: err.message });
-        failed++;
       }
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 150));
+      // Delay between requests to avoid rate limiting (300ms)
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
 
     console.log(`Refresh complete: ${updated} updated, ${failed} failed`);
