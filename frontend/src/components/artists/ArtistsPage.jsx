@@ -174,7 +174,7 @@ function ArtistGridItem({ artist, index }) {
               </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform">
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <Button size="sm" className="w-full gap-2">
                 <ExternalLink className="w-3 h-3" />
                 View Profile
