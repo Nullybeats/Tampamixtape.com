@@ -1,10 +1,7 @@
 import { motion } from 'framer-motion'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
-  ArrowRight,
   Twitter,
   Instagram,
   Youtube,
@@ -45,27 +42,24 @@ export function Footer() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            {/* TODO: Replace with actual Randy Ojeda Law creative assets */}
-            <Card className="overflow-hidden bg-gradient-to-br from-blue-900/20 via-card to-card border-blue-500/20">
-              <CardContent className="p-8 lg:p-12">
-                <div className="flex items-center justify-center gap-2 mb-4 text-muted-foreground">
-                  <Megaphone className="w-4 h-4" />
-                  <span className="text-xs font-medium uppercase tracking-wider">Advertisement</span>
-                </div>
-                <div className="text-center">
-                  <h2 className="text-2xl lg:text-3xl font-bold mb-2">
-                    Randy Ojeda Law
-                  </h2>
-                  <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
-                    Your Tampa Bay Legal Partner. Dedicated to serving the local community with trusted legal representation.
-                  </p>
-                  <Button variant="outline" className="gap-2">
-                    Learn More
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="relative">
+              <div className="flex items-center justify-center gap-2 mb-3 text-muted-foreground">
+                <Megaphone className="w-4 h-4" />
+                <span className="text-xs font-medium uppercase tracking-wider">Advertisement</span>
+              </div>
+              <a
+                href="https://randyojedalaw.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block overflow-hidden rounded-xl hover:opacity-95 transition-opacity"
+              >
+                <img
+                  src="/randy-ojeda-law.png"
+                  alt="Randy Ojeda Law - Music Law. Simplified."
+                  className="w-full h-auto max-h-[300px] object-cover object-center"
+                />
+              </a>
+            </div>
           </motion.div>
         </div>
       </section>
