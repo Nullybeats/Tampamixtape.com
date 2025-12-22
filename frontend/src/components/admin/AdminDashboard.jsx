@@ -118,6 +118,18 @@ export function AdminDashboard() {
   const [isRefreshingArtists, setIsRefreshingArtists] = useState(false)
   const [isSyncingReleases, setIsSyncingReleases] = useState(false)
 
+  // Auto-sync state
+  const [autoSyncSettings, setAutoSyncSettings] = useState({
+    enabled: false,
+    intervalMins: 60,
+    lastSyncAt: null,
+    lastSyncStatus: null,
+    lastSyncMessage: null,
+    isRunning: false,
+  })
+  const [isLoadingAutoSync, setIsLoadingAutoSync] = useState(true)
+  const [isSavingAutoSync, setIsSavingAutoSync] = useState(false)
+
   // Settings state
   const [settings, setSettings] = useState({
     allowRegistration: true,
@@ -473,10 +485,60 @@ export function AdminDashboard() {
     }
   }
 
+  // Fetch auto-sync settings
+  const fetchAutoSyncSettings = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/settings/auto-sync`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setAutoSyncSettings(data)
+      }
+    } catch (err) {
+      console.error('Error fetching auto-sync settings:', err)
+    } finally {
+      setIsLoadingAutoSync(false)
+    }
+  }
+
+  // Save auto-sync settings
+  const handleSaveAutoSync = async (updates) => {
+    setIsSavingAutoSync(true)
+    try {
+      const response = await fetch(`${API_URL}/api/admin/settings/auto-sync`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save settings')
+      }
+
+      setAutoSyncSettings(prev => ({ ...prev, ...updates }))
+      toast.success('Auto-sync settings saved', {
+        description: updates.enabled ? `Will sync every ${updates.intervalMins || autoSyncSettings.intervalMins} minutes` : 'Auto-sync disabled',
+      })
+    } catch (error) {
+      toast.error('Failed to save settings', {
+        description: error.message,
+      })
+    } finally {
+      setIsSavingAutoSync(false)
+    }
+  }
+
   // Initial load
   useEffect(() => {
     fetchStats()
     fetchUsers()
+    fetchAutoSyncSettings()
   }, [token])
 
   // Refetch when filters change
@@ -1477,6 +1539,79 @@ export function AdminDashboard() {
                           </>
                         )}
                       </Button>
+                    </div>
+                  </div>
+
+                  {/* Auto-Sync Settings */}
+                  <div className="pt-4 border-t border-border">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">Auto-Sync Spotify</p>
+                          <p className="text-sm text-muted-foreground">
+                            Automatically sync artist data and releases from Spotify
+                          </p>
+                        </div>
+                        <Switch
+                          checked={autoSyncSettings.enabled}
+                          onCheckedChange={(checked) => handleSaveAutoSync({ enabled: checked })}
+                          disabled={isSavingAutoSync || isLoadingAutoSync}
+                        />
+                      </div>
+
+                      {autoSyncSettings.enabled && (
+                        <div className="pl-4 border-l-2 border-primary/20 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <Label htmlFor="sync-interval" className="text-sm whitespace-nowrap">
+                              Sync every:
+                            </Label>
+                            <Select
+                              value={String(autoSyncSettings.intervalMins)}
+                              onValueChange={(value) => handleSaveAutoSync({ intervalMins: parseInt(value) })}
+                              disabled={isSavingAutoSync}
+                            >
+                              <SelectTrigger id="sync-interval" className="w-[140px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="30">30 minutes</SelectItem>
+                                <SelectItem value="60">1 hour</SelectItem>
+                                <SelectItem value="120">2 hours</SelectItem>
+                                <SelectItem value="180">3 hours</SelectItem>
+                                <SelectItem value="360">6 hours</SelectItem>
+                                <SelectItem value="720">12 hours</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {autoSyncSettings.lastSyncAt && (
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <p className="flex items-center gap-2">
+                                <Clock className="w-3 h-3" />
+                                Last sync: {new Date(autoSyncSettings.lastSyncAt).toLocaleString()}
+                              </p>
+                              {autoSyncSettings.lastSyncStatus && (
+                                <p className="flex items-center gap-2">
+                                  {autoSyncSettings.lastSyncStatus === 'success' ? (
+                                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                                  ) : autoSyncSettings.lastSyncStatus === 'partial' ? (
+                                    <AlertCircle className="w-3 h-3 text-yellow-500" />
+                                  ) : (
+                                    <XCircle className="w-3 h-3 text-red-500" />
+                                  )}
+                                  {autoSyncSettings.lastSyncMessage}
+                                </p>
+                              )}
+                              {autoSyncSettings.isRunning && (
+                                <p className="flex items-center gap-2 text-primary">
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Sync in progress...
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>

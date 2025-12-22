@@ -64,3 +64,15 @@ model Release {
   @@index([releaseDate])
   @@map("releases")
 }
+
+model Settings {
+  id                    String   @id @default("app_settings")
+  autoSyncEnabled       Boolean  @default(false)
+  autoSyncIntervalMins  Int      @default(60) // Interval in minutes (30, 60, 90, etc.)
+  lastSyncAt            DateTime?
+  lastSyncStatus        String?  // "success", "partial", "failed"
+  lastSyncMessage       String?
+  updatedAt             DateTime @updatedAt
+
+  @@map("settings")
+}

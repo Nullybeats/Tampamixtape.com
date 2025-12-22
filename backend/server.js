@@ -75,10 +75,18 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🎵 TampaCharts API running on port ${PORT}`);
   console.log(`   Database: ${process.env.DATABASE_URL ? '✓' : '✗'}`);
   console.log(`   Spotify API: ${process.env.SPOTIFY_CLIENT_ID ? '✓' : '✗'}`);
   console.log(`   Ticketmaster API: ${process.env.TICKETMASTER_API_KEY ? '✓' : '✗'}`);
   console.log(`   Admin configured: ${process.env.ADMIN_EMAIL ? '✓' : '✗'}`);
+
+  // Start the auto-sync scheduler
+  try {
+    const scheduler = require('./services/scheduler');
+    await scheduler.start();
+  } catch (error) {
+    console.error('Failed to start scheduler:', error.message);
+  }
 });

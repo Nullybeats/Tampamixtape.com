@@ -658,4 +658,78 @@ router.delete('/releases', requireAdmin, async (req, res) => {
   }
 });
 
+// Get auto-sync settings
+router.get('/settings/auto-sync', requireAdmin, async (req, res) => {
+  try {
+    const scheduler = require('../services/scheduler');
+    const status = await scheduler.getStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Get auto-sync settings error:', error);
+    res.status(500).json({ error: 'Failed to get settings' });
+  }
+});
+
+// Update auto-sync settings
+router.patch('/settings/auto-sync', requireAdmin, async (req, res) => {
+  try {
+    const { enabled, intervalMins } = req.body;
+
+    // Validate interval (must be 30 minute increments, min 30, max 720 = 12 hours)
+    if (intervalMins !== undefined) {
+      if (intervalMins < 30 || intervalMins > 720 || intervalMins % 30 !== 0) {
+        return res.status(400).json({
+          error: 'Interval must be in 30-minute increments (30, 60, 90, etc.) up to 720 minutes (12 hours)',
+        });
+      }
+    }
+
+    const updateData = {};
+    if (enabled !== undefined) updateData.autoSyncEnabled = enabled;
+    if (intervalMins !== undefined) updateData.autoSyncIntervalMins = intervalMins;
+
+    const settings = await prisma.settings.upsert({
+      where: { id: 'app_settings' },
+      create: {
+        id: 'app_settings',
+        ...updateData,
+      },
+      update: updateData,
+    });
+
+    // Restart scheduler with new settings
+    const scheduler = require('../services/scheduler');
+    await scheduler.restart();
+
+    res.json({
+      message: 'Auto-sync settings updated',
+      enabled: settings.autoSyncEnabled,
+      intervalMins: settings.autoSyncIntervalMins,
+    });
+  } catch (error) {
+    console.error('Update auto-sync settings error:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// Trigger manual sync (uses scheduler's runSync)
+router.post('/settings/sync-now', requireAdmin, async (req, res) => {
+  try {
+    const scheduler = require('../services/scheduler');
+    const status = await scheduler.getStatus();
+
+    if (status.isRunning) {
+      return res.status(409).json({ error: 'Sync already in progress' });
+    }
+
+    // Run sync in background
+    scheduler.runSync();
+
+    res.json({ message: 'Sync started in background' });
+  } catch (error) {
+    console.error('Manual sync error:', error);
+    res.status(500).json({ error: 'Failed to start sync' });
+  }
+});
+
 module.exports = router;
