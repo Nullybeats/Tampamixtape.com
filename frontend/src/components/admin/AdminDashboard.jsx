@@ -297,9 +297,26 @@ export function AdminDashboard() {
         throw new Error(data.error || 'Failed to sync releases')
       }
 
-      toast.success(`Synced ${data.processed} releases`, {
-        description: `${data.totalReleases} total releases in database.${data.failed > 0 ? ` (${data.failed} artists failed)` : ''}`,
-      })
+      // Build description based on results
+      let description = `${data.totalReleases} total releases in database.`
+      if (data.skipped > 0) {
+        description += ` ${data.skipped} artists skipped (rate limited).`
+      }
+      if (data.failed > 0) {
+        description += ` ${data.failed} artists failed.`
+      }
+
+      // Show appropriate toast based on results
+      if (data.skipped > 0 || data.failed > 0) {
+        toast.warning(`Synced ${data.processed} releases`, {
+          description: data.rateLimitMessage || description,
+          duration: 8000,
+        })
+      } else {
+        toast.success(`Synced ${data.processed} releases`, {
+          description,
+        })
+      }
     } catch (error) {
       toast.error('Failed to sync releases', {
         description: error.message,

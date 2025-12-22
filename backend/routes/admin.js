@@ -523,14 +523,16 @@ router.post('/sync-releases', requireAdmin, async (req, res) => {
     console.log(`Syncing releases for ${artists.length} artists`);
 
     let totalAdded = 0;
-    let totalUpdated = 0;
+    let totalSkipped = 0;
     let totalFailed = 0;
     const errors = [];
+    let rateLimitedUntil = null;
 
     // Fetch releases from Spotify for each artist
     for (const artist of artists) {
       let retries = 0;
-      const maxRetries = 3;
+      const maxRetries = 2;
+      const maxWaitSeconds = 30; // Don't wait more than 30 seconds per retry
 
       while (retries < maxRetries) {
         try {
@@ -572,11 +574,37 @@ router.post('/sync-releases', requireAdmin, async (req, res) => {
           break; // Success, exit retry loop
         } catch (err) {
           const isRateLimit = isRateLimitError(err);
-          if (isRateLimit && retries < maxRetries - 1) {
-            const retryAfter = parseInt(err.response?.headers?.['retry-after']) || (Math.pow(2, retries + 1));
-            console.log(`Rate limited for ${artist.artistName}, waiting ${retryAfter}s (retry ${retries + 1}/${maxRetries})...`);
-            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-            retries++;
+          if (isRateLimit) {
+            const retryAfter = parseInt(err.response?.headers?.['retry-after']) || 60;
+
+            // If wait time is too long, skip this artist and continue
+            if (retryAfter > maxWaitSeconds) {
+              console.log(`Rate limited for ${artist.artistName}, retry-after ${retryAfter}s is too long - skipping`);
+              errors.push({
+                artistName: artist.artistName,
+                error: `Rate limited (retry in ${Math.ceil(retryAfter / 60)} min)`
+              });
+              totalSkipped++;
+
+              // Track when rate limit will be lifted
+              const unlockTime = new Date(Date.now() + retryAfter * 1000);
+              if (!rateLimitedUntil || unlockTime > rateLimitedUntil) {
+                rateLimitedUntil = unlockTime;
+              }
+              break;
+            }
+
+            // Wait and retry for short waits
+            if (retries < maxRetries - 1) {
+              console.log(`Rate limited for ${artist.artistName}, waiting ${retryAfter}s (retry ${retries + 1}/${maxRetries})...`);
+              await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+              retries++;
+            } else {
+              console.error(`Failed to sync releases for ${artist.artistName} after retries`);
+              errors.push({ artistName: artist.artistName, error: 'Rate limit exceeded' });
+              totalFailed++;
+              break;
+            }
           } else {
             console.error(`Failed to sync releases for ${artist.artistName}:`, err.message);
             errors.push({ artistName: artist.artistName, error: err.message });
@@ -586,22 +614,33 @@ router.post('/sync-releases', requireAdmin, async (req, res) => {
         }
       }
 
-      // Delay between artists to avoid rate limiting (500ms)
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Delay between artists to avoid rate limiting (1 second)
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     // Get final count
     const totalReleases = await prisma.release.count();
 
-    console.log(`Sync complete: ${totalAdded} releases processed, ${totalFailed} artists failed`);
+    console.log(`Sync complete: ${totalAdded} releases processed, ${totalSkipped} skipped, ${totalFailed} failed`);
 
-    res.json({
-      message: 'Releases sync complete',
+    const response = {
+      message: totalSkipped > 0
+        ? 'Releases sync partially complete - some artists skipped due to rate limiting'
+        : 'Releases sync complete',
       processed: totalAdded,
+      skipped: totalSkipped,
       failed: totalFailed,
       totalReleases,
       errors: errors.length > 0 ? errors : undefined,
-    });
+    };
+
+    // Add helpful message if rate limited
+    if (rateLimitedUntil) {
+      const waitMinutes = Math.ceil((rateLimitedUntil - Date.now()) / 60000);
+      response.rateLimitMessage = `Spotify rate limit active. Try again in ~${waitMinutes} minutes to sync remaining artists.`;
+    }
+
+    res.json(response);
   } catch (error) {
     console.error('Sync releases error:', error);
     res.status(500).json({ error: 'Failed to sync releases', details: error.message });
