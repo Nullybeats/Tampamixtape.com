@@ -67,50 +67,83 @@ router.post('/hot100/refresh', async (req, res) => {
       },
     });
 
+    console.log(`Starting refresh for ${artists.length} artists`);
+
     let updated = 0;
     let failed = 0;
     const results = [];
+    const errors = [];
 
     // Update each artist's data from Spotify
     for (const artist of artists) {
       try {
+        console.log(`Fetching data for ${artist.artistName} (${artist.spotifyId})`);
         const spotifyData = await spotify.getArtist(artist.spotifyId);
+
         if (spotifyData) {
-          const updateData = {
-            popularity: spotifyData.popularity || 0,
-            followers: spotifyData.followers?.total || 0,
-          };
+          // Log the raw Spotify response for debugging
+          console.log(`Spotify data for ${artist.artistName}:`, {
+            popularity: spotifyData.popularity,
+            followers: spotifyData.followers,
+            genres: spotifyData.genres,
+          });
+
+          const updateData = {};
+
+          // Only update popularity if it's a valid number
+          if (typeof spotifyData.popularity === 'number') {
+            updateData.popularity = spotifyData.popularity;
+          }
+
+          // Only update followers if valid
+          if (spotifyData.followers?.total !== undefined) {
+            updateData.followers = spotifyData.followers.total;
+          }
 
           // Update genres if available (convert array to comma-separated string)
           if (spotifyData.genres && spotifyData.genres.length > 0) {
             updateData.genres = spotifyData.genres.join(', ');
           }
 
-          // Update avatar if available and not already set
+          // Update avatar if available
           if (spotifyData.images && spotifyData.images.length > 0) {
             updateData.avatar = spotifyData.images[0].url;
           }
 
-          await prisma.user.update({
-            where: { id: artist.id },
-            data: updateData,
-          });
+          // Only update if we have data to update
+          if (Object.keys(updateData).length > 0) {
+            await prisma.user.update({
+              where: { id: artist.id },
+              data: updateData,
+            });
 
-          results.push({
-            artistName: artist.artistName,
-            popularity: updateData.popularity,
-            followers: updateData.followers,
-            genres: updateData.genres || 'none',
-          });
-          updated++;
+            results.push({
+              artistName: artist.artistName,
+              popularity: updateData.popularity ?? 'unchanged',
+              followers: updateData.followers ?? 'unchanged',
+              genres: updateData.genres || 'unchanged',
+            });
+            updated++;
+          } else {
+            console.log(`No data to update for ${artist.artistName}`);
+            errors.push({ artistName: artist.artistName, error: 'No valid data from Spotify' });
+            failed++;
+          }
+        } else {
+          console.log(`No Spotify data returned for ${artist.artistName}`);
+          errors.push({ artistName: artist.artistName, error: 'No data returned' });
+          failed++;
         }
       } catch (err) {
-        console.error(`Failed to update artist ${artist.spotifyId}:`, err.message);
+        console.error(`Failed to update artist ${artist.artistName} (${artist.spotifyId}):`, err.message);
+        errors.push({ artistName: artist.artistName, error: err.message });
         failed++;
       }
       // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 150));
     }
+
+    console.log(`Refresh complete: ${updated} updated, ${failed} failed`);
 
     res.json({
       message: 'Artist data refresh complete',
@@ -118,10 +151,11 @@ router.post('/hot100/refresh', async (req, res) => {
       failed,
       total: artists.length,
       results,
+      errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
     console.error('Refresh Hot 100 error:', error);
-    res.status(500).json({ error: 'Failed to refresh artist data' });
+    res.status(500).json({ error: 'Failed to refresh artist data', details: error.message });
   }
 });
 

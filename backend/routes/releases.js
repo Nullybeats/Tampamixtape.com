@@ -4,78 +4,86 @@ const spotify = require('../services/spotify');
 
 const router = express.Router();
 
+// Simple in-memory cache for releases (5 minute TTL)
+let releasesCache = {
+  data: null,
+  timestamp: 0,
+  TTL: 5 * 60 * 1000, // 5 minutes
+};
+
 // Get releases from all artists with Spotify data (public endpoint)
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 24, search, type } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Get all approved artists with Spotify IDs
-    const artists = await prisma.user.findMany({
-      where: {
-        status: 'APPROVED',
-        role: 'ARTIST',
-        spotifyId: { not: null },
-      },
-      select: {
-        id: true,
-        artistName: true,
-        profileSlug: true,
-        spotifyId: true,
-      },
-    });
+    let allReleases = [];
 
-    // Fetch releases from Spotify for each artist (with caching in production)
-    const allReleases = [];
+    // Check cache first
+    const now = Date.now();
+    if (releasesCache.data && (now - releasesCache.timestamp) < releasesCache.TTL) {
+      console.log('Using cached releases');
+      allReleases = releasesCache.data;
+    } else {
+      console.log('Fetching fresh releases from Spotify');
 
-    for (const artist of artists) {
-      try {
-        const spotifyData = await spotify.getFullArtistData(artist.spotifyId);
+      // Get all approved artists with Spotify IDs
+      const artists = await prisma.user.findMany({
+        where: {
+          status: 'APPROVED',
+          role: 'ARTIST',
+          spotifyId: { not: null },
+        },
+        select: {
+          id: true,
+          artistName: true,
+          profileSlug: true,
+          spotifyId: true,
+        },
+      });
 
-        // Get albums
-        if (spotifyData.discography?.albums) {
-          for (const album of spotifyData.discography.albums) {
-            allReleases.push({
-              id: album.id,
-              name: album.name,
-              type: 'Album',
-              image: album.image,
-              releaseDate: album.releaseDate,
-              url: album.url,
-              artistName: artist.artistName,
-              artistSlug: artist.profileSlug,
-              artistId: artist.id,
-            });
+      console.log(`Fetching releases for ${artists.length} artists`);
+
+      // Fetch releases from Spotify for each artist (just albums, faster than full data)
+      for (const artist of artists) {
+        try {
+          // Use getArtistAlbums directly instead of getFullArtistData (1 API call vs 3)
+          const albums = await spotify.getArtistAlbums(artist.spotifyId);
+
+          if (albums && albums.length > 0) {
+            for (const album of albums) {
+              allReleases.push({
+                id: album.id,
+                name: album.name,
+                type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
+                image: album.images?.[0]?.url,
+                releaseDate: album.release_date,
+                url: album.external_urls?.spotify,
+                artistName: artist.artistName,
+                artistSlug: artist.profileSlug,
+                artistId: artist.id,
+              });
+            }
           }
+        } catch (err) {
+          console.error(`Failed to fetch releases for ${artist.artistName}:`, err.message);
         }
-
-        // Get singles/EPs
-        if (spotifyData.discography?.singles) {
-          for (const single of spotifyData.discography.singles) {
-            allReleases.push({
-              id: single.id,
-              name: single.name,
-              type: single.type === 'single' ? 'Single' : 'EP',
-              image: single.image,
-              releaseDate: single.releaseDate,
-              url: single.url,
-              artistName: artist.artistName,
-              artistSlug: artist.profileSlug,
-              artistId: artist.id,
-            });
-          }
-        }
-      } catch (err) {
-        console.error(`Failed to fetch releases for ${artist.artistName}:`, err.message);
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
-    }
 
-    // Sort by release date (newest first)
-    allReleases.sort((a, b) => {
-      const dateA = a.releaseDate ? new Date(a.releaseDate) : new Date(0);
-      const dateB = b.releaseDate ? new Date(b.releaseDate) : new Date(0);
-      return dateB - dateA;
-    });
+      // Sort by release date (newest first)
+      allReleases.sort((a, b) => {
+        const dateA = a.releaseDate ? new Date(a.releaseDate) : new Date(0);
+        const dateB = b.releaseDate ? new Date(b.releaseDate) : new Date(0);
+        return dateB - dateA;
+      });
+
+      // Update cache
+      releasesCache.data = allReleases;
+      releasesCache.timestamp = now;
+      console.log(`Cached ${allReleases.length} releases`);
+    }
 
     // Filter by search query
     let filteredReleases = allReleases;
@@ -111,6 +119,13 @@ router.get('/', async (req, res) => {
     console.error('Get releases error:', error);
     res.status(500).json({ error: 'Failed to get releases' });
   }
+});
+
+// Clear cache endpoint (for admin use)
+router.post('/clear-cache', (req, res) => {
+  releasesCache.data = null;
+  releasesCache.timestamp = 0;
+  res.json({ message: 'Releases cache cleared' });
 });
 
 module.exports = router;
