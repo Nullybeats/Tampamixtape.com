@@ -72,6 +72,8 @@ model Settings {
   lastSyncAt            DateTime?
   lastSyncStatus        String?  // "success", "partial", "failed"
   lastSyncMessage       String?
+  adImageUrl            String?  // URL or base64 data for the advertisement image
+  adImageLink           String?  // Link URL when ad is clicked
   updatedAt             DateTime @updatedAt
 
   @@map("settings")

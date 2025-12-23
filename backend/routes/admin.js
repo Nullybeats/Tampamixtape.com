@@ -732,4 +732,64 @@ router.post('/settings/sync-now', requireAdmin, async (req, res) => {
   }
 });
 
+// Get advertisement settings (public - for footer)
+router.get('/settings/ad', async (req, res) => {
+  try {
+    const settings = await prisma.settings.findUnique({
+      where: { id: 'app_settings' },
+      select: {
+        adImageUrl: true,
+        adImageLink: true,
+      },
+    });
+
+    res.json({
+      imageUrl: settings?.adImageUrl || null,
+      link: settings?.adImageLink || 'https://randyojedalaw.com',
+    });
+  } catch (error) {
+    console.error('Get ad settings error:', error);
+    res.status(500).json({ error: 'Failed to get ad settings' });
+  }
+});
+
+// Update advertisement settings (admin only)
+router.patch('/settings/ad', requireAdmin, async (req, res) => {
+  try {
+    const { imageData, link } = req.body;
+
+    // Validate imageData if provided (should be base64 or URL)
+    if (imageData && typeof imageData !== 'string') {
+      return res.status(400).json({ error: 'Invalid image data' });
+    }
+
+    // Validate link if provided
+    if (link && typeof link !== 'string') {
+      return res.status(400).json({ error: 'Invalid link' });
+    }
+
+    const updateData = {};
+    if (imageData !== undefined) updateData.adImageUrl = imageData;
+    if (link !== undefined) updateData.adImageLink = link;
+
+    const settings = await prisma.settings.upsert({
+      where: { id: 'app_settings' },
+      create: {
+        id: 'app_settings',
+        ...updateData,
+      },
+      update: updateData,
+    });
+
+    res.json({
+      message: 'Advertisement settings updated',
+      imageUrl: settings.adImageUrl,
+      link: settings.adImageLink,
+    });
+  } catch (error) {
+    console.error('Update ad settings error:', error);
+    res.status(500).json({ error: 'Failed to update ad settings' });
+  }
+});
+
 module.exports = router;

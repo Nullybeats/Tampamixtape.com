@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -6,10 +7,45 @@ import {
   Instagram,
   Youtube,
   MapPin,
-  Megaphone
+  Megaphone,
+  Pencil
 } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { AdImageUploadDialog } from '@/components/admin/AdImageUploadDialog'
+
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
 export function Footer() {
+  const { isAdmin } = useAuth()
+  const [adSettings, setAdSettings] = useState({
+    imageUrl: null,
+    link: 'https://randyojedalaw.com',
+  })
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+
+  // Fetch ad settings on mount
+  useEffect(() => {
+    const fetchAdSettings = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/admin/settings/ad`)
+        if (response.ok) {
+          const data = await response.json()
+          setAdSettings(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch ad settings:', error)
+      }
+    }
+    fetchAdSettings()
+  }, [])
+
+  const handleAdSaved = (data) => {
+    setAdSettings({
+      imageUrl: data.imageUrl,
+      link: data.link || 'https://randyojedalaw.com',
+    })
+  }
+
   const footerLinks = {
     Discover: [
       { name: 'Artists', href: '/artists' },
@@ -32,6 +68,9 @@ export function Footer() {
     { name: 'YouTube', icon: Youtube, href: '#' },
   ]
 
+  // Determine which image to show
+  const adImageSrc = adSettings.imageUrl || '/randy-ojeda-law.png'
+
   return (
     <footer className="border-t border-border bg-card/50">
       {/* Advertisement - Randy Ojeda Law */}
@@ -47,18 +86,36 @@ export function Footer() {
                 <Megaphone className="w-4 h-4" />
                 <span className="text-xs font-medium uppercase tracking-wider">Advertisement</span>
               </div>
-              <a
-                href="https://randyojedalaw.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block overflow-hidden rounded-xl hover:opacity-95 transition-opacity"
-              >
-                <img
-                  src="/randy-ojeda-law.png"
-                  alt="Randy Ojeda Law - Music Law. Simplified."
-                  className="w-full h-auto"
-                />
-              </a>
+              <div className="relative group">
+                <a
+                  href={adSettings.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block overflow-hidden rounded-xl hover:opacity-95 transition-opacity"
+                >
+                  <img
+                    src={adImageSrc}
+                    alt="Randy Ojeda Law - Music Law. Simplified."
+                    className="w-full h-auto"
+                  />
+                </a>
+                {/* Admin Edit Overlay */}
+                {isAdmin && (
+                  <div
+                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-xl flex items-center justify-center cursor-pointer"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setIsEditDialogOpen(true)
+                    }}
+                  >
+                    <div className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-lg font-medium">
+                      <Pencil className="w-4 h-4" />
+                      Edit Advertisement
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         </div>
@@ -140,6 +197,15 @@ export function Footer() {
           </div>
         </div>
       </div>
+
+      {/* Ad Edit Dialog */}
+      <AdImageUploadDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        currentImage={adImageSrc}
+        currentLink={adSettings.link}
+        onSave={handleAdSaved}
+      />
     </footer>
   )
 }
