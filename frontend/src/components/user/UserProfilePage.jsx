@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -202,6 +203,19 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
 
   // Use own profile data or fetched profile data
   const profileData = isOwnProfile ? user : fetchedProfile
+
+  // Set dynamic meta tags for SEO
+  useDocumentMeta({
+    title: profileData?.artistName
+      ? `${profileData.artistName} | Tampa Mixtape`
+      : 'Tampa Mixtape - Tampa Bay\'s Music Radar',
+    description: profileData?.bio
+      || `Discover ${profileData?.artistName || 'artists'} on Tampa Mixtape - Tampa Bay's Music Radar`,
+    image: profileData?.avatar || 'https://tampamixtape.com/og-image.png',
+    url: profileData?.profileSlug
+      ? `https://tampamixtape.com/${profileData.profileSlug}`
+      : 'https://tampamixtape.com/',
+  })
 
   // Show loading state for public profiles
   if (!isOwnProfile && loading) {
