@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../services/db');
 const spotify = require('../services/spotify');
+const lastfm = require('../services/lastfm');
 
 const router = express.Router();
 
@@ -104,9 +105,29 @@ router.post('/hot100/refresh', async (req, res) => {
               updateData.followers = spotifyData.followers.total;
             }
 
-            // Update genres if available (convert array to comma-separated string)
-            if (spotifyData.genres && spotifyData.genres.length > 0) {
-              updateData.genres = spotifyData.genres.join(', ');
+            // Try Spotify genres first, fall back to Last.fm tags
+            let genres = spotifyData.genres || [];
+            if (genres.length === 0 && artist.artistName) {
+              try {
+                const lastfmData = await lastfm.getArtistStats(artist.artistName);
+                if (lastfmData?.tags?.length > 0) {
+                  genres = lastfmData.tags;
+                  console.log(`Using Last.fm tags for ${artist.artistName}: ${genres.slice(0, 3).join(', ')}`);
+                }
+              } catch (lfmErr) {
+                // Silently fail, genres will remain empty
+              }
+            }
+
+            // Limit to 3 genres and format nicely (capitalize each word)
+            if (genres.length > 0) {
+              const formattedGenres = genres
+                .slice(0, 3)
+                .map(g => g.split(' ').map(word =>
+                  word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                ).join(' '))
+                .join(', ');
+              updateData.genres = formattedGenres;
             }
 
             // Update avatar if available
