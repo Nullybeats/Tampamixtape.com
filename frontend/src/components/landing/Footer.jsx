@@ -56,7 +56,7 @@ export function Footer() {
                 <img
                   src="/randy-ojeda-law.png"
                   alt="Randy Ojeda Law - Music Law. Simplified."
-                  className="w-full h-auto max-h-[300px] object-cover object-center"
+                  className="w-full h-auto"
                 />
               </a>
             </div>
