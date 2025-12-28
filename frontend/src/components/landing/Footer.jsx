@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -53,12 +54,12 @@ export function Footer() {
       { name: 'Tampa Hot 100', href: '#hot100' },
     ],
     Company: [
-      { name: 'About', href: '#' },
-      { name: 'Contact', href: '#' },
+      { name: 'About', href: '/about' },
+      { name: 'Contact', href: '/contact' },
     ],
     Legal: [
-      { name: 'Privacy', href: '#' },
-      { name: 'Terms', href: '#' },
+      { name: 'Privacy', href: '/privacy' },
+      { name: 'Terms', href: '/terms' },
     ],
   }
 
@@ -167,12 +168,21 @@ export function Footer() {
                 <ul className="space-y-2">
                   {links.map((link) => (
                     <li key={link.name}>
-                      <a
-                        href={link.href}
-                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {link.name}
-                      </a>
+                      {link.href.startsWith('/') ? (
+                        <Link
+                          to={link.href}
+                          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {link.name}
+                        </Link>
+                      ) : (
+                        <a
+                          href={link.href}
+                          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {link.name}
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>

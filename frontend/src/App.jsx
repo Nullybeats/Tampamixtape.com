@@ -17,6 +17,10 @@ import { EventsPage } from '@/components/events/EventsPage'
 import { ArtistsPage } from '@/components/artists/ArtistsPage'
 import { ReleasesPage } from '@/components/releases/ReleasesPage'
 import { AdminDashboard } from '@/components/admin/AdminDashboard'
+import { AboutPage } from '@/components/pages/AboutPage'
+import { ContactPage } from '@/components/pages/ContactPage'
+import { PrivacyPage } from '@/components/pages/PrivacyPage'
+import { TermsPage } from '@/components/pages/TermsPage'
 
 function LandingPage({ onAuthClick }) {
   const navigate = useNavigate()
@@ -373,6 +377,110 @@ function AdminDashboardWrapper({ onAuthClick }) {
   )
 }
 
+function AboutPageWrapper({ onAuthClick }) {
+  const navigate = useNavigate()
+  const { isAuthenticated, isApproved } = useAuth()
+
+  const handleLogoClick = () => {
+    navigate('/')
+  }
+
+  const handleDashboardClick = () => {
+    if (isAuthenticated && isApproved) {
+      navigate('/profile')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <Navbar
+        onAuthClick={onAuthClick}
+        onDashboardClick={handleDashboardClick}
+        onLogoClick={handleLogoClick}
+      />
+      <AboutPage />
+    </div>
+  )
+}
+
+function ContactPageWrapper({ onAuthClick }) {
+  const navigate = useNavigate()
+  const { isAuthenticated, isApproved } = useAuth()
+
+  const handleLogoClick = () => {
+    navigate('/')
+  }
+
+  const handleDashboardClick = () => {
+    if (isAuthenticated && isApproved) {
+      navigate('/profile')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <Navbar
+        onAuthClick={onAuthClick}
+        onDashboardClick={handleDashboardClick}
+        onLogoClick={handleLogoClick}
+      />
+      <ContactPage />
+    </div>
+  )
+}
+
+function PrivacyPageWrapper({ onAuthClick }) {
+  const navigate = useNavigate()
+  const { isAuthenticated, isApproved } = useAuth()
+
+  const handleLogoClick = () => {
+    navigate('/')
+  }
+
+  const handleDashboardClick = () => {
+    if (isAuthenticated && isApproved) {
+      navigate('/profile')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <Navbar
+        onAuthClick={onAuthClick}
+        onDashboardClick={handleDashboardClick}
+        onLogoClick={handleLogoClick}
+      />
+      <PrivacyPage />
+    </div>
+  )
+}
+
+function TermsPageWrapper({ onAuthClick }) {
+  const navigate = useNavigate()
+  const { isAuthenticated, isApproved } = useAuth()
+
+  const handleLogoClick = () => {
+    navigate('/')
+  }
+
+  const handleDashboardClick = () => {
+    if (isAuthenticated && isApproved) {
+      navigate('/profile')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <Navbar
+        onAuthClick={onAuthClick}
+        onDashboardClick={handleDashboardClick}
+        onLogoClick={handleLogoClick}
+      />
+      <TermsPage />
+    </div>
+  )
+}
+
 function AppRoutes() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalTab, setAuthModalTab] = useState('signup')
@@ -419,6 +527,24 @@ function AppRoutes() {
         <Route
           path="/releases"
           element={<ReleasesPageWrapper onAuthClick={handleAuthClick} />}
+        />
+
+        {/* Static Pages */}
+        <Route
+          path="/about"
+          element={<AboutPageWrapper onAuthClick={handleAuthClick} />}
+        />
+        <Route
+          path="/contact"
+          element={<ContactPageWrapper onAuthClick={handleAuthClick} />}
+        />
+        <Route
+          path="/privacy"
+          element={<PrivacyPageWrapper onAuthClick={handleAuthClick} />}
+        />
+        <Route
+          path="/terms"
+          element={<TermsPageWrapper onAuthClick={handleAuthClick} />}
         />
 
         {/* Admin Routes */}
