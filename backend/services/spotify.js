@@ -220,6 +220,128 @@ async function getFullArtistData(artistId) {
   }
 }
 
+// ===========================================
+// OAuth Authorization Code Flow Functions
+// ===========================================
+
+const SPOTIFY_SCOPES = [
+  'user-read-private',
+  'user-read-email',
+].join(' ');
+
+/**
+ * Generate Spotify OAuth authorization URL
+ * @param {string} state - State parameter for CSRF protection
+ * @param {string} redirectUri - Redirect URI after authorization
+ * @returns {string} Authorization URL
+ */
+function getAuthorizationUrl(state, redirectUri) {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  if (!clientId) {
+    throw new Error('SPOTIFY_CLIENT_ID not configured');
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    redirect_uri: redirectUri,
+    scope: SPOTIFY_SCOPES,
+    state: state,
+    show_dialog: 'true', // Always show dialog so user can switch accounts
+  });
+
+  return `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+/**
+ * Exchange authorization code for access and refresh tokens
+ * @param {string} code - Authorization code from Spotify
+ * @param {string} redirectUri - Same redirect URI used in authorization
+ * @returns {Promise<{accessToken: string, refreshToken: string, expiresIn: number}>}
+ */
+async function exchangeCodeForToken(code, redirectUri) {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Spotify credentials not configured');
+  }
+
+  const response = await axios.post(
+    'https://accounts.spotify.com/api/token',
+    new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: redirectUri,
+    }),
+    {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+      },
+    }
+  );
+
+  return {
+    accessToken: response.data.access_token,
+    refreshToken: response.data.refresh_token,
+    expiresIn: response.data.expires_in,
+  };
+}
+
+/**
+ * Get Spotify user profile using OAuth access token
+ * @param {string} accessToken - User's OAuth access token
+ * @returns {Promise<Object>} User profile data
+ */
+async function getSpotifyUserProfile(accessToken) {
+  const response = await axios.get('https://api.spotify.com/v1/me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  return {
+    id: response.data.id,
+    displayName: response.data.display_name,
+    email: response.data.email,
+    images: response.data.images || [],
+    country: response.data.country,
+    product: response.data.product, // 'premium', 'free', etc.
+    uri: response.data.uri,
+    externalUrls: response.data.external_urls,
+  };
+}
+
+/**
+ * Search for an artist by name and try to match the user
+ * @param {string} name - Artist name to search
+ * @returns {Promise<Object|null>} Matched artist or null
+ */
+async function findArtistByName(name) {
+  if (!name) return null;
+
+  try {
+    const artists = await searchArtist(name);
+    if (!artists || artists.length === 0) return null;
+
+    // Try to find an exact or close match
+    const normalizedName = name.toLowerCase().trim();
+    const match = artists.find(
+      artist => artist.name.toLowerCase().trim() === normalizedName
+    );
+
+    if (match) {
+      // Return full artist data
+      return await getFullArtistData(match.id);
+    }
+
+    // Return top result if no exact match
+    return await getFullArtistData(artists[0].id);
+  } catch (error) {
+    console.error('Error finding artist by name:', error.message);
+    return null;
+  }
+}
+
 module.exports = {
   extractArtistId,
   searchArtist,
@@ -229,4 +351,9 @@ module.exports = {
   getAlbumTracks,
   getArtistStats,
   getFullArtistData,
+  // OAuth functions
+  getAuthorizationUrl,
+  exchangeCodeForToken,
+  getSpotifyUserProfile,
+  findArtistByName,
 };

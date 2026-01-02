@@ -157,6 +157,10 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [creators, setCreators] = useState([])
+  // Spotify OAuth state
+  const [spotifyUser, setSpotifyUser] = useState(null)
+  const [spotifyArtist, setSpotifyArtist] = useState(null)
+  const [spotifyConnecting, setSpotifyConnecting] = useState(false)
 
   // Fetch current user from API using token
   const fetchCurrentUser = async (authToken) => {
@@ -230,14 +234,16 @@ export function AuthProvider({ children }) {
     if (!query) return []
     try {
       const response = await fetch(`${API_URL}/api/spotify/search?q=${encodeURIComponent(query)}`)
-      if (response.ok) {
-        const data = await response.json()
-        return data.artists || []
+      if (!response.ok) {
+        console.error('Spotify search failed:', response.status)
+        return []
       }
+      const data = await response.json()
+      return data.artists || []
     } catch (error) {
       console.error('Error searching Spotify artists:', error)
+      return []
     }
-    return []
   }
 
   // Save creators to localStorage
@@ -256,6 +262,10 @@ export function AuthProvider({ children }) {
           password: userData.password,
           name: userData.name,
           artistName: userData.artistName,
+          // Include Spotify data if provided
+          ...(userData.spotifyId && { spotifyId: userData.spotifyId }),
+          ...(userData.spotifyUrl && { spotifyUrl: userData.spotifyUrl }),
+          ...(userData.avatar && { avatar: userData.avatar }),
         }),
       })
 
@@ -484,6 +494,76 @@ export function AuthProvider({ children }) {
     return creators.find(creator => creator.profileSlug === slug)
   }
 
+  // ===========================================
+  // Spotify OAuth Methods
+  // ===========================================
+
+  // Initiate Spotify OAuth login flow
+  const loginWithSpotify = async (returnTo = '/') => {
+    try {
+      const response = await fetch(
+        `${API_URL}/api/spotify/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}&return_to=${encodeURIComponent(returnTo)}`
+      )
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to initiate Spotify login: ${response.status}`)
+      }
+      const data = await response.json()
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to initiate Spotify login')
+      }
+
+      const data = await response.json()
+
+      if (data.authUrl) {
+        // Store state in sessionStorage for validation
+        sessionStorage.setItem('spotify_oauth_state', data.state)
+        // Redirect to Spotify
+        window.location.href = data.authUrl
+      } else {
+        throw new Error('Failed to get authorization URL')
+      }
+    } catch (error) {
+      console.error('Spotify login error:', error)
+      setSpotifyConnecting(false)
+      throw error
+    }
+  }
+
+  // Handle Spotify callback data (called from SpotifyCallback page)
+  const handleSpotifyCallback = (spotifyData) => {
+    if (spotifyData.spotifyProfile) {
+      setSpotifyUser(spotifyData.spotifyProfile)
+    }
+    if (spotifyData.artistData) {
+      setSpotifyArtist(spotifyData.artistData)
+    }
+    setSpotifyConnecting(false)
+    return spotifyData
+  }
+
+  // Clear Spotify connection state
+  const clearSpotifyConnection = () => {
+    setSpotifyUser(null)
+    setSpotifyArtist(null)
+    setSpotifyConnecting(false)
+    sessionStorage.removeItem('spotify_oauth_state')
+  }
+
+  // Get avatar URL from Spotify data (artist image preferred, then user profile)
+  const getSpotifyAvatar = () => {
+    if (spotifyArtist?.image) {
+      return spotifyArtist.image
+    }
+    if (spotifyUser?.images?.[0]?.url) {
+      return spotifyUser.images[0].url
+    }
+    return null
+  }
+
   const value = {
     user,
     token,
@@ -517,6 +597,14 @@ export function AuthProvider({ children }) {
     approveCreatorByAdmin,
     rejectCreatorByAdmin,
     getCreatorBySlug,
+    // Spotify OAuth
+    spotifyUser,
+    spotifyArtist,
+    spotifyConnecting,
+    loginWithSpotify,
+    handleSpotifyCallback,
+    clearSpotifyConnection,
+    getSpotifyAvatar,
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
@@ -21,18 +21,21 @@ import { AboutPage } from '@/components/pages/AboutPage'
 import { ContactPage } from '@/components/pages/ContactPage'
 import { PrivacyPage } from '@/components/pages/PrivacyPage'
 import { TermsPage } from '@/components/pages/TermsPage'
+import { SpotifyCallback } from '@/components/pages/SpotifyCallback'
 
 function LandingPage({ onAuthClick }) {
   const navigate = useNavigate()
   const { isAuthenticated, isApproved } = useAuth()
 
   const handleDashboardClick = () => {
-    if (isAuthenticated) {
-      if (isApproved) {
-        navigate('/profile')
-      } else {
-        navigate('/pending')
-      }
+    if (!isAuthenticated) {
+      onAuthClick() // Open signup modal when not logged in
+      return
+    }
+    if (isApproved) {
+      navigate('/profile')
+    } else {
+      navigate('/pending')
     }
   }
 
@@ -88,7 +91,24 @@ function ArtistPageWrapper({ onAuthClick }) {
 
 function DashboardPage({ onAuthClick }) {
   const navigate = useNavigate()
+  const { isAuthenticated, isApproved, isPending } = useAuth()
 
+  // Not authenticated → redirect to home
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />
+  }
+
+  // Approved → redirect to profile (their customizable page)
+  if (isApproved) {
+    return <Navigate to="/profile" replace />
+  }
+
+  // Pending → redirect to pending page
+  if (isPending) {
+    return <Navigate to="/pending" replace />
+  }
+
+  // Fallback for edge cases - show dashboard
   const handleClose = () => {
     navigate('/')
   }
@@ -485,6 +505,17 @@ function AppRoutes() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalTab, setAuthModalTab] = useState('signup')
 
+  // Check if returning from Spotify OAuth and reopen signup modal
+  useEffect(() => {
+    const spotifyConnected = sessionStorage.getItem('spotify_connected')
+    if (spotifyConnected === 'true') {
+      sessionStorage.removeItem('spotify_connected')
+      // Reopen signup modal after Spotify connection
+      setAuthModalTab('signup')
+      setAuthModalOpen(true)
+    }
+  }, [])
+
   const handleAuthClick = (tab) => {
     setAuthModalTab(tab)
     setAuthModalOpen(true)
@@ -559,8 +590,8 @@ function AppRoutes() {
           element={<DashboardPage onAuthClick={handleAuthClick} />}
         />
 
-        {/* Spotify OAuth Callback - redirects to home after token is captured */}
-        <Route path="/callback" element={<Navigate to="/" replace />} />
+        {/* Spotify OAuth Callback */}
+        <Route path="/callback" element={<SpotifyCallback />} />
 
         {/* Public Profile Route - MUST be last to avoid catching other routes */}
         <Route

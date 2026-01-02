@@ -186,6 +186,12 @@ export function ArtistPage({ artistId, artistName, onBack }) {
 
     try {
       const res = await fetch(`${API_URL}/api/artists/spotify/${artistId}/full`)
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${res.status}`)
+      }
+
       const data = await res.json()
 
       if (data.error) {
@@ -208,6 +214,11 @@ export function ArtistPage({ artistId, artistName, onBack }) {
     try {
       // First search for the artist to get their Spotify ID
       const searchRes = await fetch(`${API_URL}/api/artists/search?q=${encodeURIComponent(artistName)}`)
+
+      if (!searchRes.ok) {
+        throw new Error('Search failed')
+      }
+
       const searchData = await searchRes.json()
 
       if (searchData.results?.length > 0) {
@@ -215,6 +226,12 @@ export function ArtistPage({ artistId, artistName, onBack }) {
         if (spotifyArtist) {
           // Fetch full data with the Spotify ID
           const res = await fetch(`${API_URL}/api/artists/spotify/${spotifyArtist.spotifyId}/full`)
+
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}))
+            throw new Error(errorData.error || 'Failed to load artist')
+          }
+
           const data = await res.json()
           setArtist(data)
           return

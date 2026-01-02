@@ -5,6 +5,107 @@ const lastfm = require('../services/lastfm');
 
 const router = express.Router();
 
+// Search for artists (in database and optionally Spotify)
+router.get('/search', async (req, res) => {
+  try {
+    const { q, includeSpotify = 'true' } = req.query;
+
+    if (!q) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    // Search in database first
+    const dbArtists = await prisma.user.findMany({
+      where: {
+        status: 'APPROVED',
+        role: 'ARTIST',
+        artistName: {
+          contains: q,
+          mode: 'insensitive',
+        },
+      },
+      take: 10,
+      select: {
+        id: true,
+        artistName: true,
+        profileSlug: true,
+        avatar: true,
+        spotifyId: true,
+        genres: true,
+        region: true,
+        popularity: true,
+        followers: true,
+      },
+    });
+
+    // If requested, also search Spotify
+    let spotifyArtists = [];
+    if (includeSpotify === 'true' && dbArtists.length < 5) {
+      try {
+        spotifyArtists = await spotify.searchArtist(q);
+      } catch (err) {
+        console.error('Spotify search failed:', err.message);
+      }
+    }
+
+    // Combine database and Spotify results for compatibility
+    // Frontend expects 'results' array with spotifyId field
+    const combinedResults = [
+      ...dbArtists,
+      ...spotifyArtists.map(sa => ({
+        id: sa.id,
+        artistName: sa.name,
+        spotifyId: sa.id,
+        avatar: sa.image,
+        genres: sa.genres?.join(', ') || '',
+        followers: sa.followers,
+        isSpotifyResult: true,
+      })),
+    ];
+
+    res.json({
+      artists: dbArtists,
+      spotifyArtists,
+      results: combinedResults, // For frontend compatibility
+      total: combinedResults.length,
+    });
+  } catch (error) {
+    console.error('Artist search error:', error.message);
+    res.status(500).json({ error: 'Failed to search artists' });
+  }
+});
+
+// Get full Spotify artist data by Spotify ID
+router.get('/spotify/:spotifyId/full', async (req, res) => {
+  try {
+    const { spotifyId } = req.params;
+
+    if (!spotifyId) {
+      return res.status(400).json({ error: 'Spotify ID is required' });
+    }
+
+    // Validate Spotify ID format (22 character alphanumeric)
+    if (!/^[a-zA-Z0-9]{22}$/.test(spotifyId)) {
+      return res.status(400).json({ error: 'Invalid Spotify ID format' });
+    }
+
+    // Get full artist data from Spotify
+    const artistData = await spotify.getFullArtistData(spotifyId);
+
+    if (!artistData) {
+      return res.status(404).json({ error: 'Artist not found on Spotify' });
+    }
+
+    res.json(artistData);
+  } catch (error) {
+    console.error('Get Spotify artist error:', error.message);
+    if (error.response?.status === 404) {
+      return res.status(404).json({ error: 'Artist not found on Spotify' });
+    }
+    res.status(500).json({ error: 'Failed to fetch artist data from Spotify' });
+  }
+});
+
 // Get Hot 100 - Top artists ranked by popularity
 router.get('/hot100', async (req, res) => {
   try {

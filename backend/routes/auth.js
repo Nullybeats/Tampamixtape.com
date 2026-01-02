@@ -8,13 +8,54 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = '7d';
 
+// Input validation helpers
+const isValidUrl = (urlString) => {
+  if (!urlString) return true; // Optional fields
+  try {
+    const url = new URL(urlString);
+    return ['http:', 'https:'].includes(url.protocol);
+  } catch {
+    return false;
+  }
+};
+
+const isValidSpotifyId = (id) => {
+  if (!id) return true; // Optional field
+  // Spotify IDs are 22 character base62 strings
+  return typeof id === 'string' && /^[a-zA-Z0-9]{22}$/.test(id);
+};
+
+const sanitizeString = (str, maxLength = 500) => {
+  if (!str) return str;
+  return String(str).trim().slice(0, maxLength);
+};
+
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, artistName } = req.body;
+    const { email, password, name, artistName, spotifyId, spotifyUrl, avatar } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Validate Spotify fields if provided
+    if (spotifyId && !isValidSpotifyId(spotifyId)) {
+      return res.status(400).json({ error: 'Invalid Spotify ID format' });
+    }
+
+    if (spotifyUrl && !isValidUrl(spotifyUrl)) {
+      return res.status(400).json({ error: 'Invalid Spotify URL format' });
+    }
+
+    if (avatar && !isValidUrl(avatar)) {
+      return res.status(400).json({ error: 'Invalid avatar URL format' });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -23,19 +64,26 @@ router.post('/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const profileSlug = artistName
-      ? artistName.toLowerCase().replace(/[^a-z0-9]/g, '')
+    // Sanitize inputs
+    const sanitizedName = sanitizeString(name, 100);
+    const sanitizedArtistName = sanitizeString(artistName, 100);
+    const profileSlug = sanitizedArtistName
+      ? sanitizedArtistName.toLowerCase().replace(/[^a-z0-9]/g, '')
       : null;
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: email.toLowerCase().trim(),
         password: hashedPassword,
-        name,
-        artistName,
+        name: sanitizedName,
+        artistName: sanitizedArtistName,
         profileSlug,
         role: 'USER',
         status: 'PENDING',
+        // Include Spotify data if provided during signup (already validated)
+        ...(spotifyId && { spotifyId }),
+        ...(spotifyUrl && { spotifyUrl }),
+        ...(avatar && { avatar }),
       },
     });
 
@@ -53,10 +101,14 @@ router.post('/register', async (req, res) => {
         profileSlug: user.profileSlug,
         role: user.role,
         status: user.status,
+        avatar: user.avatar,
+        bio: user.bio,
+        spotifyId: user.spotifyId,
+        spotifyUrl: user.spotifyUrl,
       },
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Registration error');
     res.status(500).json({ error: 'Registration failed' });
   }
 });
@@ -134,10 +186,12 @@ router.post('/login', async (req, res) => {
         status: user.status,
         avatar: user.avatar,
         bio: user.bio,
+        spotifyId: user.spotifyId,
+        spotifyUrl: user.spotifyUrl,
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error');
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -210,7 +264,7 @@ router.post('/admin-login', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Admin login error:', error);
+    console.error('Admin login error');
     res.status(500).json({ error: 'Admin login failed' });
   }
 });
@@ -254,7 +308,7 @@ router.get('/me', async (req, res) => {
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token' });
     }
-    console.error('Get user error:', error);
+    console.error('Get user error');
     res.status(500).json({ error: 'Failed to get user' });
   }
 });

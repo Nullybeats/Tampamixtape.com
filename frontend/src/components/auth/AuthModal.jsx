@@ -68,7 +68,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { signUp, signIn, loginWithSpotify, spotifyUser } = useAuth()
+  const { signUp, signIn, loginWithSpotify, spotifyUser, spotifyArtist, getSpotifyAvatar, clearSpotifyConnection } = useAuth()
 
   const signUpForm = useForm({
     resolver: zodResolver(signUpSchema),
@@ -101,11 +101,31 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
     setIsLoading(true)
     setError('')
     try {
-      await signUp({
+      // Include Spotify data if connected during signup
+      const signUpData = {
         ...data,
         state: 'Florida',
         region: selectedCityData?.region || 'Tampa Bay',
-      })
+      }
+
+      // Add Spotify data if user connected their account
+      if (spotifyArtist) {
+        signUpData.spotifyId = spotifyArtist.id
+        signUpData.spotifyUrl = spotifyArtist.url
+        signUpData.avatar = spotifyArtist.image
+      } else if (spotifyUser) {
+        // Use Spotify user profile image if no artist match
+        const avatar = getSpotifyAvatar()
+        if (avatar) {
+          signUpData.avatar = avatar
+        }
+      }
+
+      await signUp(signUpData)
+
+      // Clear Spotify connection state after successful signup
+      clearSpotifyConnection()
+
       toast.success('Application submitted!', {
         description: 'Your application is pending review. We\'ll notify you once approved.',
       })
@@ -148,6 +168,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
     signInForm.reset()
     setStep(1)
     setError('')
+    clearSpotifyConnection()
   }
 
   const switchTab = (newTab) => {
@@ -217,7 +238,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                     <div className="p-4 bg-[#1db954]/10 border border-[#1db954]/20 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">Connect Spotify</span>
-                        {spotifyUser ? (
+                        {spotifyUser || spotifyArtist ? (
                           <Badge variant="success" className="gap-1">
                             <CheckCircle2 className="w-3 h-3" />
                             Connected
@@ -226,18 +247,25 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                           <Badge variant="secondary">Optional</Badge>
                         )}
                       </div>
-                      {spotifyUser ? (
+                      {spotifyUser || spotifyArtist ? (
                         <div className="flex items-center gap-3">
-                          {spotifyUser.images?.[0] && (
+                          {getSpotifyAvatar() && (
                             <img
-                              src={spotifyUser.images[0].url}
-                              alt={spotifyUser.display_name}
-                              className="w-10 h-10 rounded-full"
+                              src={getSpotifyAvatar()}
+                              alt={spotifyArtist?.name || spotifyUser?.displayName}
+                              className="w-10 h-10 rounded-full object-cover"
                             />
                           )}
                           <div>
-                            <p className="text-sm font-medium">{spotifyUser.display_name}</p>
-                            <p className="text-xs text-muted-foreground">{spotifyUser.email}</p>
+                            <p className="text-sm font-medium">
+                              {spotifyArtist?.name || spotifyUser?.displayName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {spotifyArtist
+                                ? `${spotifyArtist.followers?.toLocaleString() || 0} followers`
+                                : spotifyUser?.email
+                              }
+                            </p>
                           </div>
                         </div>
                       ) : (
