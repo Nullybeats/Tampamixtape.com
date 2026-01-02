@@ -501,14 +501,10 @@ export function AuthProvider({ children }) {
   // Initiate Spotify OAuth login flow
   const loginWithSpotify = async (returnTo = '/') => {
     try {
+      setSpotifyConnecting(true)
+      const redirectUri = `${window.location.origin}/callback`
       const response = await fetch(
         `${API_URL}/api/spotify/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}&return_to=${encodeURIComponent(returnTo)}`
-      )
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `Failed to initiate Spotify login: ${response.status}`)
-      }
-      const data = await response.json()
       )
 
       if (!response.ok) {
