@@ -356,11 +356,35 @@ export function AuthProvider({ children }) {
     return updatedUser
   }
 
-  const updateProfile = (profileData) => {
-    return updateUser({
+  const updateProfile = async (profileData) => {
+    // Update local state immediately for responsiveness
+    const localUpdate = updateUser({
       ...profileData,
       updatedAt: new Date().toISOString(),
     })
+
+    // If we have a token, also persist to backend
+    if (token) {
+      try {
+        const response = await fetch(`${API_URL}/api/auth/me`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(profileData),
+        })
+
+        if (!response.ok) {
+          const data = await response.json()
+          console.error('Failed to update profile on server:', data.error)
+        }
+      } catch (error) {
+        console.error('Failed to sync profile update:', error)
+      }
+    }
+
+    return localUpdate
   }
 
   const updateSocialLinks = (links) => {

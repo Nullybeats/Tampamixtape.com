@@ -91,6 +91,7 @@ export function UserSettings() {
     artistName: user?.artistName || '',
     bio: user?.bio || '',
     genres: user?.genres?.join(', ') || '',
+    region: user?.region || 'Tampa Bay',
   })
 
   const [socialLinksForm, setSocialLinksForm] = useState(user?.socialLinks || {})
@@ -216,6 +217,7 @@ export function UserSettings() {
       artistName: profileForm.artistName,
       bio: profileForm.bio,
       genres: profileForm.genres.split(',').map(g => g.trim()).filter(Boolean),
+      region: profileForm.region,
     })
     setSaved({ ...saved, profile: true })
     setTimeout(() => setSaved({ ...saved, profile: false }), 2000)
@@ -357,6 +359,25 @@ export function UserSettings() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Separate multiple genres with commas
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="region">Region</Label>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                    <select
+                      id="region"
+                      value={profileForm.region}
+                      onChange={(e) => setProfileForm({ ...profileForm, region: e.target.value })}
+                      className="flex-1 h-10 px-3 py-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      <option value="Tampa Bay">Tampa Bay</option>
+                      <option value="St. Pete">St. Pete</option>
+                    </select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Your location in the Tampa Bay area
                   </p>
                 </div>
 

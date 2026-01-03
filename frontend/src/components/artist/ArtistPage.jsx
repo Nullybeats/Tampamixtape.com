@@ -324,7 +324,7 @@ export function ArtistPage({ artistId, artistName, onBack }) {
                 {/* Region Badge */}
                 <Badge variant="outline" className="mb-3 gap-1">
                   <MapPin className="w-3 h-3" />
-                  Tampa Bay Region
+                  {artist.region || 'Tampa Bay'} Region
                 </Badge>
 
                 <h1 className="text-4xl md:text-5xl font-bold mb-4">{artist.name}</h1>

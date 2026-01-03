@@ -292,9 +292,14 @@ router.get('/me', async (req, res) => {
         avatar: true,
         role: true,
         status: true,
+        region: true,
+        genres: true,
+        spotifyId: true,
         spotifyUrl: true,
         instagramUrl: true,
         twitterUrl: true,
+        youtubeUrl: true,
+        tiktokUrl: true,
         websiteUrl: true,
       },
     });
@@ -310,6 +315,72 @@ router.get('/me', async (req, res) => {
     }
     console.error('Get user error');
     res.status(500).json({ error: 'Failed to get user' });
+  }
+});
+
+// Update current user's profile (requires auth)
+router.patch('/me', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const { artistName, bio, genres, region, instagramUrl, twitterUrl, youtubeUrl, tiktokUrl, websiteUrl } = req.body;
+
+    // Validate region if provided
+    const validRegions = ['Tampa Bay', 'St. Pete'];
+    if (region && !validRegions.includes(region)) {
+      return res.status(400).json({ error: 'Invalid region. Must be "Tampa Bay" or "St. Pete"' });
+    }
+
+    // Build update data - only include fields that were provided
+    const updateData = {};
+    if (artistName !== undefined) updateData.artistName = artistName;
+    if (bio !== undefined) updateData.bio = bio;
+    if (genres !== undefined) updateData.genres = genres;
+    if (region !== undefined) updateData.region = region;
+    if (instagramUrl !== undefined) updateData.instagramUrl = instagramUrl;
+    if (twitterUrl !== undefined) updateData.twitterUrl = twitterUrl;
+    if (youtubeUrl !== undefined) updateData.youtubeUrl = youtubeUrl;
+    if (tiktokUrl !== undefined) updateData.tiktokUrl = tiktokUrl;
+    if (websiteUrl !== undefined) updateData.websiteUrl = websiteUrl;
+
+    const user = await prisma.user.update({
+      where: { id: decoded.userId },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        artistName: true,
+        profileSlug: true,
+        bio: true,
+        avatar: true,
+        role: true,
+        status: true,
+        region: true,
+        genres: true,
+        spotifyId: true,
+        spotifyUrl: true,
+        instagramUrl: true,
+        twitterUrl: true,
+        youtubeUrl: true,
+        tiktokUrl: true,
+        websiteUrl: true,
+      },
+    });
+
+    res.json({ user, message: 'Profile updated successfully' });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 

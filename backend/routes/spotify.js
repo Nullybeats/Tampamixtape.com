@@ -174,8 +174,11 @@ router.post('/link', requireAuth, async (req, res) => {
         status: true,
         spotifyId: true,
         spotifyUrl: true,
+        region: true,
         instagramUrl: true,
         twitterUrl: true,
+        youtubeUrl: true,
+        tiktokUrl: true,
         websiteUrl: true,
       },
     });
@@ -215,6 +218,12 @@ router.delete('/link', requireAuth, async (req, res) => {
         status: true,
         spotifyId: true,
         spotifyUrl: true,
+        region: true,
+        instagramUrl: true,
+        twitterUrl: true,
+        youtubeUrl: true,
+        tiktokUrl: true,
+        websiteUrl: true,
       },
     });
 
