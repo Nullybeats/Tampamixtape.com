@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
+import { AudioPlayerProvider } from '@/components/audio/AudioPlayer'
 import { Navbar } from '@/components/landing/Navbar'
 import { Hero } from '@/components/landing/Hero'
 import { DiscoverySection } from '@/components/landing/DiscoverySection'
+import { TrendingSection } from '@/components/landing/TrendingSection'
 import { Hot100Section } from '@/components/landing/Hot100Section'
 import { Footer } from '@/components/landing/Footer'
 import { AuthModal } from '@/components/auth/AuthModal'
@@ -21,21 +23,29 @@ import { AboutPage } from '@/components/pages/AboutPage'
 import { ContactPage } from '@/components/pages/ContactPage'
 import { PrivacyPage } from '@/components/pages/PrivacyPage'
 import { TermsPage } from '@/components/pages/TermsPage'
-import { SpotifyCallback } from '@/components/pages/SpotifyCallback'
+
+// Scroll to top on route change
+function ScrollToTop() {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+
+  return null
+}
 
 function LandingPage({ onAuthClick }) {
   const navigate = useNavigate()
   const { isAuthenticated, isApproved } = useAuth()
 
   const handleDashboardClick = () => {
-    if (!isAuthenticated) {
-      onAuthClick() // Open signup modal when not logged in
-      return
-    }
-    if (isApproved) {
-      navigate('/profile')
-    } else {
-      navigate('/pending')
+    if (isAuthenticated) {
+      if (isApproved) {
+        navigate('/profile')
+      } else {
+        navigate('/pending')
+      }
     }
   }
 
@@ -48,6 +58,7 @@ function LandingPage({ onAuthClick }) {
       <main>
         <Hero />
         <DiscoverySection />
+        <TrendingSection />
         <Hot100Section />
       </main>
       <Footer />
@@ -91,24 +102,7 @@ function ArtistPageWrapper({ onAuthClick }) {
 
 function DashboardPage({ onAuthClick }) {
   const navigate = useNavigate()
-  const { isAuthenticated, isApproved, isPending } = useAuth()
 
-  // Not authenticated → redirect to home
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />
-  }
-
-  // Approved → redirect to profile (their customizable page)
-  if (isApproved) {
-    return <Navigate to="/profile" replace />
-  }
-
-  // Pending → redirect to pending page
-  if (isPending) {
-    return <Navigate to="/pending" replace />
-  }
-
-  // Fallback for edge cases - show dashboard
   const handleClose = () => {
     navigate('/')
   }
@@ -505,17 +499,6 @@ function AppRoutes() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [authModalTab, setAuthModalTab] = useState('signup')
 
-  // Check if returning from Spotify OAuth and reopen signup modal
-  useEffect(() => {
-    const spotifyConnected = sessionStorage.getItem('spotify_connected')
-    if (spotifyConnected === 'true') {
-      sessionStorage.removeItem('spotify_connected')
-      // Reopen signup modal after Spotify connection
-      setAuthModalTab('signup')
-      setAuthModalOpen(true)
-    }
-  }, [])
-
   const handleAuthClick = (tab) => {
     setAuthModalTab(tab)
     setAuthModalOpen(true)
@@ -590,8 +573,8 @@ function AppRoutes() {
           element={<DashboardPage onAuthClick={handleAuthClick} />}
         />
 
-        {/* Spotify OAuth Callback */}
-        <Route path="/callback" element={<SpotifyCallback />} />
+        {/* Spotify OAuth Callback - redirects to home after token is captured */}
+        <Route path="/callback" element={<Navigate to="/" replace />} />
 
         {/* Public Profile Route - MUST be last to avoid catching other routes */}
         <Route
@@ -613,13 +596,16 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
-        <Toaster
-          position="top-right"
-          richColors
-          closeButton
-          theme="dark"
-        />
+        <AudioPlayerProvider>
+          <ScrollToTop />
+          <AppRoutes />
+          <Toaster
+            position="top-right"
+            richColors
+            closeButton
+            theme="dark"
+          />
+        </AudioPlayerProvider>
       </AuthProvider>
     </BrowserRouter>
   )

@@ -78,3 +78,15 @@ model Settings {
 
   @@map("settings")
 }
+
+model Follow {
+  id         String   @id @default(cuid())
+  followerId String   // The user who is following
+  artistId   String   // The artist being followed
+  createdAt  DateTime @default(now())
+
+  @@unique([followerId, artistId])
+  @@index([followerId])
+  @@index([artistId])
+  @@map("follows")
+}

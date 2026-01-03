@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
+import { useAudioPlayer } from '@/components/audio/AudioPlayer'
 import { Loader2 } from 'lucide-react'
 import {
   BarChart,
@@ -24,6 +25,7 @@ import {
   Settings,
   Music,
   Play,
+  Pause,
   ExternalLink,
   Instagram,
   Twitter,
@@ -116,7 +118,8 @@ function formatDuration(ms) {
 
 export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const navigate = useNavigate()
-  const { user, featuredPlaylist, isApproved } = useAuth()
+  const { user, featuredPlaylist, isApproved, isAuthenticated, followArtist, unfollowArtist, checkFollowStatus } = useAuth()
+  const { playTrack, currentTrack, isPlaying } = useAudioPlayer()
   const [copied, setCopied] = useState(false)
   const [fetchedProfile, setFetchedProfile] = useState(null)
   const [spotifyData, setSpotifyData] = useState(null)
@@ -125,6 +128,10 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [error, setError] = useState(null)
   const [singlesVisible, setSinglesVisible] = useState(12)
   const [rankingData, setRankingData] = useState({ rank: null, total: 0 })
+  const [similarArtists, setSimilarArtists] = useState([])
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [platformFollowers, setPlatformFollowers] = useState(0)
+  const [followLoading, setFollowLoading] = useState(false)
 
   // Fetch profile data for public profiles
   useEffect(() => {
@@ -200,6 +207,102 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
       fetchRanking()
     }
   }, [isOwnProfile, user, fetchedProfile])
+
+  // Fetch similar artists based on genres
+  useEffect(() => {
+    const fetchSimilarArtists = async () => {
+      // Determine which profile to check
+      const targetProfile = isOwnProfile ? user : fetchedProfile
+      const targetSpotifyData = isOwnProfile ? null : spotifyData
+
+      // Get genres from profile or Spotify data
+      const profileGenres = targetProfile?.genres || []
+      const spotifyGenres = targetSpotifyData?.genres || []
+      const allGenres = [...new Set([...profileGenres, ...spotifyGenres])]
+        .map(g => g.toLowerCase())
+
+      if (allGenres.length === 0 && !targetProfile?.spotifyId) {
+        setSimilarArtists([])
+        return
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/artists/hot100?limit=100`)
+        if (response.ok) {
+          const data = await response.json()
+          const artists = data.artists || []
+
+          // Filter out current artist and find similar by genre overlap
+          const similar = artists
+            .filter(a => {
+              // Exclude current artist
+              if (a.spotifyId && a.spotifyId === targetProfile?.spotifyId) return false
+              if (a.id === targetProfile?.id) return false
+              return true
+            })
+            .map(a => {
+              const artistGenres = (a.genres || '').toLowerCase().split(',').map(g => g.trim())
+              const genreOverlap = allGenres.filter(g =>
+                artistGenres.some(ag => ag.includes(g) || g.includes(ag))
+              ).length
+
+              return { ...a, genreOverlap }
+            })
+            .filter(a => a.genreOverlap > 0)
+            .sort((a, b) => b.genreOverlap - a.genreOverlap || b.popularity - a.popularity)
+            .slice(0, 6)
+
+          setSimilarArtists(similar)
+        }
+      } catch (err) {
+        console.error('Failed to fetch similar artists:', err)
+      }
+    }
+
+    // Only fetch if we have profile data
+    if ((isOwnProfile && user) || (fetchedProfile && spotifyData)) {
+      fetchSimilarArtists()
+    }
+  }, [isOwnProfile, user, fetchedProfile, spotifyData])
+
+  // Check follow status for public profiles
+  useEffect(() => {
+    const checkFollow = async () => {
+      if (isOwnProfile || !fetchedProfile?.id || !isAuthenticated) return
+
+      try {
+        const status = await checkFollowStatus(fetchedProfile.id)
+        setIsFollowing(status.isFollowing)
+        setPlatformFollowers(status.followerCount)
+      } catch (err) {
+        console.error('Error checking follow status:', err)
+      }
+    }
+
+    checkFollow()
+  }, [isOwnProfile, fetchedProfile?.id, isAuthenticated, checkFollowStatus])
+
+  // Handle follow/unfollow
+  const handleFollowClick = async () => {
+    if (!isAuthenticated || !fetchedProfile?.id) return
+
+    setFollowLoading(true)
+    try {
+      if (isFollowing) {
+        const result = await unfollowArtist(fetchedProfile.id)
+        setIsFollowing(false)
+        setPlatformFollowers(result.followerCount)
+      } else {
+        const result = await followArtist(fetchedProfile.id)
+        setIsFollowing(true)
+        setPlatformFollowers(result.followerCount)
+      }
+    } catch (err) {
+      console.error('Follow/unfollow error:', err)
+    } finally {
+      setFollowLoading(false)
+    }
+  }
 
   // Use own profile data or fetched profile data
   const profileData = isOwnProfile ? user : fetchedProfile
@@ -384,23 +487,96 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   Edit Profile
                 </Button>
               )}
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={handleCopyLink}
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 text-green-400" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Link className="w-4 h-4" />
-                    Share
-                  </>
-                )}
-              </Button>
+              {!isOwnProfile && isAuthenticated && (
+                <Button
+                  variant={isFollowing ? "secondary" : "default"}
+                  className="gap-2"
+                  onClick={handleFollowClick}
+                  disabled={followLoading}
+                >
+                  {followLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isFollowing ? (
+                    <>
+                      <Users className="w-4 h-4" />
+                      Following
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-4 h-4" />
+                      Follow
+                    </>
+                  )}
+                </Button>
+              )}
+              {/* Share Dropdown */}
+              <div className="relative group">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </Button>
+                <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="p-1">
+                    <button
+                      onClick={handleCopyLink}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-4 h-4 text-green-400" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Link className="w-4 h-4" />
+                          Copy Link
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const url = `https://tampamixtape.com/${profileData.profileSlug}`
+                        const text = `Check out ${profileData.artistName} on Tampa Mixtape!`
+                        window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank')
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                    >
+                      <Twitter className="w-4 h-4" />
+                      Share on X
+                    </button>
+                    <button
+                      onClick={() => {
+                        const url = `https://tampamixtape.com/${profileData.profileSlug}`
+                        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank')
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                      </svg>
+                      Share on Facebook
+                    </button>
+                    {profileData.instagramUrl && (
+                      <button
+                        onClick={() => window.open(profileData.instagramUrl, '_blank')}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                      >
+                        <Instagram className="w-4 h-4" />
+                        View on Instagram
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {platformFollowers > 0 && !isOwnProfile && (
+                <Badge variant="outline" className="h-9 px-3 flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  {platformFollowers} {platformFollowers === 1 ? 'follower' : 'followers'}
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -430,6 +606,12 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               <Globe className="w-4 h-4" />
               Links
             </TabsTrigger>
+            {isOwnProfile && (
+              <TabsTrigger value="analytics" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Analytics
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Overview Tab */}
@@ -658,6 +840,53 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               </Card>
             )}
 
+            {/* Similar Artists Section */}
+            {similarArtists.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Users className="w-5 h-5 text-primary" />
+                    Fans Also Like
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {similarArtists.map((artist, index) => (
+                      <motion.div
+                        key={artist.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="group cursor-pointer text-center"
+                        onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
+                      >
+                        <div className="relative w-20 h-20 md:w-24 md:h-24 mx-auto mb-2">
+                          {artist.avatar ? (
+                            <img
+                              src={artist.avatar}
+                              alt={artist.artistName}
+                              className="w-full h-full rounded-full object-cover group-hover:ring-2 ring-primary ring-offset-2 ring-offset-background transition-all"
+                            />
+                          ) : (
+                            <div className="w-full h-full rounded-full bg-secondary flex items-center justify-center group-hover:ring-2 ring-primary ring-offset-2 ring-offset-background transition-all">
+                              <Music className="w-8 h-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Play className="w-8 h-8 text-white" />
+                          </div>
+                        </div>
+                        <h4 className="font-medium text-sm truncate">{artist.artistName}</h4>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {artist.genres?.split(',')[0] || 'Artist'}
+                        </p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Social Links Preview */}
             {activeSocialLinks.length > 0 && (
               <Card>
@@ -714,49 +943,90 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       <CardTitle className="text-lg flex items-center gap-2">
                         <Headphones className="w-5 h-5 text-primary" />
                         Top Tracks
+                        {spotifyData.topTracks.some(t => t.previewUrl) && (
+                          <Badge variant="secondary" className="text-[10px] ml-2">
+                            30s Previews Available
+                          </Badge>
+                        )}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {spotifyData.topTracks.map((track, index) => (
-                          <motion.div
-                            key={track.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group"
-                            onClick={() => window.open(track.url, '_blank')}
-                          >
-                            <span className="w-6 text-center text-muted-foreground font-medium">
-                              {index + 1}
-                            </span>
-                            <img
-                              src={track.albumImage}
-                              alt={track.albumName}
-                              className="w-12 h-12 rounded"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium truncate">{track.name}</div>
-                              <div className="text-sm text-muted-foreground truncate">{track.albumName}</div>
-                            </div>
-                            <div className="hidden md:flex items-center gap-4">
-                              <div className="w-24">
-                                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-primary rounded-full"
-                                    style={{ width: `${track.popularity}%` }}
-                                  />
-                                </div>
-                              </div>
-                              <span className="text-sm text-muted-foreground w-12">
-                                {formatDuration(track.duration)}
+                        {spotifyData.topTracks.map((track, index) => {
+                          const isCurrentTrack = currentTrack?.id === track.id
+                          const isTrackPlaying = isCurrentTrack && isPlaying
+
+                          return (
+                            <motion.div
+                              key={track.id}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              className={`flex items-center gap-4 p-3 rounded-lg transition-colors cursor-pointer group ${
+                                isCurrentTrack ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-secondary/50'
+                              }`}
+                              onClick={() => {
+                                if (track.previewUrl) {
+                                  playTrack(track, spotifyData.topTracks, index)
+                                } else {
+                                  window.open(track.url, '_blank')
+                                }
+                              }}
+                            >
+                              <span className={`w-6 text-center font-medium ${isCurrentTrack ? 'text-primary' : 'text-muted-foreground'}`}>
+                                {isTrackPlaying ? (
+                                  <span className="flex items-center justify-center gap-0.5">
+                                    <span className="w-0.5 h-3 bg-primary rounded-full animate-pulse" />
+                                    <span className="w-0.5 h-4 bg-primary rounded-full animate-pulse delay-75" />
+                                    <span className="w-0.5 h-2 bg-primary rounded-full animate-pulse delay-150" />
+                                  </span>
+                                ) : (
+                                  index + 1
+                                )}
                               </span>
-                            </div>
-                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
-                              <Play className="w-4 h-4" />
-                            </Button>
-                          </motion.div>
-                        ))}
+                              <div className="relative">
+                                <img
+                                  src={track.albumImage}
+                                  alt={track.albumName}
+                                  className={`w-12 h-12 rounded ${isTrackPlaying ? 'ring-2 ring-primary' : ''}`}
+                                />
+                                {track.previewUrl && (
+                                  <div className={`absolute inset-0 bg-black/50 rounded flex items-center justify-center ${
+                                    isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                  } transition-opacity`}>
+                                    {isTrackPlaying ? (
+                                      <Pause className="w-5 h-5 text-white" />
+                                    ) : (
+                                      <Play className="w-5 h-5 text-white ml-0.5" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className={`font-medium truncate ${isCurrentTrack ? 'text-primary' : ''}`}>{track.name}</div>
+                                <div className="text-sm text-muted-foreground truncate">{track.albumName}</div>
+                              </div>
+                              <div className="hidden md:flex items-center gap-4">
+                                <div className="w-24">
+                                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-primary rounded-full"
+                                      style={{ width: `${track.popularity}%` }}
+                                    />
+                                  </div>
+                                </div>
+                                <span className="text-sm text-muted-foreground w-12">
+                                  {formatDuration(track.duration)}
+                                </span>
+                              </div>
+                              {!track.previewUrl && (
+                                <Badge variant="outline" className="text-[10px] opacity-0 group-hover:opacity-100">
+                                  Open Spotify
+                                </Badge>
+                              )}
+                            </motion.div>
+                          )
+                        })}
                       </div>
                     </CardContent>
                   </Card>
@@ -1139,6 +1409,210 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Analytics Tab - Only for own profile */}
+          {isOwnProfile && (
+            <TabsContent value="analytics" className="space-y-6">
+              {/* Analytics Header */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Your Analytics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-4">
+                    Track your performance on Tampa Mixtape. Data updates in real-time.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Key Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-primary">
+                        #{rankingData.rank || '—'}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Tampa Ranking</p>
+                      <p className="text-xs text-muted-foreground">of {rankingData.total} artists</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">
+                        {spotifyData?.popularity || 0}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Popularity Score</p>
+                      <p className="text-xs text-muted-foreground">out of 100</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">
+                        {formatNumber(spotifyData?.followers || 0)}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Spotify Followers</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">
+                        {platformFollowers}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Platform Followers</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Performance Charts */}
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Popularity Breakdown */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Popularity Breakdown</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Spotify Popularity</span>
+                          <span className="font-medium">{spotifyData?.popularity || 0}/100</span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all"
+                            style={{ width: `${spotifyData?.popularity || 0}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Tampa Rank Percentile</span>
+                          <span className="font-medium">
+                            {rankingData.rank && rankingData.total
+                              ? `Top ${Math.round((rankingData.rank / rankingData.total) * 100)}%`
+                              : '—'}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-500 rounded-full transition-all"
+                            style={{
+                              width: rankingData.rank && rankingData.total
+                                ? `${100 - ((rankingData.rank / rankingData.total) * 100)}%`
+                                : '0%'
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Profile Completion</span>
+                          <span className="font-medium">
+                            {(() => {
+                              let score = 0
+                              if (profileData.artistName) score += 20
+                              if (profileData.bio) score += 20
+                              if (profileData.avatar) score += 20
+                              if (profileData.spotifyUrl) score += 20
+                              if (profileData.instagramUrl) score += 20
+                              return `${score}%`
+                            })()}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full transition-all"
+                            style={{
+                              width: (() => {
+                                let score = 0
+                                if (profileData.artistName) score += 20
+                                if (profileData.bio) score += 20
+                                if (profileData.avatar) score += 20
+                                if (profileData.spotifyUrl) score += 20
+                                if (profileData.instagramUrl) score += 20
+                                return `${score}%`
+                              })()
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Quick Stats */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Content Stats</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Headphones className="w-5 h-5 text-primary" />
+                          <span>Top Tracks</span>
+                        </div>
+                        <span className="font-bold">{spotifyData?.topTracks?.length || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Album className="w-5 h-5 text-primary" />
+                          <span>Albums</span>
+                        </div>
+                        <span className="font-bold">{spotifyData?.discography?.albums?.length || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Disc3 className="w-5 h-5 text-primary" />
+                          <span>Singles & EPs</span>
+                        </div>
+                        <span className="font-bold">{spotifyData?.discography?.singles?.length || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Calendar className="w-5 h-5 text-primary" />
+                          <span>Upcoming Events</span>
+                        </div>
+                        <span className="font-bold">{eventsData?.filter(e => new Date(e.date) > new Date()).length || 0}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Tips Card */}
+              <Card className="bg-primary/5 border-primary/20">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold mb-2">Tips to Improve Your Ranking</h3>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• Release new music consistently to boost your Spotify popularity</li>
+                        <li>• Share your Tampa Mixtape profile on social media</li>
+                        <li>• Complete your profile with all social links</li>
+                        <li>• Add upcoming events to engage with fans</li>
+                        <li>• Encourage fans to follow you on the platform</li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

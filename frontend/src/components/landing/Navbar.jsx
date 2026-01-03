@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -18,14 +19,150 @@ import {
   Bell,
   Clock,
   XCircle,
+  Search,
+  Music,
+  Disc3,
+  Loader2,
+  Command,
 } from 'lucide-react'
+
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
 export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
   const [isOpen, setIsOpen] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState({ artists: [], releases: [] })
+  const [isSearching, setIsSearching] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const searchInputRef = useRef(null)
+  const searchContainerRef = useRef(null)
   const { user, isAuthenticated, isVerified, isAdmin, isApproved, isPending, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Keyboard shortcut to open search (Cmd+K or Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false)
+        setSearchQuery('')
+        setSearchResults({ artists: [], releases: [] })
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [searchOpen])
+
+  // Close search on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setSearchOpen(false)
+      }
+    }
+    if (searchOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [searchOpen])
+
+  // Debounced search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults({ artists: [], releases: [] })
+      setIsSearching(false)
+      return
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        // Search artists and releases in parallel
+        const [artistsRes, releasesRes] = await Promise.all([
+          fetch(`${API_URL}/api/artists/hot100?limit=100`),
+          fetch(`${API_URL}/api/releases?limit=50`),
+        ])
+
+        const artistsData = await artistsRes.json()
+        const releasesData = await releasesRes.json()
+
+        const query = searchQuery.toLowerCase()
+
+        // Filter artists by name
+        const matchedArtists = (artistsData.artists || [])
+          .filter(a => a.artistName?.toLowerCase().includes(query))
+          .slice(0, 5)
+
+        // Filter releases by name or artist
+        const matchedReleases = (releasesData.releases || [])
+          .filter(r =>
+            r.name?.toLowerCase().includes(query) ||
+            r.artistName?.toLowerCase().includes(query)
+          )
+          .slice(0, 5)
+
+        setSearchResults({ artists: matchedArtists, releases: matchedReleases })
+      } catch (error) {
+        console.error('Search error:', error)
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery])
+
+  // Handle keyboard navigation in search results
+  const totalResults = searchResults.artists.length + searchResults.releases.length
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIndex(prev => Math.min(prev + 1, totalResults - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIndex(prev => Math.max(prev - 1, 0))
+    } else if (e.key === 'Enter' && totalResults > 0) {
+      e.preventDefault()
+      // Navigate to selected result
+      if (selectedIndex < searchResults.artists.length) {
+        const artist = searchResults.artists[selectedIndex]
+        if (artist.profileSlug) {
+          navigate(`/${artist.profileSlug}`)
+        }
+      } else {
+        const release = searchResults.releases[selectedIndex - searchResults.artists.length]
+        if (release.spotifyUrl) {
+          window.open(release.spotifyUrl, '_blank')
+        }
+      }
+      setSearchOpen(false)
+      setSearchQuery('')
+    }
+  }
+
+  const handleResultClick = (type, item) => {
+    if (type === 'artist' && item.profileSlug) {
+      navigate(`/${item.profileSlug}`)
+    } else if (type === 'release' && item.spotifyUrl) {
+      window.open(item.spotifyUrl, '_blank')
+    }
+    setSearchOpen(false)
+    setSearchQuery('')
+    setSearchResults({ artists: [], releases: [] })
+  }
 
   // Get status info for notification badge
   const getStatusInfo = () => {
@@ -148,6 +285,147 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
                 </button>
               )
             ))}
+
+            {/* Search Button */}
+            <div className="relative" ref={searchContainerRef}>
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground bg-secondary/50 hover:bg-secondary rounded-lg transition-colors"
+              >
+                <Search className="w-4 h-4" />
+                <span className="hidden lg:inline">Search</span>
+                <kbd className="hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-background rounded border border-border">
+                  <Command className="w-3 h-3" />K
+                </kbd>
+              </button>
+
+              {/* Search Modal/Dropdown */}
+              <AnimatePresence>
+                {searchOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
+                      onClick={() => setSearchOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="fixed md:absolute top-16 md:top-full left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto mt-2 md:w-[400px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50"
+                    >
+                    <div className="p-3 border-b border-border">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          ref={searchInputRef}
+                          type="text"
+                          placeholder="Search artists, releases..."
+                          value={searchQuery}
+                          onChange={(e) => {
+                            setSearchQuery(e.target.value)
+                            setSelectedIndex(0)
+                          }}
+                          onKeyDown={handleSearchKeyDown}
+                          className="pl-10 pr-4 bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary"
+                        />
+                        {isSearching && (
+                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="max-h-[300px] overflow-y-auto">
+                      {/* Artists Results */}
+                      {searchResults.artists.length > 0 && (
+                        <div className="p-2">
+                          <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Artists</p>
+                          {searchResults.artists.map((artist, idx) => (
+                            <button
+                              key={artist.id}
+                              onClick={() => handleResultClick('artist', artist)}
+                              className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors ${
+                                selectedIndex === idx ? 'bg-secondary' : 'hover:bg-secondary/50'
+                              }`}
+                            >
+                              {artist.avatar ? (
+                                <img src={artist.avatar} alt={artist.artistName} className="w-8 h-8 rounded-full object-cover" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                                  <User className="w-4 h-4 text-primary" />
+                                </div>
+                              )}
+                              <div className="flex-1 text-left">
+                                <p className="text-sm font-medium">{artist.artistName}</p>
+                                <p className="text-xs text-muted-foreground">{artist.genres || 'Artist'}</p>
+                              </div>
+                              <Music className="w-4 h-4 text-muted-foreground" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Releases Results */}
+                      {searchResults.releases.length > 0 && (
+                        <div className="p-2 border-t border-border">
+                          <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Releases</p>
+                          {searchResults.releases.map((release, idx) => (
+                            <button
+                              key={release.id}
+                              onClick={() => handleResultClick('release', release)}
+                              className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors ${
+                                selectedIndex === searchResults.artists.length + idx ? 'bg-secondary' : 'hover:bg-secondary/50'
+                              }`}
+                            >
+                              {release.image ? (
+                                <img src={release.image} alt={release.name} className="w-8 h-8 rounded object-cover" />
+                              ) : (
+                                <div className="w-8 h-8 rounded bg-primary/20 flex items-center justify-center">
+                                  <Disc3 className="w-4 h-4 text-primary" />
+                                </div>
+                              )}
+                              <div className="flex-1 text-left">
+                                <p className="text-sm font-medium">{release.name}</p>
+                                <p className="text-xs text-muted-foreground">{release.artistName}</p>
+                              </div>
+                              <Badge variant="secondary" className="text-[10px]">{release.type}</Badge>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Empty State */}
+                      {searchQuery && !isSearching && totalResults === 0 && (
+                        <div className="p-8 text-center">
+                          <Search className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
+                          <p className="text-sm text-muted-foreground">No results found for "{searchQuery}"</p>
+                        </div>
+                      )}
+
+                      {/* Initial State */}
+                      {!searchQuery && (
+                        <div className="p-8 text-center">
+                          <p className="text-sm text-muted-foreground">Start typing to search artists and releases</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-2 border-t border-border bg-secondary/30">
+                      <div className="flex items-center justify-between px-2 text-[10px] text-muted-foreground">
+                        <span>↑↓ Navigate</span>
+                        <span>↵ Select</span>
+                        <span>Esc Close</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Desktop CTA / User Menu */}
@@ -267,13 +545,21 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-secondary transition-colors"
-          >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          {/* Mobile Search + Menu Buttons */}
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            >
+              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
       </div>
 

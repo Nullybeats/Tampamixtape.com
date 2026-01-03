@@ -519,6 +519,92 @@ export function AuthProvider({ children }) {
   }
 
   // ===========================================
+  // Follow/Unfollow Methods
+  // ===========================================
+
+  // Follow an artist
+  const followArtist = async (artistId) => {
+    if (!token) throw new Error('Must be logged in to follow artists')
+    try {
+      const response = await fetch(`${API_URL}/api/follow/${artistId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to follow artist')
+      }
+      return data
+    } catch (error) {
+      console.error('Follow artist error:', error)
+      throw error
+    }
+  }
+
+  // Unfollow an artist
+  const unfollowArtist = async (artistId) => {
+    if (!token) throw new Error('Must be logged in to unfollow artists')
+    try {
+      const response = await fetch(`${API_URL}/api/follow/${artistId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to unfollow artist')
+      }
+      return data
+    } catch (error) {
+      console.error('Unfollow artist error:', error)
+      throw error
+    }
+  }
+
+  // Check if following an artist
+  const checkFollowStatus = async (artistId) => {
+    if (!token) return { isFollowing: false, followerCount: 0 }
+    try {
+      const response = await fetch(`${API_URL}/api/follow/status/${artistId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return { isFollowing: false, followerCount: 0 }
+      }
+      return data
+    } catch (error) {
+      console.error('Check follow status error:', error)
+      return { isFollowing: false, followerCount: 0 }
+    }
+  }
+
+  // Get list of artists the current user is following
+  const getFollowingArtists = async () => {
+    if (!token) return []
+    try {
+      const response = await fetch(`${API_URL}/api/follow/following`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return []
+      }
+      return data.following || []
+    } catch (error) {
+      console.error('Get following artists error:', error)
+      return []
+    }
+  }
+
+  // ===========================================
   // Spotify OAuth Methods
   // ===========================================
 
@@ -608,6 +694,11 @@ export function AuthProvider({ children }) {
     addEvent,
     updateEvent,
     deleteEvent,
+    // Follow functions
+    followArtist,
+    unfollowArtist,
+    checkFollowStatus,
+    getFollowingArtists,
     // Admin functions
     searchSpotifyArtists,
     isArtistRegistered,

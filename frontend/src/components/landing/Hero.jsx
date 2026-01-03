@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,8 @@ import {
   Disc3,
   Music
 } from 'lucide-react'
+
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
 function formatNumber(num) {
   if (num >= 1000000000) {
@@ -56,12 +58,63 @@ function AnimatedNumber({ value, suffix = '' }) {
 
 export function Hero() {
   const navigate = useNavigate()
-  const stats = [
-    { label: 'Artists', value: 50, suffix: '+', icon: Users },
-    { label: 'Albums Released', value: 120, suffix: '+', icon: Disc3 },
-    { label: 'Singles Released', value: 350, suffix: '+', icon: Music },
-    { label: 'Weekly Listeners', value: 2500000, suffix: '+', icon: Play },
-  ]
+  const [platformStats, setPlatformStats] = useState({
+    artistCount: 0,
+    albumCount: 0,
+    singleCount: 0,
+    totalFollowers: 0,
+  })
+  const [statsLoaded, setStatsLoaded] = useState(false)
+
+  // Fetch real stats from API
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [artistsRes, releasesRes] = await Promise.all([
+          fetch(`${API_URL}/api/artists/hot100?limit=100`),
+          fetch(`${API_URL}/api/releases?limit=1000`),
+        ])
+
+        const artistsData = await artistsRes.json()
+        const releasesData = await releasesRes.json()
+
+        const artists = artistsData.artists || []
+        const releases = releasesData.releases || []
+
+        // Calculate stats
+        const albumCount = releases.filter(r => r.type === 'album').length
+        const singleCount = releases.filter(r => r.type === 'single' || r.type === 'Single').length
+        const totalFollowers = artists.reduce((sum, a) => sum + (a.followers || 0), 0)
+
+        setPlatformStats({
+          artistCount: artists.length,
+          albumCount,
+          singleCount,
+          totalFollowers,
+        })
+        setStatsLoaded(true)
+      } catch (error) {
+        console.error('Failed to fetch stats:', error)
+        // Use fallback values if API fails
+        setPlatformStats({
+          artistCount: 50,
+          albumCount: 120,
+          singleCount: 350,
+          totalFollowers: 2500000,
+        })
+        setStatsLoaded(true)
+      }
+    }
+
+    fetchStats()
+  }, [])
+
+  const stats = useMemo(() => [
+    { label: 'Artists', value: platformStats.artistCount || 50, suffix: '+', icon: Users },
+    { label: 'Albums Released', value: platformStats.albumCount || 120, suffix: '+', icon: Disc3 },
+    { label: 'Singles Released', value: platformStats.singleCount || 350, suffix: '+', icon: Music },
+    { label: 'Total Followers', value: platformStats.totalFollowers || 2500000, suffix: '+', icon: Play },
+  ], [platformStats])
 
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
