@@ -20,6 +20,7 @@ model User {
   status        Status   @default(PENDING)
   region        String   @default("Tampa Bay")
   genres        String?  // Comma-separated genres
+  genresLocked  Boolean  @default(false) // Prevents auto-sync from overwriting manually set genres
   popularity    Int      @default(0) // Cached Spotify popularity score (0-100)
   followers     Int      @default(0) // Cached Spotify follower count
   spotifyId     String?

@@ -11,36 +11,12 @@ import {
   Music,
   Users,
   ArrowUpRight,
-  Clock,
   Loader2,
   ChevronRight,
 } from 'lucide-react'
+import { ActivityItem, formatNumber } from '@/components/feed'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
-
-function formatNumber(num) {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M'
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K'
-  }
-  return num?.toLocaleString() || '0'
-}
-
-function formatTimeAgo(dateString) {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now - date
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffHours / 24)
-
-  if (diffHours < 1) return 'Just now'
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
-}
 
 function TrendingArtistCard({ artist, rank, index }) {
   const navigate = useNavigate()
@@ -92,62 +68,6 @@ function TrendingArtistCard({ artist, rank, index }) {
       </div>
 
       <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-    </motion.div>
-  )
-}
-
-function ActivityItem({ activity, index }) {
-  const navigate = useNavigate()
-
-  const getIcon = () => {
-    switch (activity.type) {
-      case 'release':
-        return <Music className="w-4 h-4" />
-      case 'trending':
-        return <TrendingUp className="w-4 h-4" />
-      case 'new_artist':
-        return <Sparkles className="w-4 h-4" />
-      default:
-        return <Flame className="w-4 h-4" />
-    }
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      whileInView={{ opacity: 1, x: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.05 }}
-      className="flex items-start gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer"
-      onClick={() => activity.profileSlug && navigate(`/${activity.profileSlug}`)}
-    >
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-        activity.type === 'release' ? 'bg-primary/20 text-primary' :
-        activity.type === 'trending' ? 'bg-yellow-500/20 text-yellow-500' :
-        'bg-blue-500/20 text-blue-500'
-      }`}>
-        {getIcon()}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <p className="text-sm">
-          <span className="font-medium">{activity.artistName}</span>
-          {' '}
-          <span className="text-muted-foreground">{activity.message}</span>
-        </p>
-        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          {formatTimeAgo(activity.timestamp)}
-        </p>
-      </div>
-
-      {activity.image && (
-        <img
-          src={activity.image}
-          alt=""
-          className="w-10 h-10 rounded object-cover flex-shrink-0"
-        />
-      )}
     </motion.div>
   )
 }

@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
 import { useAudioPlayer } from '@/components/audio/AudioPlayer'
-import { Loader2 } from 'lucide-react'
+import { PersonalizedFeed } from '@/components/feed'
+import { Loader2, Rss } from 'lucide-react'
 import {
   BarChart,
   Bar,
@@ -310,10 +311,10 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   // Set dynamic meta tags for SEO
   useDocumentMeta({
     title: profileData?.artistName
-      ? `${profileData.artistName} | Tampa Mixtape`
-      : 'Tampa Mixtape - Tampa Bay\'s Music Radar',
+      ? `${profileData.artistName} — Tampa Mixtape`
+      : 'Tampa Mixtape — Tampa Bay\'s Music Radar',
     description: profileData?.bio
-      || `Discover ${profileData?.artistName || 'artists'} on Tampa Mixtape - Tampa Bay's Music Radar`,
+      || `Discover ${profileData?.artistName || 'artists'} on Tampa Mixtape — Tampa Bay's Music Radar`,
     image: profileData?.avatar || 'https://tampamixtape.com/og-image.png',
     url: profileData?.profileSlug
       ? `https://tampamixtape.com/${profileData.profileSlug}`
@@ -610,6 +611,12 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               <TabsTrigger value="analytics" className="gap-2">
                 <TrendingUp className="w-4 h-4" />
                 Analytics
+              </TabsTrigger>
+            )}
+            {isOwnProfile && (
+              <TabsTrigger value="activity" className="gap-2">
+                <Rss className="w-4 h-4" />
+                Activity
               </TabsTrigger>
             )}
           </TabsList>
@@ -1611,6 +1618,13 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+          )}
+
+          {/* Activity Tab - Personalized Feed */}
+          {isOwnProfile && (
+            <TabsContent value="activity" className="space-y-6">
+              <PersonalizedFeed />
             </TabsContent>
           )}
         </Tabs>

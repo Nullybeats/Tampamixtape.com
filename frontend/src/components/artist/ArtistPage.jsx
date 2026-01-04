@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -152,6 +153,20 @@ export function ArtistPage({ artistId, artistName, onBack }) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
+
+  // Set dynamic meta tags for SEO (for JS-executing search engines)
+  useDocumentMeta({
+    title: artist?.name
+      ? `${artist.name} — Tampa Mixtape`
+      : 'Tampa Mixtape — Tampa Bay\'s Music Radar',
+    description: artist?.name
+      ? `Discover ${artist.name} on Tampa Mixtape — Tampa Bay's Music Radar`
+      : 'Discover Tampa Bay\'s hottest artists. Artist rankings, new releases, and music discovery powered by Spotify.',
+    image: artist?.image || 'https://tampamixtape.com/og-image.png',
+    url: artistId
+      ? `https://tampamixtape.com/artist/${artistId}`
+      : 'https://tampamixtape.com/',
+  })
 
   const handleShare = async () => {
     const url = `${window.location.origin}/artist/${artistId}`

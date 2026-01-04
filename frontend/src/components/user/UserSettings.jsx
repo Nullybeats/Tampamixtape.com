@@ -40,6 +40,7 @@ import {
   X,
   Loader2,
   Search,
+  Lock,
 } from 'lucide-react'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
@@ -350,7 +351,15 @@ export function UserSettings() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="genres">Genres</Label>
+                  <Label htmlFor="genres" className="flex items-center gap-2">
+                    Genres
+                    {user?.genresLocked && (
+                      <Badge variant="secondary" className="text-xs font-normal">
+                        <Lock className="w-3 h-3 mr-1" />
+                        Protected
+                      </Badge>
+                    )}
+                  </Label>
                   <Input
                     id="genres"
                     value={profileForm.genres}
@@ -358,7 +367,9 @@ export function UserSettings() {
                     placeholder="Hip-Hop, R&B, Pop (comma separated)"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Separate multiple genres with commas
+                    {user?.genresLocked
+                      ? "Your custom genres are protected from auto-sync updates"
+                      : "Separate multiple genres with commas. Once edited, your genres will be protected from auto-sync."}
                   </p>
                 </div>
 

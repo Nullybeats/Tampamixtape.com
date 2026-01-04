@@ -25,44 +25,25 @@ function isCrawler(userAgent) {
   )
 }
 
-export default async function middleware(request) {
-  const userAgent = request.headers.get('user-agent') || ''
+// HTML escape to prevent XSS in meta tags
+function escapeHtml(str) {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+}
 
-  // Only intercept for social crawlers
-  if (!isCrawler(userAgent)) {
-    return
-  }
+// Generate OG meta tag HTML response
+function generateOGResponse({ artistName, bio, image, pageUrl }) {
+  const escapedName = escapeHtml(artistName)
+  const title = `${escapedName} — Tampa Mixtape`
+  const description = escapeHtml(bio) || `Discover ${escapedName} on Tampa Mixtape — Tampa Bay's Music Radar`
+  const imageUrl = image || 'https://tampamixtape.com/og-image.png'
 
-  const url = new URL(request.url)
-  const slug = url.pathname.slice(1) // Remove leading slash
-
-  // Skip static files and known routes
-  const skipPaths = ['artists', 'releases', 'events', 'admin', 'login', 'register', 'settings', 'api', '_next', 'assets', 'favicon', 'og-image']
-  if (!slug || skipPaths.some(p => slug.startsWith(p)) || slug.includes('.')) {
-    return
-  }
-
-  try {
-    // Fetch artist data from API
-    const response = await fetch(`${API_URL}/api/profile/${slug}`, {
-      headers: { 'Accept': 'application/json' }
-    })
-
-    if (!response.ok) return
-
-    const data = await response.json()
-    const artist = data.user
-
-    if (!artist) return
-
-    // Build meta content
-    const title = `${artist.artistName} | Tampa Mixtape`
-    const description = artist.bio || `Discover ${artist.artistName} on Tampa Mixtape - Tampa Bay's Music Radar`
-    const image = artist.avatar || 'https://tampamixtape.com/og-image.png'
-    const pageUrl = `https://tampamixtape.com/${slug}`
-
-    // Return a minimal HTML page with correct meta tags for crawlers
-    const html = `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -73,40 +54,115 @@ export default async function middleware(request) {
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="profile">
-  <meta property="og:url" content="${pageUrl}">
+  <meta property="og:url" content="${escapeHtml(pageUrl)}">
   <meta property="og:title" content="${title}">
   <meta property="og:description" content="${description}">
-  <meta property="og:image" content="${image}">
+  <meta property="og:image" content="${escapeHtml(imageUrl)}">
   <meta property="og:image:width" content="640">
   <meta property="og:image:height" content="640">
-  <meta property="og:site_name" content="Tampa Mixtape">
+  <meta property="og:site_name" content="Tampa Mixtape — Tampa Bay's Music Radar">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="${pageUrl}">
+  <meta name="twitter:url" content="${escapeHtml(pageUrl)}">
   <meta name="twitter:title" content="${title}">
   <meta name="twitter:description" content="${description}">
-  <meta name="twitter:image" content="${image}">
+  <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
 
   <!-- Redirect regular users to the SPA -->
-  <meta http-equiv="refresh" content="0;url=${pageUrl}">
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(pageUrl)}">
 </head>
 <body>
-  <h1>${artist.artistName}</h1>
+  <h1>${escapedName}</h1>
   <p>${description}</p>
-  <img src="${image}" alt="${artist.artistName}">
-  <a href="${pageUrl}">View on Tampa Mixtape</a>
+  <img src="${escapeHtml(imageUrl)}" alt="${escapedName}">
+  <a href="${escapeHtml(pageUrl)}">View on Tampa Mixtape</a>
 </body>
 </html>`
 
-    return new Response(html, {
-      headers: {
-        'content-type': 'text/html; charset=utf-8',
-        'cache-control': 'public, s-maxage=3600, stale-while-revalidate=86400',
-      },
+  return new Response(html, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+    },
+  })
+}
+
+// Handle /artist/:spotifyId routes
+async function handleArtistPage(spotifyId) {
+  try {
+    const response = await fetch(`${API_URL}/api/artists/spotify/${spotifyId}/full`, {
+      headers: { 'Accept': 'application/json' }
+    })
+
+    if (!response.ok) return
+
+    const artist = await response.json()
+    if (!artist || !artist.name) return
+
+    return generateOGResponse({
+      artistName: artist.name,
+      bio: null, // Spotify-only artists don't have bios
+      image: artist.image,
+      pageUrl: `https://tampamixtape.com/artist/${spotifyId}`,
     })
   } catch (error) {
-    console.error('Middleware error:', error.message)
+    console.error('Artist page middleware error:', error.message)
     return
   }
+}
+
+// Handle /:profileSlug routes
+async function handleProfilePage(slug) {
+  try {
+    const response = await fetch(`${API_URL}/api/profile/${slug}`, {
+      headers: { 'Accept': 'application/json' }
+    })
+
+    if (!response.ok) return
+
+    const data = await response.json()
+    const profile = data.user
+
+    if (!profile) return
+
+    return generateOGResponse({
+      artistName: profile.artistName,
+      bio: profile.bio,
+      image: profile.avatar,
+      pageUrl: `https://tampamixtape.com/${slug}`,
+    })
+  } catch (error) {
+    console.error('Profile middleware error:', error.message)
+    return
+  }
+}
+
+export default async function middleware(request) {
+  const userAgent = request.headers.get('user-agent') || ''
+
+  // Only intercept for social crawlers
+  if (!isCrawler(userAgent)) {
+    return
+  }
+
+  const url = new URL(request.url)
+  const pathname = url.pathname
+
+  // Handle /artist/:spotifyId routes (Spotify ID is 22 alphanumeric chars)
+  const artistRouteMatch = pathname.match(/^\/artist\/([a-zA-Z0-9]{22})$/)
+  if (artistRouteMatch) {
+    return handleArtistPage(artistRouteMatch[1])
+  }
+
+  // Handle profile slug routes
+  const slug = pathname.slice(1) // Remove leading slash
+
+  // Skip static files and known routes
+  const skipPaths = ['artists', 'releases', 'events', 'admin', 'login', 'register', 'settings', 'api', '_next', 'assets', 'favicon', 'og-image']
+  if (!slug || skipPaths.some(p => slug.startsWith(p)) || slug.includes('.')) {
+    return
+  }
+
+  return handleProfilePage(slug)
 }

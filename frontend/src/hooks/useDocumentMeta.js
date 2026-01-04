@@ -49,14 +49,15 @@ export function useDocumentMeta({ title, description, image, url }) {
 
     // Cleanup - restore defaults when component unmounts
     return () => {
-      document.title = 'Tampa Mixtape - Tampa Bay\'s Music Radar'
-      updateMeta('meta[name="title"]', 'Tampa Mixtape - Tampa Bay\'s Music Radar')
+      document.title = 'Tampa Mixtape — Tampa Bay\'s Music Radar'
+      updateMeta('meta[name="title"]', 'Tampa Mixtape — Tampa Bay\'s Music Radar')
       updateMeta('meta[name="description"]', 'Discover Tampa Bay\'s hottest artists. Artist rankings, new releases, and music discovery powered by Spotify.')
-      updateMeta('meta[property="og:title"]', 'Tampa Mixtape - Tampa Bay\'s Music Radar')
+      updateMeta('meta[property="og:title"]', 'Tampa Mixtape — Tampa Bay\'s Music Radar')
       updateMeta('meta[property="og:description"]', 'Discover Tampa Bay\'s hottest artists. Artist rankings, new releases, and music discovery powered by Spotify.')
       updateMeta('meta[property="og:image"]', 'https://tampamixtape.com/og-image.png')
       updateMeta('meta[property="og:url"]', 'https://tampamixtape.com/')
-      updateMeta('meta[property="twitter:title"]', 'Tampa Mixtape - Tampa Bay\'s Music Radar')
+      updateMeta('meta[property="og:site_name"]', 'Tampa Mixtape — Tampa Bay\'s Music Radar')
+      updateMeta('meta[property="twitter:title"]', 'Tampa Mixtape — Tampa Bay\'s Music Radar')
       updateMeta('meta[property="twitter:description"]', 'Discover Tampa Bay\'s hottest artists. Artist rankings, new releases, and music discovery powered by Spotify.')
       updateMeta('meta[property="twitter:image"]', 'https://tampamixtape.com/og-image.png')
       updateMeta('meta[property="twitter:url"]', 'https://tampamixtape.com/')

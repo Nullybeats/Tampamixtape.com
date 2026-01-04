@@ -294,6 +294,7 @@ router.get('/me', async (req, res) => {
         status: true,
         region: true,
         genres: true,
+        genresLocked: true,
         spotifyId: true,
         spotifyUrl: true,
         instagramUrl: true,
@@ -341,7 +342,11 @@ router.patch('/me', async (req, res) => {
     const updateData = {};
     if (artistName !== undefined) updateData.artistName = artistName;
     if (bio !== undefined) updateData.bio = bio;
-    if (genres !== undefined) updateData.genres = genres;
+    if (genres !== undefined) {
+      updateData.genres = genres;
+      // Lock genres when manually edited by user to prevent auto-sync overwrites
+      updateData.genresLocked = true;
+    }
     if (region !== undefined) updateData.region = region;
     if (instagramUrl !== undefined) updateData.instagramUrl = instagramUrl;
     if (twitterUrl !== undefined) updateData.twitterUrl = twitterUrl;
@@ -364,6 +369,7 @@ router.patch('/me', async (req, res) => {
         status: true,
         region: true,
         genres: true,
+        genresLocked: true,
         spotifyId: true,
         spotifyUrl: true,
         instagramUrl: true,
