@@ -91,3 +91,33 @@ model Follow {
   @@index([artistId])
   @@map("follows")
 }
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ProfileClaim {
+  id              String      @id @default(cuid())
+  profileId       String      // User.id being claimed
+  claimantEmail   String      // Email of person claiming
+  instagramUrl    String?
+  twitterUrl      String?
+  tiktokUrl       String?
+  youtubeUrl      String?
+  websiteUrl      String?
+  proofText       String      // Explanation/proof of identity
+  message         String?     // Optional message to admin
+  status          ClaimStatus @default(PENDING)
+  reviewedBy      String?     // Admin user ID who reviewed
+  reviewedAt      DateTime?
+  reviewNotes     String?     // Admin notes on decision
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([profileId])
+  @@index([claimantEmail])
+  @@index([status])
+  @@map("profile_claims")
+}

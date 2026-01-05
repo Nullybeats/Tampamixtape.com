@@ -792,4 +792,207 @@ router.patch('/settings/ad', requireAdmin, async (req, res) => {
   }
 });
 
+// ============================================================================
+// PROFILE CLAIMS MANAGEMENT
+// ============================================================================
+
+// GET /api/admin/claims - List all claims (paginated)
+router.get('/claims', requireAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {};
+    if (status && ['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
+      where.status = status;
+    }
+
+    const [claims, total] = await Promise.all([
+      prisma.profileClaim.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.profileClaim.count({ where }),
+    ]);
+
+    // Fetch profile info for each claim
+    const profileIds = [...new Set(claims.map((c) => c.profileId))];
+    const profiles = await prisma.user.findMany({
+      where: { id: { in: profileIds } },
+      select: {
+        id: true,
+        artistName: true,
+        profileSlug: true,
+        avatar: true,
+        email: true,
+      },
+    });
+
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+    const claimsWithProfiles = claims.map((claim) => ({
+      ...claim,
+      profile: profileMap.get(claim.profileId) || null,
+    }));
+
+    res.json({
+      claims: claimsWithProfiles,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Get claims error:', error);
+    res.status(500).json({ error: 'Failed to get claims' });
+  }
+});
+
+// GET /api/admin/claims/stats - Get claim statistics
+router.get('/claims/stats', requireAdmin, async (req, res) => {
+  try {
+    const [pending, approved, rejected] = await Promise.all([
+      prisma.profileClaim.count({ where: { status: 'PENDING' } }),
+      prisma.profileClaim.count({ where: { status: 'APPROVED' } }),
+      prisma.profileClaim.count({ where: { status: 'REJECTED' } }),
+    ]);
+
+    res.json({ pending, approved, rejected, total: pending + approved + rejected });
+  } catch (error) {
+    console.error('Get claim stats error:', error);
+    res.status(500).json({ error: 'Failed to get claim stats' });
+  }
+});
+
+// POST /api/admin/claims/:id/approve - Approve a claim
+router.post('/claims/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    // Get the claim
+    const claim = await prisma.profileClaim.findUnique({
+      where: { id },
+    });
+
+    if (!claim) {
+      return res.status(404).json({ error: 'Claim not found' });
+    }
+
+    if (claim.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Claim has already been processed' });
+    }
+
+    // Get the profile being claimed
+    const profile = await prisma.user.findUnique({
+      where: { id: claim.profileId },
+    });
+
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Generate a temporary password
+    const bcrypt = require('bcryptjs');
+    const tempPassword = Math.random().toString(36).slice(-12);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    // Transaction: Update claim status and transfer profile ownership
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Update the claim status
+      const updatedClaim = await tx.profileClaim.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          reviewedBy: req.userId,
+          reviewedAt: new Date(),
+          reviewNotes: notes || null,
+        },
+      });
+
+      // 2. Update the user profile with claimant's email and password
+      const updatedProfile = await tx.user.update({
+        where: { id: claim.profileId },
+        data: {
+          email: claim.claimantEmail,
+          password: hashedPassword,
+          // Update social links from claim if they were provided
+          ...(claim.instagramUrl && { instagramUrl: claim.instagramUrl }),
+          ...(claim.twitterUrl && { twitterUrl: claim.twitterUrl }),
+          ...(claim.tiktokUrl && { tiktokUrl: claim.tiktokUrl }),
+          ...(claim.youtubeUrl && { youtubeUrl: claim.youtubeUrl }),
+          ...(claim.websiteUrl && { websiteUrl: claim.websiteUrl }),
+        },
+        select: {
+          id: true,
+          email: true,
+          artistName: true,
+          profileSlug: true,
+        },
+      });
+
+      return { claim: updatedClaim, profile: updatedProfile };
+    });
+
+    // TODO: Send email notification to claimant with login credentials
+    // const emailService = require('../services/email');
+    // emailService.sendClaimApprovedEmail(result.profile, tempPassword);
+
+    res.json({
+      message: 'Claim approved. Profile ownership transferred.',
+      profile: result.profile,
+      temporaryPassword: tempPassword, // Return for admin to share
+    });
+  } catch (error) {
+    console.error('Approve claim error:', error);
+    res.status(500).json({ error: 'Failed to approve claim' });
+  }
+});
+
+// POST /api/admin/claims/:id/reject - Reject a claim
+router.post('/claims/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const claim = await prisma.profileClaim.findUnique({
+      where: { id },
+    });
+
+    if (!claim) {
+      return res.status(404).json({ error: 'Claim not found' });
+    }
+
+    if (claim.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Claim has already been processed' });
+    }
+
+    const updatedClaim = await prisma.profileClaim.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        reviewedBy: req.userId,
+        reviewedAt: new Date(),
+        reviewNotes: reason || null,
+      },
+    });
+
+    // TODO: Send email notification to claimant about rejection
+    // const emailService = require('../services/email');
+    // emailService.sendClaimRejectedEmail({ email: claim.claimantEmail }, reason);
+
+    res.json({
+      message: 'Claim rejected',
+      claim: updatedClaim,
+    });
+  } catch (error) {
+    console.error('Reject claim error:', error);
+    res.status(500).json({ error: 'Failed to reject claim' });
+  }
+});
+
 module.exports = router;

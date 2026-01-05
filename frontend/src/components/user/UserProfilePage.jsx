@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
 import { useAudioPlayer } from '@/components/audio/AudioPlayer'
 import { PersonalizedFeed } from '@/components/feed'
-import { Loader2, Rss } from 'lucide-react'
+import { ClaimProfileModal } from './ClaimProfileModal'
+import { Loader2, Rss, UserCheck } from 'lucide-react'
 import {
   BarChart,
   Bar,
@@ -133,6 +134,10 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [isFollowing, setIsFollowing] = useState(false)
   const [platformFollowers, setPlatformFollowers] = useState(0)
   const [followLoading, setFollowLoading] = useState(false)
+  const [showClaimModal, setShowClaimModal] = useState(false)
+
+  // Check if profile is claimable (admin-generated with managed email)
+  const isClaimableProfile = fetchedProfile?.email?.endsWith('@managed.tampamixtape.local')
 
   // Fetch profile data for public profiles
   useEffect(() => {
@@ -508,6 +513,17 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       Follow
                     </>
                   )}
+                </Button>
+              )}
+              {/* Claim Profile Button - show for claimable profiles to non-owners */}
+              {isClaimableProfile && !isOwnProfile && (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-primary/50 hover:border-primary hover:bg-primary/10"
+                  onClick={() => setShowClaimModal(true)}
+                >
+                  <UserCheck className="w-4 h-4" />
+                  Claim Profile
                 </Button>
               )}
               {/* Share Dropdown */}
@@ -1629,6 +1645,15 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           )}
         </Tabs>
       </div>
+
+      {/* Claim Profile Modal */}
+      {isClaimableProfile && (
+        <ClaimProfileModal
+          open={showClaimModal}
+          onOpenChange={setShowClaimModal}
+          profile={fetchedProfile}
+        />
+      )}
     </div>
   )
 }

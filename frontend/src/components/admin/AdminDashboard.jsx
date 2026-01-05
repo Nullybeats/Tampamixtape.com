@@ -73,7 +73,10 @@ import {
   Youtube,
   Twitter,
   Link,
+  FileQuestion,
+  UserCheck,
 } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
@@ -129,6 +132,23 @@ export function AdminDashboard() {
   })
   const [isLoadingAutoSync, setIsLoadingAutoSync] = useState(true)
   const [isSavingAutoSync, setIsSavingAutoSync] = useState(false)
+
+  // Pending users state (independent of Users tab filters) - fixes pending tab bug
+  const [pendingUsersList, setPendingUsersList] = useState([])
+  const [isLoadingPending, setIsLoadingPending] = useState(true)
+
+  // Claims state
+  const [claims, setClaims] = useState([])
+  const [isLoadingClaims, setIsLoadingClaims] = useState(true)
+  const [claimsFilter, setClaimsFilter] = useState('PENDING')
+  const [claimsPagination, setClaimsPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 })
+  const [claimStats, setClaimStats] = useState({ pending: 0, approved: 0, rejected: 0, total: 0 })
+  const [selectedClaim, setSelectedClaim] = useState(null)
+  const [showClaimDetail, setShowClaimDetail] = useState(false)
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false)
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+  const [isProcessingClaim, setIsProcessingClaim] = useState(false)
 
   // Settings state
   const [settings, setSettings] = useState({
@@ -502,6 +522,132 @@ export function AdminDashboard() {
     }
   }
 
+  // Fetch pending users (independent of Users tab filters) - fixes pending tab bug
+  const fetchPendingUsers = async () => {
+    if (!token) return
+    setIsLoadingPending(true)
+    try {
+      const params = new URLSearchParams({
+        status: 'PENDING',
+        limit: '100',
+        sortBy: 'oldest',
+      })
+      const response = await fetch(`${API_URL}/api/admin/users?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setPendingUsersList(data.users)
+      }
+    } catch (err) {
+      console.error('Error fetching pending users:', err)
+    } finally {
+      setIsLoadingPending(false)
+    }
+  }
+
+  // Fetch claims
+  const fetchClaims = async () => {
+    if (!token) return
+    setIsLoadingClaims(true)
+    try {
+      const response = await fetch(
+        `${API_URL}/api/admin/claims?page=${claimsPagination.page}&limit=${claimsPagination.limit}&status=${claimsFilter}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setClaims(data.claims)
+        setClaimsPagination(prev => ({ ...prev, ...data.pagination }))
+      }
+    } catch (err) {
+      console.error('Error fetching claims:', err)
+    } finally {
+      setIsLoadingClaims(false)
+    }
+  }
+
+  // Fetch claim stats
+  const fetchClaimStats = async () => {
+    if (!token) return
+    try {
+      const response = await fetch(`${API_URL}/api/admin/claims/stats`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setClaimStats(data)
+      }
+    } catch (err) {
+      console.error('Error fetching claim stats:', err)
+    }
+  }
+
+  // Approve claim
+  const handleApproveClaim = async () => {
+    if (!selectedClaim) return
+    setIsProcessingClaim(true)
+    try {
+      const response = await fetch(`${API_URL}/api/admin/claims/${selectedClaim.id}/approve`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      })
+      const data = await response.json()
+      if (response.ok) {
+        toast.success('Claim approved', {
+          description: `Profile transferred to ${selectedClaim.claimantEmail}. Temporary password: ${data.temporaryPassword}`,
+        })
+        fetchClaims()
+        fetchClaimStats()
+        setShowApproveConfirm(false)
+        setShowClaimDetail(false)
+        setSelectedClaim(null)
+      } else {
+        toast.error('Failed to approve claim', { description: data.error })
+      }
+    } catch (err) {
+      toast.error('Failed to approve claim')
+    } finally {
+      setIsProcessingClaim(false)
+    }
+  }
+
+  // Reject claim
+  const handleRejectClaim = async () => {
+    if (!selectedClaim) return
+    setIsProcessingClaim(true)
+    try {
+      const response = await fetch(`${API_URL}/api/admin/claims/${selectedClaim.id}/reject`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: rejectReason })
+      })
+      const data = await response.json()
+      if (response.ok) {
+        toast.success('Claim rejected')
+        fetchClaims()
+        fetchClaimStats()
+        setShowRejectConfirm(false)
+        setShowClaimDetail(false)
+        setSelectedClaim(null)
+        setRejectReason('')
+      } else {
+        toast.error('Failed to reject claim', { description: data.error })
+      }
+    } catch (err) {
+      toast.error('Failed to reject claim')
+    } finally {
+      setIsProcessingClaim(false)
+    }
+  }
+
   // Save auto-sync settings
   const handleSaveAutoSync = async (updates) => {
     setIsSavingAutoSync(true)
@@ -539,7 +685,15 @@ export function AdminDashboard() {
     fetchStats()
     fetchUsers()
     fetchAutoSyncSettings()
+    fetchPendingUsers()
+    fetchClaims()
+    fetchClaimStats()
   }, [token])
+
+  // Refetch claims when filter changes
+  useEffect(() => {
+    fetchClaims()
+  }, [claimsFilter, claimsPagination.page])
 
   // Refetch when filters change
   useEffect(() => {
@@ -575,14 +729,14 @@ export function AdminDashboard() {
   // Refresh data
   const handleRefresh = async () => {
     setIsRefreshing(true)
-    await Promise.all([fetchStats(), fetchUsers(pagination.page)])
+    await Promise.all([fetchStats(), fetchUsers(pagination.page), fetchPendingUsers(), fetchClaims(), fetchClaimStats()])
     setIsRefreshing(false)
     toast.success('Data refreshed')
   }
 
   // Approve user
   const handleApprove = async (userId) => {
-    const targetUser = users.find(u => u.id === userId)
+    const targetUser = users.find(u => u.id === userId) || pendingUsersList.find(u => u.id === userId)
     try {
       const response = await fetch(`${API_URL}/api/admin/users/${userId}/approve`, {
         method: 'POST',
@@ -590,6 +744,7 @@ export function AdminDashboard() {
       })
       if (response.ok) {
         setUsers(users.map(u => u.id === userId ? { ...u, status: 'APPROVED' } : u))
+        setPendingUsersList(pendingUsersList.filter(u => u.id !== userId))
         setStats(s => ({ ...s, pendingUsers: s.pendingUsers - 1, approvedUsers: s.approvedUsers + 1 }))
         toast.success('User approved', {
           description: `${targetUser?.artistName || 'User'} has been approved.`,
@@ -607,7 +762,7 @@ export function AdminDashboard() {
 
   // Reject user
   const handleReject = async (userId) => {
-    const targetUser = users.find(u => u.id === userId)
+    const targetUser = users.find(u => u.id === userId) || pendingUsersList.find(u => u.id === userId)
     try {
       const response = await fetch(`${API_URL}/api/admin/users/${userId}/reject`, {
         method: 'POST',
@@ -615,6 +770,7 @@ export function AdminDashboard() {
       })
       if (response.ok) {
         setUsers(users.map(u => u.id === userId ? { ...u, status: 'REJECTED' } : u))
+        setPendingUsersList(pendingUsersList.filter(u => u.id !== userId))
         setStats(s => ({ ...s, pendingUsers: s.pendingUsers - 1 }))
         toast.success('User rejected', {
           description: `${targetUser?.artistName || 'User'} has been rejected.`,
@@ -791,8 +947,6 @@ export function AdminDashboard() {
     }
   }
 
-  const pendingUsers = users.filter(u => u.status === 'PENDING')
-
   return (
     <div className="min-h-screen bg-background pt-20 pb-12 px-4">
       <div className="max-w-7xl mx-auto">
@@ -927,7 +1081,7 @@ export function AdminDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="users" className="gap-2">
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Users</span>
@@ -937,6 +1091,13 @@ export function AdminDashboard() {
               <span className="hidden sm:inline">Pending</span>
               {stats.pendingUsers > 0 && (
                 <Badge variant="secondary" className="ml-1">{stats.pendingUsers}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="claims" className="gap-2">
+              <FileQuestion className="w-4 h-4" />
+              <span className="hidden sm:inline">Claims</span>
+              {claimStats.pending > 0 && (
+                <Badge variant="secondary" className="ml-1">{claimStats.pending}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="analytics" className="gap-2">
@@ -1130,13 +1291,13 @@ export function AdminDashboard() {
                 <CardDescription>Review and approve user applications</CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoadingUsers ? (
+                {isLoadingPending ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
-                ) : pendingUsers.length > 0 ? (
+                ) : pendingUsersList.length > 0 ? (
                   <div className="space-y-3">
-                    {pendingUsers.map((u) => (
+                    {pendingUsersList.map((u) => (
                       <div
                         key={u.id}
                         className="flex items-center gap-4 p-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5"
@@ -1206,6 +1367,124 @@ export function AdminDashboard() {
                     <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto mb-4" />
                     <p className="text-lg font-medium mb-1">All caught up!</p>
                     <p className="text-muted-foreground">No pending approvals at this time</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Claims Tab */}
+          <TabsContent value="claims">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle>Profile Claims</CardTitle>
+                    <CardDescription>
+                      Review and process profile ownership claims
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Select value={claimsFilter} onValueChange={setClaimsFilter}>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PENDING">Pending ({claimStats.pending})</SelectItem>
+                        <SelectItem value="APPROVED">Approved ({claimStats.approved})</SelectItem>
+                        <SelectItem value="REJECTED">Rejected ({claimStats.rejected})</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoadingClaims ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : claims.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileQuestion className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No {claimsFilter.toLowerCase()} claims</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {claims.map((claim) => (
+                      <motion.div
+                        key={claim.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 rounded-lg border border-border bg-secondary/20 hover:bg-secondary/40 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            {claim.profile?.avatar ? (
+                              <img
+                                src={claim.profile.avatar}
+                                alt={claim.profile.artistName}
+                                className="w-12 h-12 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center">
+                                <Music className="w-6 h-6 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div>
+                              <h4 className="font-medium">{claim.profile?.artistName || 'Unknown Profile'}</h4>
+                              <p className="text-sm text-muted-foreground">{claim.claimantEmail}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Submitted {new Date(claim.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {claim.status === 'PENDING' ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedClaim(claim)
+                                    setShowClaimDetail(true)
+                                  }}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => {
+                                    setSelectedClaim(claim)
+                                    setShowApproveConfirm(true)
+                                  }}
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setSelectedClaim(claim)
+                                    setShowRejectConfirm(true)
+                                  }}
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Badge className={
+                                claim.status === 'APPROVED'
+                                  ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                  : 'bg-red-500/20 text-red-400 border-red-500/30'
+                              }>
+                                {claim.status}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -2104,6 +2383,198 @@ export function AdminDashboard() {
                   <UserPlus className="w-4 h-4" />
                 )}
                 Create Profile
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Claim Detail Dialog */}
+        <Dialog open={showClaimDetail} onOpenChange={setShowClaimDetail}>
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileQuestion className="w-5 h-5 text-primary" />
+                Claim Details
+              </DialogTitle>
+            </DialogHeader>
+            {selectedClaim && (
+              <div className="space-y-4 py-4">
+                {/* Profile being claimed */}
+                <div className="p-3 rounded-lg bg-secondary/30 border border-border">
+                  <p className="text-xs text-muted-foreground mb-2">Profile Being Claimed</p>
+                  <div className="flex items-center gap-3">
+                    {selectedClaim.profile?.avatar ? (
+                      <img
+                        src={selectedClaim.profile.avatar}
+                        alt={selectedClaim.profile.artistName}
+                        className="w-10 h-10 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                        <Music className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium">{selectedClaim.profile?.artistName}</p>
+                      <p className="text-xs text-muted-foreground">/{selectedClaim.profile?.profileSlug}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Claimant info */}
+                <div>
+                  <Label>Claimant Email</Label>
+                  <p className="text-sm mt-1">{selectedClaim.claimantEmail}</p>
+                </div>
+
+                {/* Social links */}
+                <div>
+                  <Label>Social Links Provided</Label>
+                  <div className="mt-2 space-y-1">
+                    {selectedClaim.instagramUrl && (
+                      <a href={selectedClaim.instagramUrl.startsWith('http') ? selectedClaim.instagramUrl : `https://instagram.com/${selectedClaim.instagramUrl.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
+                         className="flex items-center gap-2 text-sm text-primary hover:underline">
+                        <Instagram className="w-4 h-4" /> {selectedClaim.instagramUrl}
+                      </a>
+                    )}
+                    {selectedClaim.twitterUrl && (
+                      <a href={selectedClaim.twitterUrl.startsWith('http') ? selectedClaim.twitterUrl : `https://twitter.com/${selectedClaim.twitterUrl.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
+                         className="flex items-center gap-2 text-sm text-primary hover:underline">
+                        <Twitter className="w-4 h-4" /> {selectedClaim.twitterUrl}
+                      </a>
+                    )}
+                    {selectedClaim.youtubeUrl && (
+                      <a href={selectedClaim.youtubeUrl} target="_blank" rel="noopener noreferrer"
+                         className="flex items-center gap-2 text-sm text-primary hover:underline">
+                        <Youtube className="w-4 h-4" /> {selectedClaim.youtubeUrl}
+                      </a>
+                    )}
+                    {selectedClaim.websiteUrl && (
+                      <a href={selectedClaim.websiteUrl} target="_blank" rel="noopener noreferrer"
+                         className="flex items-center gap-2 text-sm text-primary hover:underline">
+                        <Globe className="w-4 h-4" /> {selectedClaim.websiteUrl}
+                      </a>
+                    )}
+                    {!selectedClaim.instagramUrl && !selectedClaim.twitterUrl && !selectedClaim.youtubeUrl && !selectedClaim.websiteUrl && (
+                      <p className="text-sm text-muted-foreground">No social links provided</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Proof text */}
+                <div>
+                  <Label>Proof of Identity</Label>
+                  <p className="text-sm mt-1 p-2 bg-secondary/30 rounded-lg whitespace-pre-wrap">
+                    {selectedClaim.proofText}
+                  </p>
+                </div>
+
+                {/* Optional message */}
+                {selectedClaim.message && (
+                  <div>
+                    <Label>Additional Message</Label>
+                    <p className="text-sm mt-1 p-2 bg-secondary/30 rounded-lg">
+                      {selectedClaim.message}
+                    </p>
+                  </div>
+                )}
+
+                <div className="text-xs text-muted-foreground">
+                  Submitted: {new Date(selectedClaim.createdAt).toLocaleString()}
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowClaimDetail(false)}>
+                Close
+              </Button>
+              {selectedClaim?.status === 'PENDING' && (
+                <>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setShowClaimDetail(false)
+                      setShowRejectConfirm(true)
+                    }}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      setShowClaimDetail(false)
+                      setShowApproveConfirm(true)
+                    }}
+                  >
+                    Approve
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Approve Confirmation Dialog */}
+        <Dialog open={showApproveConfirm} onOpenChange={setShowApproveConfirm}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-green-400">
+                <CheckCircle2 className="w-5 h-5" />
+                Approve Claim
+              </DialogTitle>
+              <DialogDescription>
+                This will transfer ownership of <strong>{selectedClaim?.profile?.artistName}</strong> to{' '}
+                <strong>{selectedClaim?.claimantEmail}</strong>. A temporary password will be generated.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowApproveConfirm(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={handleApproveClaim}
+                disabled={isProcessingClaim}
+              >
+                {isProcessingClaim ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve & Transfer'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reject Confirmation Dialog */}
+        <Dialog open={showRejectConfirm} onOpenChange={setShowRejectConfirm}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-400">
+                <XCircle className="w-5 h-5" />
+                Reject Claim
+              </DialogTitle>
+              <DialogDescription>
+                Reject the claim from <strong>{selectedClaim?.claimantEmail}</strong> for{' '}
+                <strong>{selectedClaim?.profile?.artistName}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Label htmlFor="rejectReason">Reason (optional)</Label>
+              <Textarea
+                id="rejectReason"
+                placeholder="Provide a reason for rejection..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="mt-2"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowRejectConfirm(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleRejectClaim}
+                disabled={isProcessingClaim}
+              >
+                {isProcessingClaim ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Reject Claim'}
               </Button>
             </DialogFooter>
           </DialogContent>
