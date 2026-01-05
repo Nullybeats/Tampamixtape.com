@@ -298,133 +298,6 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
                   <Command className="w-3 h-3" />K
                 </kbd>
               </button>
-
-              {/* Search Modal/Dropdown */}
-              <AnimatePresence>
-                {searchOpen && (
-                  <>
-                    {/* Backdrop */}
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
-                      onClick={() => setSearchOpen(false)}
-                    />
-                    <motion.div
-                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      className="fixed md:absolute top-16 md:top-full left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto mt-2 md:w-[400px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50"
-                    >
-                    <div className="p-3 border-b border-border">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          ref={searchInputRef}
-                          type="text"
-                          placeholder="Search artists, releases..."
-                          value={searchQuery}
-                          onChange={(e) => {
-                            setSearchQuery(e.target.value)
-                            setSelectedIndex(0)
-                          }}
-                          onKeyDown={handleSearchKeyDown}
-                          className="pl-10 pr-4 bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary"
-                        />
-                        {isSearching && (
-                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="max-h-[300px] overflow-y-auto">
-                      {/* Artists Results */}
-                      {searchResults.artists.length > 0 && (
-                        <div className="p-2">
-                          <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Artists</p>
-                          {searchResults.artists.map((artist, idx) => (
-                            <button
-                              key={artist.id}
-                              onClick={() => handleResultClick('artist', artist)}
-                              className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors ${
-                                selectedIndex === idx ? 'bg-secondary' : 'hover:bg-secondary/50'
-                              }`}
-                            >
-                              {artist.avatar ? (
-                                <img src={artist.avatar} alt={artist.artistName} className="w-8 h-8 rounded-full object-cover" />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                                  <User className="w-4 h-4 text-primary" />
-                                </div>
-                              )}
-                              <div className="flex-1 text-left">
-                                <p className="text-sm font-medium">{artist.artistName}</p>
-                                <p className="text-xs text-muted-foreground">{artist.genres || 'Artist'}</p>
-                              </div>
-                              <Music className="w-4 h-4 text-muted-foreground" />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Releases Results */}
-                      {searchResults.releases.length > 0 && (
-                        <div className="p-2 border-t border-border">
-                          <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Releases</p>
-                          {searchResults.releases.map((release, idx) => (
-                            <button
-                              key={release.id}
-                              onClick={() => handleResultClick('release', release)}
-                              className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors ${
-                                selectedIndex === searchResults.artists.length + idx ? 'bg-secondary' : 'hover:bg-secondary/50'
-                              }`}
-                            >
-                              {release.image ? (
-                                <img src={release.image} alt={release.name} className="w-8 h-8 rounded object-cover" />
-                              ) : (
-                                <div className="w-8 h-8 rounded bg-primary/20 flex items-center justify-center">
-                                  <Disc3 className="w-4 h-4 text-primary" />
-                                </div>
-                              )}
-                              <div className="flex-1 text-left">
-                                <p className="text-sm font-medium">{release.name}</p>
-                                <p className="text-xs text-muted-foreground">{release.artistName}</p>
-                              </div>
-                              <Badge variant="secondary" className="text-[10px]">{release.type}</Badge>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Empty State */}
-                      {searchQuery && !isSearching && totalResults === 0 && (
-                        <div className="p-8 text-center">
-                          <Search className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
-                          <p className="text-sm text-muted-foreground">No results found for "{searchQuery}"</p>
-                        </div>
-                      )}
-
-                      {/* Initial State */}
-                      {!searchQuery && (
-                        <div className="p-8 text-center">
-                          <p className="text-sm text-muted-foreground">Start typing to search artists and releases</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-2 border-t border-border bg-secondary/30">
-                      <div className="flex items-center justify-between px-2 text-[10px] text-muted-foreground">
-                        <span>↑↓ Navigate</span>
-                        <span>↵ Select</span>
-                        <span>Esc Close</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
             </div>
           </div>
 
@@ -665,6 +538,134 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
           </div>
         </motion.div>
       )}
+
+      {/* Search Modal - Rendered at root level for both mobile and desktop */}
+      <AnimatePresence>
+        {searchOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+              onClick={() => setSearchOpen(false)}
+            />
+            <motion.div
+              ref={searchContainerRef}
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="fixed top-20 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-[500px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50"
+            >
+              <div className="p-3 border-b border-border">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search artists, releases..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value)
+                      setSelectedIndex(0)
+                    }}
+                    onKeyDown={handleSearchKeyDown}
+                    className="pl-10 pr-4 bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary"
+                  />
+                  {isSearching && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+
+              <div className="max-h-[60vh] overflow-y-auto">
+                {/* Artists Results */}
+                {searchResults.artists.length > 0 && (
+                  <div className="p-2">
+                    <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Artists</p>
+                    {searchResults.artists.map((artist, idx) => (
+                      <button
+                        key={artist.id}
+                        onClick={() => handleResultClick('artist', artist)}
+                        className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors ${
+                          selectedIndex === idx ? 'bg-secondary' : 'hover:bg-secondary/50'
+                        }`}
+                      >
+                        {artist.avatar ? (
+                          <img src={artist.avatar} alt={artist.artistName} className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                            <User className="w-4 h-4 text-primary" />
+                          </div>
+                        )}
+                        <div className="flex-1 text-left">
+                          <p className="text-sm font-medium">{artist.artistName}</p>
+                          <p className="text-xs text-muted-foreground">{artist.genres || 'Artist'}</p>
+                        </div>
+                        <Music className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Releases Results */}
+                {searchResults.releases.length > 0 && (
+                  <div className="p-2 border-t border-border">
+                    <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Releases</p>
+                    {searchResults.releases.map((release, idx) => (
+                      <button
+                        key={release.id}
+                        onClick={() => handleResultClick('release', release)}
+                        className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors ${
+                          selectedIndex === searchResults.artists.length + idx ? 'bg-secondary' : 'hover:bg-secondary/50'
+                        }`}
+                      >
+                        {release.image ? (
+                          <img src={release.image} alt={release.name} className="w-8 h-8 rounded object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-primary/20 flex items-center justify-center">
+                            <Disc3 className="w-4 h-4 text-primary" />
+                          </div>
+                        )}
+                        <div className="flex-1 text-left">
+                          <p className="text-sm font-medium">{release.name}</p>
+                          <p className="text-xs text-muted-foreground">{release.artistName}</p>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px]">{release.type}</Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {searchQuery && !isSearching && totalResults === 0 && (
+                  <div className="p-8 text-center">
+                    <Search className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
+                    <p className="text-sm text-muted-foreground">No results found for "{searchQuery}"</p>
+                  </div>
+                )}
+
+                {/* Initial State */}
+                {!searchQuery && (
+                  <div className="p-8 text-center">
+                    <p className="text-sm text-muted-foreground">Start typing to search artists and releases</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-2 border-t border-border bg-secondary/30">
+                <div className="flex items-center justify-between px-2 text-[10px] text-muted-foreground">
+                  <span>↑↓ Navigate</span>
+                  <span>↵ Select</span>
+                  <span>Esc Close</span>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.nav>
   )
 }
