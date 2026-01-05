@@ -150,6 +150,10 @@ export function AdminDashboard() {
   const [rejectReason, setRejectReason] = useState('')
   const [isProcessingClaim, setIsProcessingClaim] = useState(false)
 
+  // Pending user detail state
+  const [selectedPendingUser, setSelectedPendingUser] = useState(null)
+  const [showPendingDetail, setShowPendingDetail] = useState(false)
+
   // Settings state
   const [settings, setSettings] = useState({
     allowRegistration: true,
@@ -1296,70 +1300,151 @@ export function AdminDashboard() {
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
                 ) : pendingUsersList.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {pendingUsersList.map((u) => (
-                      <div
+                      <motion.div
                         key={u.id}
-                        className="flex items-center gap-4 p-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors"
                       >
-                        {/* Avatar */}
-                        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden flex-shrink-0">
-                          <Music className="w-6 h-6 text-primary" />
-                        </div>
+                        <div className="flex items-start justify-between gap-4">
+                          {/* Avatar & Info */}
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            {u.avatar ? (
+                              <img
+                                src={u.avatar}
+                                alt={u.artistName}
+                                className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                                <Music className="w-6 h-6 text-primary" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold">{u.artistName || u.name || 'No name'}</h4>
+                              <p className="text-sm text-muted-foreground">{u.email}</p>
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                                {u.createdAt && (
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    {new Date(u.createdAt).toLocaleDateString()}
+                                  </span>
+                                )}
+                                {u.genres && (
+                                  <span className="text-primary">{u.genres}</span>
+                                )}
+                                {u.region && u.region !== 'Tampa Bay' && (
+                                  <span>{u.region}</span>
+                                )}
+                              </div>
+                              {/* Social Links Preview */}
+                              <div className="flex items-center gap-2 mt-2">
+                                {u.spotifyUrl && (
+                                  <a
+                                    href={u.spotifyUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-green-400 hover:text-green-300 transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Spotify"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                                    </svg>
+                                  </a>
+                                )}
+                                {u.instagramUrl && (
+                                  <a
+                                    href={u.instagramUrl.startsWith('http') ? u.instagramUrl : `https://instagram.com/${u.instagramUrl.replace('@', '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-pink-400 hover:text-pink-300 transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Instagram"
+                                  >
+                                    <Instagram className="w-4 h-4" />
+                                  </a>
+                                )}
+                                {u.twitterUrl && (
+                                  <a
+                                    href={u.twitterUrl.startsWith('http') ? u.twitterUrl : `https://twitter.com/${u.twitterUrl.replace('@', '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-400 hover:text-blue-300 transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Twitter/X"
+                                  >
+                                    <Twitter className="w-4 h-4" />
+                                  </a>
+                                )}
+                                {u.youtubeUrl && (
+                                  <a
+                                    href={u.youtubeUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-red-400 hover:text-red-300 transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="YouTube"
+                                  >
+                                    <Youtube className="w-4 h-4" />
+                                  </a>
+                                )}
+                                {u.websiteUrl && (
+                                  <a
+                                    href={u.websiteUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-muted-foreground hover:text-foreground transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Website"
+                                  >
+                                    <Globe className="w-4 h-4" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
 
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold">{u.artistName || u.name || 'No name'}</h4>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 flex-wrap">
-                            <span className="flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
-                              {u.email}
-                            </span>
-                            {u.createdAt && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {new Date(u.createdAt).toLocaleDateString()}
-                              </span>
-                            )}
-                            {u.spotifyUrl && (
-                              <a
-                                href={u.spotifyUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-                                  <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                                </svg>
-                                Spotify
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedPendingUser(u)
+                                setShowPendingDetail(true)
+                              }}
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleApprove(u.id)}
+                              className="gap-1 bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span className="hidden sm:inline">Approve</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReject(u.id)}
+                              className="gap-1 text-red-400 border-red-500/30 hover:bg-red-500/10"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              <span className="hidden sm:inline">Reject</span>
+                            </Button>
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleApprove(u.id)}
-                            className="gap-1 bg-green-600 hover:bg-green-700"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Approve
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleReject(u.id)}
-                            className="gap-1 text-red-400 border-red-500/30 hover:bg-red-500/10"
-                          >
-                            <XCircle className="w-4 h-4" />
-                            Reject
-                          </Button>
-                        </div>
-                      </div>
+                        {/* Bio Preview */}
+                        {u.bio && (
+                          <p className="text-sm text-muted-foreground mt-3 line-clamp-2">{u.bio}</p>
+                        )}
+                      </motion.div>
                     ))}
                   </div>
                 ) : (
@@ -2511,6 +2596,200 @@ export function AdminDashboard() {
                 </>
               )}
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Pending User Detail Dialog */}
+        <Dialog open={showPendingDetail} onOpenChange={setShowPendingDetail}>
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            {selectedPendingUser && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Application Details</DialogTitle>
+                  <DialogDescription>
+                    Review the artist application details below
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  {/* Profile Header */}
+                  <div className="flex items-center gap-4">
+                    {selectedPendingUser.avatar ? (
+                      <img
+                        src={selectedPendingUser.avatar}
+                        alt={selectedPendingUser.artistName}
+                        className="w-16 h-16 rounded-xl object-cover"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-primary/20 flex items-center justify-center">
+                        <Music className="w-8 h-8 text-primary" />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-lg">{selectedPendingUser.artistName || selectedPendingUser.name || 'No name'}</h3>
+                      <p className="text-sm text-muted-foreground">{selectedPendingUser.email}</p>
+                      {selectedPendingUser.profileSlug && (
+                        <p className="text-xs text-muted-foreground">/{selectedPendingUser.profileSlug}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Info Grid */}
+                  <div className="grid grid-cols-2 gap-4 p-3 bg-secondary/30 rounded-lg">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Region</p>
+                      <p className="text-sm font-medium">{selectedPendingUser.region || 'Tampa Bay'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Applied</p>
+                      <p className="text-sm font-medium">{new Date(selectedPendingUser.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    {selectedPendingUser.genres && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-muted-foreground">Genres</p>
+                        <p className="text-sm font-medium text-primary">{selectedPendingUser.genres}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bio */}
+                  {selectedPendingUser.bio && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Bio</p>
+                      <p className="text-sm bg-secondary/30 p-3 rounded-lg">{selectedPendingUser.bio}</p>
+                    </div>
+                  )}
+
+                  {/* Social Links */}
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Social Links</p>
+                    <div className="space-y-2">
+                      {selectedPendingUser.spotifyUrl && (
+                        <a
+                          href={selectedPendingUser.spotifyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-green-400 hover:text-green-300 transition-colors"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                          </svg>
+                          Spotify Profile
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {selectedPendingUser.instagramUrl && (
+                        <a
+                          href={selectedPendingUser.instagramUrl.startsWith('http') ? selectedPendingUser.instagramUrl : `https://instagram.com/${selectedPendingUser.instagramUrl.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-pink-400 hover:text-pink-300 transition-colors"
+                        >
+                          <Instagram className="w-4 h-4" />
+                          {selectedPendingUser.instagramUrl}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {selectedPendingUser.twitterUrl && (
+                        <a
+                          href={selectedPendingUser.twitterUrl.startsWith('http') ? selectedPendingUser.twitterUrl : `https://twitter.com/${selectedPendingUser.twitterUrl.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          <Twitter className="w-4 h-4" />
+                          {selectedPendingUser.twitterUrl}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {selectedPendingUser.youtubeUrl && (
+                        <a
+                          href={selectedPendingUser.youtubeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors"
+                        >
+                          <Youtube className="w-4 h-4" />
+                          YouTube Channel
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {selectedPendingUser.tiktokUrl && (
+                        <a
+                          href={selectedPendingUser.tiktokUrl.startsWith('http') ? selectedPendingUser.tiktokUrl : `https://tiktok.com/@${selectedPendingUser.tiktokUrl.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-foreground hover:text-muted-foreground transition-colors"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                          </svg>
+                          {selectedPendingUser.tiktokUrl}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {selectedPendingUser.websiteUrl && (
+                        <a
+                          href={selectedPendingUser.websiteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Globe className="w-4 h-4" />
+                          {selectedPendingUser.websiteUrl}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      {!selectedPendingUser.spotifyUrl && !selectedPendingUser.instagramUrl && !selectedPendingUser.twitterUrl && !selectedPendingUser.youtubeUrl && !selectedPendingUser.tiktokUrl && !selectedPendingUser.websiteUrl && (
+                        <p className="text-sm text-muted-foreground italic">No social links provided</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Spotify Stats */}
+                  {(selectedPendingUser.followers > 0 || selectedPendingUser.popularity > 0) && (
+                    <div className="grid grid-cols-2 gap-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                      {selectedPendingUser.followers > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Spotify Followers</p>
+                          <p className="text-sm font-medium text-green-400">{selectedPendingUser.followers.toLocaleString()}</p>
+                        </div>
+                      )}
+                      {selectedPendingUser.popularity > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Popularity Score</p>
+                          <p className="text-sm font-medium text-green-400">{selectedPendingUser.popularity}/100</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowPendingDetail(false)}>
+                    Close
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setShowPendingDetail(false)
+                      handleReject(selectedPendingUser.id)
+                    }}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      setShowPendingDetail(false)
+                      handleApprove(selectedPendingUser.id)
+                    }}
+                  >
+                    Approve
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
 
