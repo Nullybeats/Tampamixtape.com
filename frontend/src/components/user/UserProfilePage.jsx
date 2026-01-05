@@ -135,9 +135,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [platformFollowers, setPlatformFollowers] = useState(0)
   const [followLoading, setFollowLoading] = useState(false)
   const [showClaimModal, setShowClaimModal] = useState(false)
-
-  // Check if profile is claimable (admin-generated with managed email)
-  const isClaimableProfile = fetchedProfile?.email?.endsWith('@managed.tampamixtape.local')
+  const [isClaimableProfile, setIsClaimableProfile] = useState(false)
 
   // Fetch profile data for public profiles
   useEffect(() => {
@@ -172,6 +170,29 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
 
     fetchProfile()
   }, [profileSlug, isOwnProfile])
+
+  // Check if profile is claimable (admin-generated profiles)
+  useEffect(() => {
+    const checkClaimable = async () => {
+      if (!fetchedProfile?.id || isOwnProfile) {
+        setIsClaimableProfile(false)
+        return
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/claims/check/${fetchedProfile.id}`)
+        if (response.ok) {
+          const data = await response.json()
+          setIsClaimableProfile(data.isClaimable)
+        }
+      } catch (err) {
+        console.error('Failed to check if profile is claimable:', err)
+        setIsClaimableProfile(false)
+      }
+    }
+
+    checkClaimable()
+  }, [fetchedProfile?.id, isOwnProfile])
 
   // Fetch ranking data
   useEffect(() => {
