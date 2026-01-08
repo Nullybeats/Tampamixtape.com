@@ -53,7 +53,9 @@ const LOGO_URL = 'https://tampamixtape.com/favicon.png';
 function getEmailHeader() {
   return `
     <div style="background: linear-gradient(135deg, ${BRAND.dark} 0%, ${BRAND.darkGray} 100%); padding: 40px 20px; text-align: center; border-bottom: 3px solid ${BRAND.primary};">
-      <img src="${LOGO_URL}" alt="Tampa Mixtape" style="width: 50px; height: 50px; margin-bottom: 15px;" />
+      <div style="margin-bottom: 15px;">
+        <img src="${LOGO_URL}" alt="TM" width="60" height="60" style="width: 60px; height: 60px; border-radius: 12px; display: inline-block;" />
+      </div>
       <h1 style="color: ${BRAND.text}; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
         Tampa<span style="color: ${BRAND.primary};">Mixtape</span>
       </h1>
