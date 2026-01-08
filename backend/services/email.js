@@ -1,6 +1,12 @@
 const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
-// Create SMTP transporter
+// Initialize SendGrid if API key is provided
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+}
+
+// Create SMTP transporter (fallback)
 let transporter = null;
 
 function getTransporter() {
@@ -9,7 +15,7 @@ function getTransporter() {
     transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: port,
-      secure: port === 465, // true for 465, false for 587
+      secure: port === 465,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
@@ -19,14 +25,47 @@ function getTransporter() {
   return transporter;
 }
 
-const FROM_EMAIL = process.env.SMTP_FROM_EMAIL || 'noreply@tampamixtape.com';
+// Use SendGrid FROM email or SMTP FROM email
+const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.SMTP_FROM_EMAIL || 'noreply@tampamixtape.com';
 const CONTACT_RECIPIENT = process.env.CONTACT_RECIPIENT_EMAIL || 'contact@tampamixtape.com';
 
 /**
- * Check if email service is configured
+ * Check if email service is configured (SendGrid preferred, SMTP fallback)
  */
 function isConfigured() {
-  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  return !!(process.env.SENDGRID_API_KEY || (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS));
+}
+
+/**
+ * Check if SendGrid is configured
+ */
+function useSendGrid() {
+  return !!process.env.SENDGRID_API_KEY;
+}
+
+/**
+ * Send email via SendGrid or SMTP
+ */
+async function sendEmail(mailOptions) {
+  if (useSendGrid()) {
+    // SendGrid format
+    const msg = {
+      to: mailOptions.to,
+      from: mailOptions.from,
+      subject: mailOptions.subject,
+      text: mailOptions.text,
+      html: mailOptions.html,
+    };
+    if (mailOptions.replyTo) {
+      msg.replyTo = mailOptions.replyTo;
+    }
+    await sgMail.send(msg);
+  } else if (getTransporter()) {
+    // SMTP format
+    await getTransporter().sendMail(mailOptions);
+  } else {
+    throw new Error('No email service configured');
+  }
 }
 
 /**
@@ -34,12 +73,12 @@ function isConfigured() {
  */
 async function sendContactFormEmail({ name, email, subject, message }) {
   if (!isConfigured()) {
-    console.log('SMTP not configured, skipping contact form email');
+    console.log('Email not configured, skipping contact form email');
     return { success: false, reason: 'not_configured' };
   }
 
   const mailOptions = {
-    from: `"Tampa Mixtape" <${FROM_EMAIL}>`,
+    from: `Tampa Mixtape <${FROM_EMAIL}>`,
     to: CONTACT_RECIPIENT,
     replyTo: email,
     subject: `Tampa Mixtape Contact: ${subject}`,
@@ -82,7 +121,7 @@ ${message}
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendEmail(mailOptions);
     console.log('Contact form email sent successfully');
     return { success: true };
   } catch (error) {
@@ -96,12 +135,12 @@ ${message}
  */
 async function sendClaimSubmittedEmail({ email, artistName }) {
   if (!isConfigured()) {
-    console.log('SMTP not configured, skipping claim submitted email');
+    console.log('Email not configured, skipping claim submitted email');
     return { success: false, reason: 'not_configured' };
   }
 
   const mailOptions = {
-    from: `"Tampa Mixtape" <${FROM_EMAIL}>`,
+    from: `Tampa Mixtape <${FROM_EMAIL}>`,
     to: email,
     subject: `Claim Received: ${artistName} - Tampa Mixtape`,
     text: `
@@ -152,7 +191,7 @@ Questions? Reply to this email or visit tampamixtape.com/contact
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendEmail(mailOptions);
     console.log(`Claim submitted email sent to ${email}`);
     return { success: true };
   } catch (error) {
@@ -166,12 +205,12 @@ Questions? Reply to this email or visit tampamixtape.com/contact
  */
 async function sendClaimApprovedEmail({ email, artistName, tempPassword }) {
   if (!isConfigured()) {
-    console.log('SMTP not configured, skipping claim approved email');
+    console.log('Email not configured, skipping claim approved email');
     return { success: false, reason: 'not_configured' };
   }
 
   const mailOptions = {
-    from: `"Tampa Mixtape" <${FROM_EMAIL}>`,
+    from: `Tampa Mixtape <${FROM_EMAIL}>`,
     to: email,
     subject: `Claim Approved: ${artistName} - Tampa Mixtape`,
     text: `
@@ -236,7 +275,7 @@ Welcome to the Tampa Bay music community!
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendEmail(mailOptions);
     console.log(`Claim approved email sent to ${email}`);
     return { success: true };
   } catch (error) {
@@ -250,12 +289,12 @@ Welcome to the Tampa Bay music community!
  */
 async function sendClaimRejectedEmail({ email, artistName, reason }) {
   if (!isConfigured()) {
-    console.log('SMTP not configured, skipping claim rejected email');
+    console.log('Email not configured, skipping claim rejected email');
     return { success: false, reason: 'not_configured' };
   }
 
   const mailOptions = {
-    from: `"Tampa Mixtape" <${FROM_EMAIL}>`,
+    from: `Tampa Mixtape <${FROM_EMAIL}>`,
     to: email,
     subject: `Claim Update: ${artistName} - Tampa Mixtape`,
     text: `
@@ -307,7 +346,7 @@ We appreciate your interest in Tampa Mixtape and the Tampa Bay music scene.
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendEmail(mailOptions);
     console.log(`Claim rejected email sent to ${email}`);
     return { success: true };
   } catch (error) {
