@@ -21,13 +21,29 @@ export function ContactPage() {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // For now, just show a success message
-    // In the future, this would send to a backend endpoint
-    setTimeout(() => {
-      toast.success('Message sent! We\'ll get back to you soon.')
-      setFormData({ name: '', email: '', subject: '', message: '' })
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast.success(data.message || 'Message sent! We\'ll get back to you soon.')
+        setFormData({ name: '', email: '', subject: '', message: '' })
+      } else {
+        toast.error(data.error || 'Failed to send message. Please try again.')
+      }
+    } catch (error) {
+      console.error('Contact form error:', error)
+      toast.error('Failed to send message. Please try again later.')
+    } finally {
       setIsSubmitting(false)
-    }, 1000)
+    }
   }
 
   const handleChange = (e) => {

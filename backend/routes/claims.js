@@ -1,5 +1,6 @@
 const express = require('express');
 const prisma = require('../services/db');
+const emailService = require('../services/email');
 
 const router = express.Router();
 
@@ -97,9 +98,11 @@ router.post('/', async (req, res) => {
       },
     });
 
-    // TODO: Send confirmation email via SendGrid
-    // const emailService = require('../services/email');
-    // emailService.sendClaimSubmittedEmail({ email: claimantEmail, artistName: profile.artistName });
+    // Send confirmation email
+    emailService.sendClaimSubmittedEmail({
+      email: claimantEmail,
+      artistName: profile.artistName,
+    });
 
     res.status(201).json({
       message: 'Claim submitted successfully. You will be notified once reviewed.',

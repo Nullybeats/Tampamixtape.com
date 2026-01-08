@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const prisma = require('../services/db');
 const spotify = require('../services/spotify');
+const emailService = require('../services/email');
 
 const router = express.Router();
 
@@ -938,9 +939,12 @@ router.post('/claims/:id/approve', requireAdmin, async (req, res) => {
       return { claim: updatedClaim, profile: updatedProfile };
     });
 
-    // TODO: Send email notification to claimant with login credentials
-    // const emailService = require('../services/email');
-    // emailService.sendClaimApprovedEmail(result.profile, tempPassword);
+    // Send email notification to claimant with login credentials
+    emailService.sendClaimApprovedEmail({
+      email: result.profile.email,
+      artistName: result.profile.artistName,
+      tempPassword,
+    });
 
     res.json({
       message: 'Claim approved. Profile ownership transferred.',
@@ -961,6 +965,11 @@ router.post('/claims/:id/reject', requireAdmin, async (req, res) => {
 
     const claim = await prisma.profileClaim.findUnique({
       where: { id },
+      include: {
+        profile: {
+          select: { artistName: true },
+        },
+      },
     });
 
     if (!claim) {
@@ -981,9 +990,12 @@ router.post('/claims/:id/reject', requireAdmin, async (req, res) => {
       },
     });
 
-    // TODO: Send email notification to claimant about rejection
-    // const emailService = require('../services/email');
-    // emailService.sendClaimRejectedEmail({ email: claim.claimantEmail }, reason);
+    // Send email notification to claimant about rejection
+    emailService.sendClaimRejectedEmail({
+      email: claim.claimantEmail,
+      artistName: claim.profile?.artistName || 'the requested profile',
+      reason,
+    });
 
     res.json({
       message: 'Claim rejected',

@@ -11,6 +11,7 @@ const profileRouter = require('./routes/profile');
 const followRouter = require('./routes/follow');
 const feedRouter = require('./routes/feed');
 const claimsRouter = require('./routes/claims');
+const contactRouter = require('./routes/contact');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -69,6 +70,7 @@ app.use('/api/profile', profileRouter);
 app.use('/api/follow', followRouter);
 app.use('/api/feed', feedRouter);
 app.use('/api/claims', claimsRouter);
+app.use('/api/contact', contactRouter);
 
 // Legacy route for backwards compatibility
 app.get('/api/hello', (req, res) => {
