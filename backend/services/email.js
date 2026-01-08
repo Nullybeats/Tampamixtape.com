@@ -29,6 +29,73 @@ function getTransporter() {
 const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || process.env.SMTP_FROM_EMAIL || 'noreply@tampamixtape.com';
 const CONTACT_RECIPIENT = process.env.CONTACT_RECIPIENT_EMAIL || 'contact@tampamixtape.com';
 
+// Brand colors
+const BRAND = {
+  primary: '#22c55e',
+  primaryDark: '#16a34a',
+  primaryDarker: '#15803d',
+  dark: '#0a0a0a',
+  darkGray: '#1a1a1a',
+  lightGray: '#2a2a2a',
+  text: '#ffffff',
+  textMuted: '#9ca3af',
+  success: '#22c55e',
+  error: '#ef4444',
+  warning: '#f59e0b',
+};
+
+// Logo URL (hosted on the site)
+const LOGO_URL = 'https://tampamixtape.com/favicon.png';
+
+/**
+ * Generate email header with logo
+ */
+function getEmailHeader() {
+  return `
+    <div style="background: linear-gradient(135deg, ${BRAND.dark} 0%, ${BRAND.darkGray} 100%); padding: 40px 20px; text-align: center; border-bottom: 3px solid ${BRAND.primary};">
+      <img src="${LOGO_URL}" alt="Tampa Mixtape" style="width: 50px; height: 50px; margin-bottom: 15px;" />
+      <h1 style="color: ${BRAND.text}; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+        Tampa<span style="color: ${BRAND.primary};">Mixtape</span>
+      </h1>
+      <p style="color: ${BRAND.textMuted}; margin: 8px 0 0 0; font-size: 14px;">Tampa Bay's Music Discovery Platform</p>
+    </div>
+  `;
+}
+
+/**
+ * Generate email footer
+ */
+function getEmailFooter() {
+  return `
+    <div style="background: ${BRAND.dark}; padding: 30px 20px; text-align: center; border-top: 1px solid ${BRAND.lightGray};">
+      <p style="color: ${BRAND.textMuted}; margin: 0 0 15px 0; font-size: 14px;">
+        Discover Tampa Bay's finest artists and music
+      </p>
+      <div style="margin-bottom: 15px;">
+        <a href="https://tampamixtape.com" style="color: ${BRAND.primary}; text-decoration: none; font-size: 14px; margin: 0 10px;">Website</a>
+        <span style="color: ${BRAND.lightGray};">|</span>
+        <a href="https://tampamixtape.com/artists" style="color: ${BRAND.primary}; text-decoration: none; font-size: 14px; margin: 0 10px;">Artists</a>
+        <span style="color: ${BRAND.lightGray};">|</span>
+        <a href="https://tampamixtape.com/contact" style="color: ${BRAND.primary}; text-decoration: none; font-size: 14px; margin: 0 10px;">Contact</a>
+      </div>
+      <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 12px;">
+        © ${new Date().getFullYear()} Tampa Mixtape. All rights reserved.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * Generate button style
+ */
+function getButton(text, url, color = BRAND.primary) {
+  return `
+    <a href="${url}" style="display: inline-block; background: ${color}; color: ${BRAND.text}; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 10px 0;">
+      ${text}
+    </a>
+  `;
+}
+
 /**
  * Check if email service is configured (SendGrid preferred, SMTP fallback)
  */
@@ -48,7 +115,6 @@ function useSendGrid() {
  */
 async function sendEmail(mailOptions) {
   if (useSendGrid()) {
-    // SendGrid format
     const msg = {
       to: mailOptions.to,
       from: mailOptions.from,
@@ -61,7 +127,6 @@ async function sendEmail(mailOptions) {
     }
     await sgMail.send(msg);
   } else if (getTransporter()) {
-    // SMTP format
     await getTransporter().sendMail(mailOptions);
   } else {
     throw new Error('No email service configured');
@@ -81,7 +146,7 @@ async function sendContactFormEmail({ name, email, subject, message }) {
     from: `Tampa Mixtape <${FROM_EMAIL}>`,
     to: CONTACT_RECIPIENT,
     replyTo: email,
-    subject: `Tampa Mixtape Contact: ${subject}`,
+    subject: `New Contact: ${subject}`,
     text: `
 New contact form submission from Tampa Mixtape:
 
@@ -93,30 +158,53 @@ Message:
 ${message}
     `.trim(),
     html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <h2 style="color: #333;">New Contact Form Submission</h2>
-  <table style="width: 100%; border-collapse: collapse;">
-    <tr>
-      <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Name:</td>
-      <td style="padding: 10px; border-bottom: 1px solid #eee;">${name}</td>
-    </tr>
-    <tr>
-      <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Email:</td>
-      <td style="padding: 10px; border-bottom: 1px solid #eee;"><a href="mailto:${email}">${email}</a></td>
-    </tr>
-    <tr>
-      <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Subject:</td>
-      <td style="padding: 10px; border-bottom: 1px solid #eee;">${subject}</td>
-    </tr>
-  </table>
-  <h3 style="color: #333; margin-top: 20px;">Message:</h3>
-  <div style="background: #f9f9f9; padding: 15px; border-radius: 5px;">
-    ${message.replace(/\n/g, '<br>')}
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background: ${BRAND.dark}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background: ${BRAND.darkGray};">
+    ${getEmailHeader()}
+
+    <div style="padding: 40px 30px;">
+      <div style="background: ${BRAND.lightGray}; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid ${BRAND.primary};">
+        <h2 style="color: ${BRAND.text}; margin: 0 0 5px 0; font-size: 20px;">New Contact Form Submission</h2>
+        <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 14px;">Someone reached out through the website</p>
+      </div>
+
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 12px 0; border-bottom: 1px solid ${BRAND.lightGray}; color: ${BRAND.textMuted}; font-size: 14px; width: 100px;">Name</td>
+            <td style="padding: 12px 0; border-bottom: 1px solid ${BRAND.lightGray}; color: ${BRAND.text}; font-size: 14px; font-weight: 500;">${name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 0; border-bottom: 1px solid ${BRAND.lightGray}; color: ${BRAND.textMuted}; font-size: 14px;">Email</td>
+            <td style="padding: 12px 0; border-bottom: 1px solid ${BRAND.lightGray}; color: ${BRAND.primary}; font-size: 14px;"><a href="mailto:${email}" style="color: ${BRAND.primary}; text-decoration: none;">${email}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 0; color: ${BRAND.textMuted}; font-size: 14px;">Subject</td>
+            <td style="padding: 12px 0; color: ${BRAND.text}; font-size: 14px; font-weight: 500;">${subject}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 25px;">
+        <h3 style="color: ${BRAND.textMuted}; margin: 0 0 15px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Message</h3>
+        <p style="color: ${BRAND.text}; margin: 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${message}</p>
+      </div>
+
+      <div style="text-align: center; margin-top: 30px;">
+        ${getButton('Reply to ' + name, 'mailto:' + email)}
+      </div>
+    </div>
+
+    ${getEmailFooter()}
   </div>
-  <p style="color: #888; font-size: 12px; margin-top: 20px;">
-    This message was sent via the Tampa Mixtape contact form.
-  </p>
-</div>
+</body>
+</html>
     `.trim(),
   };
 
@@ -142,7 +230,7 @@ async function sendClaimSubmittedEmail({ email, artistName }) {
   const mailOptions = {
     from: `Tampa Mixtape <${FROM_EMAIL}>`,
     to: email,
-    subject: `Claim Received: ${artistName} - Tampa Mixtape`,
+    subject: `Claim Received: ${artistName}`,
     text: `
 Hi there,
 
@@ -159,34 +247,71 @@ Thank you for being part of the Tampa Bay music community!
 
 - The Tampa Mixtape Team
 
-Questions? Reply to this email or visit tampamixtape.com/contact
+Questions? Visit tampamixtape.com/contact
     `.trim(),
     html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-    <h1 style="color: white; margin: 0;">Tampa Mixtape</h1>
-  </div>
-  <div style="padding: 30px; background: #fff;">
-    <h2 style="color: #333;">Claim Request Received</h2>
-    <p>Hi there,</p>
-    <p>We've received your claim request for the artist profile <strong>"${artistName}"</strong> on Tampa Mixtape.</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background: ${BRAND.dark}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background: ${BRAND.darkGray};">
+    ${getEmailHeader()}
 
-    <h3 style="color: #333;">What happens next:</h3>
-    <ol style="color: #555;">
-      <li>Our team will review your submission and verify your identity</li>
-      <li>This typically takes 1-3 business days</li>
-      <li>You'll receive an email once we've made a decision</li>
-    </ol>
+    <div style="padding: 40px 30px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <div style="display: inline-block; background: ${BRAND.primary}20; border-radius: 50%; padding: 15px; margin-bottom: 15px;">
+          <span style="font-size: 32px;">📨</span>
+        </div>
+        <h2 style="color: ${BRAND.text}; margin: 0 0 10px 0; font-size: 24px;">Claim Request Received</h2>
+        <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 16px;">We've got your submission for <strong style="color: ${BRAND.primary};">${artistName}</strong></p>
+      </div>
 
-    <p>If your claim is approved, you'll receive login credentials to manage your artist profile.</p>
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+        <h3 style="color: ${BRAND.text}; margin: 0 0 20px 0; font-size: 16px;">What happens next?</h3>
 
-    <p style="margin-top: 30px;">Thank you for being part of the Tampa Bay music community!</p>
-    <p><strong>- The Tampa Mixtape Team</strong></p>
+        <div style="display: flex; margin-bottom: 15px;">
+          <div style="background: ${BRAND.primary}; color: ${BRAND.text}; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; font-weight: 600; font-size: 14px; flex-shrink: 0;">1</div>
+          <div style="margin-left: 15px;">
+            <p style="color: ${BRAND.text}; margin: 0 0 3px 0; font-size: 14px; font-weight: 500;">Review Process</p>
+            <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 13px;">Our team will verify your identity and review your submission</p>
+          </div>
+        </div>
+
+        <div style="display: flex; margin-bottom: 15px;">
+          <div style="background: ${BRAND.lightGray}; color: ${BRAND.text}; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; font-weight: 600; font-size: 14px; flex-shrink: 0;">2</div>
+          <div style="margin-left: 15px;">
+            <p style="color: ${BRAND.text}; margin: 0 0 3px 0; font-size: 14px; font-weight: 500;">Processing Time</p>
+            <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 13px;">This typically takes 1-3 business days</p>
+          </div>
+        </div>
+
+        <div style="display: flex;">
+          <div style="background: ${BRAND.lightGray}; color: ${BRAND.text}; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; font-weight: 600; font-size: 14px; flex-shrink: 0;">3</div>
+          <div style="margin-left: 15px;">
+            <p style="color: ${BRAND.text}; margin: 0 0 3px 0; font-size: 14px; font-weight: 500;">Decision Notification</p>
+            <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 13px;">You'll receive an email with our decision</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: ${BRAND.primary}15; border: 1px solid ${BRAND.primary}30; border-radius: 12px; padding: 20px; text-align: center;">
+        <p style="color: ${BRAND.text}; margin: 0; font-size: 14px;">
+          If approved, you'll receive login credentials to manage your artist profile on Tampa Mixtape.
+        </p>
+      </div>
+
+      <p style="color: ${BRAND.textMuted}; text-align: center; margin-top: 30px; font-size: 14px;">
+        Thank you for being part of the Tampa Bay music community!
+      </p>
+    </div>
+
+    ${getEmailFooter()}
   </div>
-  <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #888;">
-    Questions? Visit <a href="https://tampamixtape.com/contact">tampamixtape.com/contact</a>
-  </div>
-</div>
+</body>
+</html>
     `.trim(),
   };
 
@@ -212,7 +337,7 @@ async function sendClaimApprovedEmail({ email, artistName, tempPassword }) {
   const mailOptions = {
     from: `Tampa Mixtape <${FROM_EMAIL}>`,
     to: email,
-    subject: `Claim Approved: ${artistName} - Tampa Mixtape`,
+    subject: `Welcome to Tampa Mixtape, ${artistName}!`,
     text: `
 Congratulations!
 
@@ -236,41 +361,68 @@ Welcome to the Tampa Bay music community!
 - The Tampa Mixtape Team
     `.trim(),
     html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-    <h1 style="color: white; margin: 0;">Tampa Mixtape</h1>
-  </div>
-  <div style="padding: 30px; background: #fff;">
-    <h2 style="color: #22c55e;">Claim Approved!</h2>
-    <p>Congratulations! Your claim for the artist profile <strong>"${artistName}"</strong> has been approved.</p>
-    <p>You now have full control of your profile on Tampa Mixtape.</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background: ${BRAND.dark}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background: ${BRAND.darkGray};">
+    ${getEmailHeader()}
 
-    <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 20px; margin: 20px 0;">
-      <h3 style="margin-top: 0; color: #333;">Your Login Credentials</h3>
-      <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
-      <p style="margin: 5px 0;"><strong>Temporary Password:</strong> <code style="background: #e5e5e5; padding: 2px 6px; border-radius: 3px;">${tempPassword}</code></p>
+    <div style="padding: 40px 30px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <div style="display: inline-block; background: ${BRAND.success}20; border-radius: 50%; padding: 15px; margin-bottom: 15px;">
+          <span style="font-size: 32px;">🎉</span>
+        </div>
+        <h2 style="color: ${BRAND.success}; margin: 0 0 10px 0; font-size: 24px;">Claim Approved!</h2>
+        <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 16px;">Welcome to Tampa Mixtape, <strong style="color: ${BRAND.text};">${artistName}</strong></p>
+      </div>
+
+      <p style="color: ${BRAND.text}; font-size: 15px; line-height: 1.6; text-align: center; margin-bottom: 30px;">
+        You now have full control of your artist profile. Use the credentials below to log in and start managing your presence on Tampa Mixtape.
+      </p>
+
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 25px; margin-bottom: 25px; border: 1px solid ${BRAND.success}30;">
+        <h3 style="color: ${BRAND.textMuted}; margin: 0 0 15px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Your Login Credentials</h3>
+
+        <div style="margin-bottom: 15px;">
+          <p style="color: ${BRAND.textMuted}; margin: 0 0 5px 0; font-size: 12px;">Email</p>
+          <p style="color: ${BRAND.text}; margin: 0; font-size: 16px; font-weight: 500;">${email}</p>
+        </div>
+
+        <div>
+          <p style="color: ${BRAND.textMuted}; margin: 0 0 5px 0; font-size: 12px;">Temporary Password</p>
+          <code style="display: block; background: ${BRAND.lightGray}; color: ${BRAND.primary}; padding: 12px 15px; border-radius: 8px; font-size: 18px; font-weight: 600; letter-spacing: 1px;">${tempPassword}</code>
+        </div>
+      </div>
+
+      <div style="background: ${BRAND.warning}15; border: 1px solid ${BRAND.warning}30; border-radius: 12px; padding: 15px; margin-bottom: 30px;">
+        <p style="color: ${BRAND.warning}; margin: 0; font-size: 14px; font-weight: 500;">
+          ⚠️ Please change your password immediately after logging in
+        </p>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 30px;">
+        ${getButton('Log In to Your Profile', 'https://tampamixtape.com/login')}
+      </div>
+
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 20px;">
+        <h3 style="color: ${BRAND.text}; margin: 0 0 15px 0; font-size: 14px;">Once logged in, you can:</h3>
+        <ul style="color: ${BRAND.textMuted}; margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+          <li>Update your bio and profile photo</li>
+          <li>Add your social media links</li>
+          <li>Manage your artist information</li>
+          <li>Connect with the Tampa Bay music community</li>
+        </ul>
+      </div>
     </div>
 
-    <p style="color: #dc2626; font-weight: bold;">IMPORTANT: Please log in and change your password immediately.</p>
-
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="https://tampamixtape.com/login" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Log In Now</a>
-    </div>
-
-    <p>Once logged in, you can:</p>
-    <ul style="color: #555;">
-      <li>Update your bio and profile photo</li>
-      <li>Add your social media links</li>
-      <li>Manage your artist information</li>
-    </ul>
-
-    <p style="margin-top: 30px;">Welcome to the Tampa Bay music community!</p>
-    <p><strong>- The Tampa Mixtape Team</strong></p>
+    ${getEmailFooter()}
   </div>
-  <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #888;">
-    Questions? Visit <a href="https://tampamixtape.com/contact">tampamixtape.com/contact</a>
-  </div>
-</div>
+</body>
+</html>
     `.trim(),
   };
 
@@ -296,7 +448,7 @@ async function sendClaimRejectedEmail({ email, artistName, reason }) {
   const mailOptions = {
     from: `Tampa Mixtape <${FROM_EMAIL}>`,
     to: email,
-    subject: `Claim Update: ${artistName} - Tampa Mixtape`,
+    subject: `Update on Your Claim: ${artistName}`,
     text: `
 Hi there,
 
@@ -306,42 +458,67 @@ After reviewing your submission, we were unable to approve your claim at this ti
 
 ${reason ? `Reason: ${reason}` : ''}
 
-If you believe this decision was made in error, or if you have additional documentation to support your claim, please feel free to submit a new claim with more information or contact us at tampamixtape.com/contact.
+If you believe this decision was made in error, or if you have additional documentation to support your claim, please feel free to submit a new claim with more information or contact us.
 
 We appreciate your interest in Tampa Mixtape and the Tampa Bay music scene.
 
 - The Tampa Mixtape Team
+
+Questions? Visit tampamixtape.com/contact
     `.trim(),
     html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-    <h1 style="color: white; margin: 0;">Tampa Mixtape</h1>
-  </div>
-  <div style="padding: 30px; background: #fff;">
-    <h2 style="color: #333;">Claim Update</h2>
-    <p>Hi there,</p>
-    <p>Thank you for submitting a claim for the artist profile <strong>"${artistName}"</strong> on Tampa Mixtape.</p>
-    <p>After reviewing your submission, we were unable to approve your claim at this time.</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background: ${BRAND.dark}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background: ${BRAND.darkGray};">
+    ${getEmailHeader()}
 
-    ${reason ? `
-    <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 15px; margin: 20px 0;">
-      <strong>Reason:</strong> ${reason}
+    <div style="padding: 40px 30px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <div style="display: inline-block; background: ${BRAND.textMuted}20; border-radius: 50%; padding: 15px; margin-bottom: 15px;">
+          <span style="font-size: 32px;">📋</span>
+        </div>
+        <h2 style="color: ${BRAND.text}; margin: 0 0 10px 0; font-size: 24px;">Claim Update</h2>
+        <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 16px;">Regarding your claim for <strong style="color: ${BRAND.text};">${artistName}</strong></p>
+      </div>
+
+      <p style="color: ${BRAND.text}; font-size: 15px; line-height: 1.6; margin-bottom: 25px;">
+        Thank you for your interest in claiming the artist profile "${artistName}" on Tampa Mixtape. After careful review, we were unable to approve your claim at this time.
+      </p>
+
+      ${reason ? `
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 20px; margin-bottom: 25px; border-left: 4px solid ${BRAND.error};">
+        <h3 style="color: ${BRAND.textMuted}; margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Reason</h3>
+        <p style="color: ${BRAND.text}; margin: 0; font-size: 15px;">${reason}</p>
+      </div>
+      ` : ''}
+
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+        <h3 style="color: ${BRAND.text}; margin: 0 0 15px 0; font-size: 16px;">What you can do:</h3>
+        <ul style="color: ${BRAND.textMuted}; margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+          <li>Submit a new claim with additional documentation</li>
+          <li>Provide more proof of your identity as the artist</li>
+          <li>Contact us if you have questions about the decision</li>
+        </ul>
+      </div>
+
+      <div style="text-align: center;">
+        ${getButton('Contact Support', 'https://tampamixtape.com/contact', BRAND.lightGray)}
+      </div>
+
+      <p style="color: ${BRAND.textMuted}; text-align: center; margin-top: 30px; font-size: 14px;">
+        We appreciate your interest in the Tampa Bay music community.
+      </p>
     </div>
-    ` : ''}
 
-    <p>If you believe this decision was made in error, or if you have additional documentation to support your claim, please feel free to:</p>
-    <ul style="color: #555;">
-      <li>Submit a new claim with more information</li>
-      <li>Contact us at <a href="https://tampamixtape.com/contact">tampamixtape.com/contact</a></li>
-    </ul>
-
-    <p style="margin-top: 30px;">We appreciate your interest in Tampa Mixtape and the Tampa Bay music scene.</p>
-    <p><strong>- The Tampa Mixtape Team</strong></p>
+    ${getEmailFooter()}
   </div>
-  <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #888;">
-    Questions? Visit <a href="https://tampamixtape.com/contact">tampamixtape.com/contact</a>
-  </div>
-</div>
+</body>
+</html>
     `.trim(),
   };
 
