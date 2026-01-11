@@ -2514,35 +2514,70 @@ export function AdminDashboard() {
 
                 {/* Social links */}
                 <div>
-                  <Label>Social Links Provided</Label>
-                  <div className="mt-2 space-y-1">
-                    {selectedClaim.instagramUrl && (
-                      <a href={selectedClaim.instagramUrl.startsWith('http') ? selectedClaim.instagramUrl : `https://instagram.com/${selectedClaim.instagramUrl.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
-                         className="flex items-center gap-2 text-sm text-primary hover:underline">
-                        <Instagram className="w-4 h-4" /> {selectedClaim.instagramUrl}
-                      </a>
-                    )}
-                    {selectedClaim.twitterUrl && (
-                      <a href={selectedClaim.twitterUrl.startsWith('http') ? selectedClaim.twitterUrl : `https://twitter.com/${selectedClaim.twitterUrl.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
-                         className="flex items-center gap-2 text-sm text-primary hover:underline">
-                        <Twitter className="w-4 h-4" /> {selectedClaim.twitterUrl}
-                      </a>
-                    )}
-                    {selectedClaim.youtubeUrl && (
-                      <a href={selectedClaim.youtubeUrl} target="_blank" rel="noopener noreferrer"
-                         className="flex items-center gap-2 text-sm text-primary hover:underline">
-                        <Youtube className="w-4 h-4" /> {selectedClaim.youtubeUrl}
-                      </a>
-                    )}
-                    {selectedClaim.websiteUrl && (
-                      <a href={selectedClaim.websiteUrl} target="_blank" rel="noopener noreferrer"
-                         className="flex items-center gap-2 text-sm text-primary hover:underline">
-                        <Globe className="w-4 h-4" /> {selectedClaim.websiteUrl}
-                      </a>
-                    )}
-                    {!selectedClaim.instagramUrl && !selectedClaim.twitterUrl && !selectedClaim.youtubeUrl && !selectedClaim.websiteUrl && (
-                      <p className="text-sm text-muted-foreground">No social links provided</p>
-                    )}
+                  <Label>Social Links</Label>
+                  <div className="mt-2 space-y-2">
+                    {/* Instagram */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <Instagram className="w-4 h-4 text-muted-foreground" />
+                      {selectedClaim.instagramUrl ? (
+                        <a href={selectedClaim.instagramUrl.startsWith('http') ? selectedClaim.instagramUrl : `https://instagram.com/${selectedClaim.instagramUrl.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
+                           className="text-primary hover:underline">
+                          {selectedClaim.instagramUrl}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground italic">Not provided</span>
+                      )}
+                    </div>
+                    {/* Twitter/X */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <Twitter className="w-4 h-4 text-muted-foreground" />
+                      {selectedClaim.twitterUrl ? (
+                        <a href={selectedClaim.twitterUrl.startsWith('http') ? selectedClaim.twitterUrl : `https://twitter.com/${selectedClaim.twitterUrl.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
+                           className="text-primary hover:underline">
+                          {selectedClaim.twitterUrl}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground italic">Not provided</span>
+                      )}
+                    </div>
+                    {/* TikTok */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-muted-foreground">
+                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                      </svg>
+                      {selectedClaim.tiktokUrl ? (
+                        <a href={selectedClaim.tiktokUrl.startsWith('http') ? selectedClaim.tiktokUrl : `https://tiktok.com/@${selectedClaim.tiktokUrl.replace('@', '')}`} target="_blank" rel="noopener noreferrer"
+                           className="text-primary hover:underline">
+                          {selectedClaim.tiktokUrl}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground italic">Not provided</span>
+                      )}
+                    </div>
+                    {/* YouTube */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <Youtube className="w-4 h-4 text-muted-foreground" />
+                      {selectedClaim.youtubeUrl ? (
+                        <a href={selectedClaim.youtubeUrl} target="_blank" rel="noopener noreferrer"
+                           className="text-primary hover:underline">
+                          {selectedClaim.youtubeUrl}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground italic">Not provided</span>
+                      )}
+                    </div>
+                    {/* Website */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <Globe className="w-4 h-4 text-muted-foreground" />
+                      {selectedClaim.websiteUrl ? (
+                        <a href={selectedClaim.websiteUrl} target="_blank" rel="noopener noreferrer"
+                           className="text-primary hover:underline">
+                          {selectedClaim.websiteUrl}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground italic">Not provided</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
