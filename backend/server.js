@@ -12,6 +12,7 @@ const followRouter = require('./routes/follow');
 const feedRouter = require('./routes/feed');
 const claimsRouter = require('./routes/claims');
 const contactRouter = require('./routes/contact');
+const landingRouter = require('./routes/landing');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -71,6 +72,7 @@ app.use('/api/follow', followRouter);
 app.use('/api/feed', feedRouter);
 app.use('/api/claims', claimsRouter);
 app.use('/api/contact', contactRouter);
+app.use('/api', landingRouter);
 
 // Legacy route for backwards compatibility
 app.get('/api/hello', (req, res) => {
@@ -89,6 +91,11 @@ app.listen(PORT, async () => {
   console.log(`   Spotify API: ${process.env.SPOTIFY_CLIENT_ID ? '✓' : '✗'}`);
   console.log(`   Ticketmaster API: ${process.env.TICKETMASTER_API_KEY ? '✓' : '✗'}`);
   console.log(`   Admin configured: ${process.env.ADMIN_EMAIL ? '✓' : '✗'}`);
+
+  // Keep alive - ping every 14 min to prevent Render cold starts
+  setInterval(() => {
+    fetch(`http://localhost:${PORT}/api/health`).catch(() => {});
+  }, 14 * 60 * 1000);
 
   // Start the auto-sync scheduler
   try {

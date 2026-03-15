@@ -9,6 +9,7 @@ import { DiscoverySection } from '@/components/landing/DiscoverySection'
 import { TrendingSection } from '@/components/landing/TrendingSection'
 import { Hot100Section } from '@/components/landing/Hot100Section'
 import { Footer } from '@/components/landing/Footer'
+import { useLandingData } from '@/hooks/useLandingData'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { Dashboard } from '@/components/dashboard/Dashboard'
 import { ArtistPage } from '@/components/artist/ArtistPage'
@@ -38,6 +39,7 @@ function ScrollToTop() {
 function LandingPage({ onAuthClick }) {
   const navigate = useNavigate()
   const { isAuthenticated, isApproved } = useAuth()
+  const { data: landingData } = useLandingData()
 
   const handleDashboardClick = () => {
     if (isAuthenticated) {
@@ -56,12 +58,12 @@ function LandingPage({ onAuthClick }) {
         onDashboardClick={handleDashboardClick}
       />
       <main>
-        <Hero />
-        <DiscoverySection />
-        <TrendingSection />
-        <Hot100Section />
+        <Hero stats={landingData?.stats} artists={landingData?.artists} />
+        <DiscoverySection releases={landingData?.releases?.slice(0, 4)} />
+        <TrendingSection artists={landingData?.artists?.slice(0, 5)} releases={landingData?.releases} />
+        <Hot100Section artists={landingData?.artists?.slice(0, 10)} />
       </main>
-      <Footer />
+      <Footer adSettings={landingData?.ad} />
     </div>
   )
 }

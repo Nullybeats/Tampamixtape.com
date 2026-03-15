@@ -1,6 +1,7 @@
 const prisma = require('./db');
 const spotify = require('./spotify');
 const lastfm = require('./lastfm');
+const cache = require('./cache');
 
 let syncTimer = null;
 let isRunning = false;
@@ -161,6 +162,13 @@ async function runSync() {
         lastSyncStatus: status,
         lastSyncMessage: message,
       },
+    });
+
+    // Flush cached landing page data so fresh data is served
+    cache.keys().forEach(key => {
+      if (key.startsWith('hot100:') || key.startsWith('releases:') || key === 'landing') {
+        cache.del(key);
+      }
     });
 
     console.log(`[Scheduler] Sync complete: ${message}`);

@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../services/db');
 const spotify = require('../services/spotify');
 const lastfm = require('../services/lastfm');
+const cache = require('../services/cache');
 
 const router = express.Router();
 
@@ -110,6 +111,12 @@ router.get('/spotify/:spotifyId/full', async (req, res) => {
 router.get('/hot100', async (req, res) => {
   try {
     const { limit = 100 } = req.query;
+    const cacheKey = `hot100:${limit}`;
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+      return res.json(cached);
+    }
 
     // Get all approved artists with Spotify IDs
     const artists = await prisma.user.findMany({
@@ -143,11 +150,15 @@ router.get('/hot100', async (req, res) => {
       rank: index + 1,
     }));
 
-    res.json({
+    const result = {
       artists: rankedArtists,
       total: rankedArtists.length,
       updatedAt: new Date().toISOString(),
-    });
+    };
+
+    cache.set(cacheKey, result);
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    res.json(result);
   } catch (error) {
     console.error('Get Hot 100 error:', error);
     res.status(500).json({ error: 'Failed to get Hot 100' });
@@ -285,6 +296,9 @@ router.post('/hot100/refresh', async (req, res) => {
       // Delay between requests to avoid rate limiting (300ms)
       await new Promise(resolve => setTimeout(resolve, 300));
     }
+
+    // Flush hot100 cache after refresh
+    cache.keys().filter(k => k.startsWith('hot100:') || k === 'landing').forEach(k => cache.del(k));
 
     console.log(`Refresh complete: ${updated} updated, ${failed} failed`);
 

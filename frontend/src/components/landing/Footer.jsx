@@ -16,7 +16,7 @@ import { AdImageUploadDialog } from '@/components/admin/AdImageUploadDialog'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
-export function Footer() {
+export function Footer({ adSettings: propAdSettings }) {
   const { isAdmin } = useAuth()
   const [adSettings, setAdSettings] = useState({
     imageUrl: null,
@@ -24,8 +24,13 @@ export function Footer() {
   })
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
-  // Fetch ad settings on mount
+  // Use props from landing endpoint if available, otherwise fetch
   useEffect(() => {
+    if (propAdSettings) {
+      setAdSettings(propAdSettings)
+      return
+    }
+
     const fetchAdSettings = async () => {
       try {
         const response = await fetch(`${API_URL}/api/admin/settings/ad`)
@@ -38,7 +43,7 @@ export function Footer() {
       }
     }
     fetchAdSettings()
-  }, [])
+  }, [propAdSettings])
 
   const handleAdSaved = (data) => {
     setAdSettings({

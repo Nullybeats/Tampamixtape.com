@@ -72,16 +72,23 @@ function TrendingArtistCard({ artist, rank, index }) {
   )
 }
 
-export function TrendingSection() {
+export function TrendingSection({ artists: propArtists, releases: propReleases }) {
   const navigate = useNavigate()
   const [trendingArtists, setTrendingArtists] = useState([])
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // If props are provided, use them directly
+    if (propArtists && propReleases) {
+      setTrendingArtists(propArtists)
+      buildActivities(propArtists, propReleases)
+      setLoading(false)
+      return
+    }
+
     const fetchData = async () => {
       try {
-        // Fetch top artists and recent releases in parallel
         const [artistsRes, releasesRes] = await Promise.all([
           fetch(`${API_URL}/api/artists/hot100?limit=50`),
           fetch(`${API_URL}/api/releases?limit=10`),
@@ -90,37 +97,10 @@ export function TrendingSection() {
         const artistsData = await artistsRes.json()
         const releasesData = await releasesRes.json()
 
-        // Get top 5 trending artists
         const artists = artistsData.artists || []
-        setTrendingArtists(artists.slice(0, 5))
-
-        // Build activity feed from releases
         const releases = releasesData.releases || []
-        const activityItems = releases.slice(0, 6).map(release => ({
-          type: 'release',
-          artistName: release.artistName,
-          message: `dropped "${release.name}"`,
-          timestamp: release.releaseDate,
-          image: release.image,
-          profileSlug: release.artistSlug,
-        }))
-
-        // Add some "trending" activities from top artists
-        const trendingActivities = artists.slice(0, 3).map(artist => ({
-          type: 'trending',
-          artistName: artist.artistName,
-          message: `is trending in Tampa #${artists.indexOf(artist) + 1}`,
-          timestamp: new Date().toISOString(),
-          image: artist.avatar,
-          profileSlug: artist.profileSlug,
-        }))
-
-        // Merge and sort by timestamp
-        const allActivities = [...activityItems, ...trendingActivities]
-          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-          .slice(0, 6)
-
-        setActivities(allActivities)
+        setTrendingArtists(artists.slice(0, 5))
+        buildActivities(artists, releases)
       } catch (error) {
         console.error('Error fetching trending data:', error)
       } finally {
@@ -129,7 +109,33 @@ export function TrendingSection() {
     }
 
     fetchData()
-  }, [])
+  }, [propArtists, propReleases])
+
+  function buildActivities(artists, releases) {
+    const activityItems = releases.slice(0, 6).map(release => ({
+      type: 'release',
+      artistName: release.artistName,
+      message: `dropped "${release.name}"`,
+      timestamp: release.releaseDate,
+      image: release.image,
+      profileSlug: release.artistSlug,
+    }))
+
+    const trendingActivities = artists.slice(0, 3).map((artist, idx) => ({
+      type: 'trending',
+      artistName: artist.artistName,
+      message: `is trending in Tampa #${idx + 1}`,
+      timestamp: new Date().toISOString(),
+      image: artist.avatar,
+      profileSlug: artist.profileSlug,
+    }))
+
+    const allActivities = [...activityItems, ...trendingActivities]
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 6)
+
+    setActivities(allActivities)
+  }
 
   if (loading) {
     return (

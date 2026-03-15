@@ -1,5 +1,6 @@
 const express = require('express');
 const prisma = require('../services/db');
+const cache = require('../services/cache');
 
 const router = express.Router();
 
@@ -8,6 +9,16 @@ router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 24, search, type } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Cache non-filtered queries (landing page defaults)
+    const cacheKey = !search && !type ? `releases:${page}:${limit}` : null;
+    if (cacheKey) {
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+        return res.json(cached);
+      }
+    }
 
     // Build where clause
     const where = {};
@@ -60,7 +71,7 @@ router.get('/', async (req, res) => {
       artistId: r.artistId,
     }));
 
-    res.json({
+    const result = {
       releases: formattedReleases,
       pagination: {
         page: parseInt(page),
@@ -68,7 +79,11 @@ router.get('/', async (req, res) => {
         total,
         pages: Math.ceil(total / parseInt(limit)),
       },
-    });
+    };
+
+    if (cacheKey) cache.set(cacheKey, result);
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    res.json(result);
   } catch (error) {
     console.error('Get releases error:', error);
     res.status(500).json({ error: 'Failed to get releases' });
@@ -78,17 +93,27 @@ router.get('/', async (req, res) => {
 // Get release stats (for homepage)
 router.get('/stats', async (req, res) => {
   try {
+    const cached = cache.get('releases:stats');
+    if (cached) {
+      res.set('Cache-Control', 'public, max-age=300, s-maxage=600');
+      return res.json(cached);
+    }
+
     const [totalReleases, albumCount, singleCount] = await Promise.all([
       prisma.release.count(),
       prisma.release.count({ where: { type: 'Album' } }),
       prisma.release.count({ where: { type: 'Single' } }),
     ]);
 
-    res.json({
+    const result = {
       total: totalReleases,
       albums: albumCount,
       singles: singleCount,
-    });
+    };
+
+    cache.set('releases:stats', result, 600);
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=600');
+    res.json(result);
   } catch (error) {
     console.error('Get release stats error:', error);
     res.status(500).json({ error: 'Failed to get release stats' });

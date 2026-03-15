@@ -15,13 +15,19 @@ import { ReleaseCard } from '@/components/feed'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
-export function DiscoverySection() {
+export function DiscoverySection({ releases: propReleases }) {
   const navigate = useNavigate()
   const [releases, setReleases] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (propReleases) {
+      setReleases(propReleases)
+      setLoading(false)
+      return
+    }
+
     const fetchReleases = async () => {
       try {
         const response = await fetch(`${API_URL}/api/releases?limit=4`)
@@ -39,7 +45,7 @@ export function DiscoverySection() {
     }
 
     fetchReleases()
-  }, [])
+  }, [propReleases])
 
   return (
     <section id="discovery" className="py-24 bg-gradient-to-b from-transparent via-primary/5 to-transparent">

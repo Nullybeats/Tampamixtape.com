@@ -152,13 +152,19 @@ function ArtistRow({ artist, index }) {
   )
 }
 
-export function Hot100Section() {
+export function Hot100Section({ artists: propArtists }) {
   const navigate = useNavigate()
   const [artists, setArtists] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (propArtists) {
+      setArtists(propArtists)
+      setIsLoading(false)
+      return
+    }
+
     const fetchHot100 = async () => {
       try {
         const response = await fetch(`${API_URL}/api/artists/hot100?limit=10`)
@@ -174,7 +180,7 @@ export function Hot100Section() {
     }
 
     fetchHot100()
-  }, [])
+  }, [propArtists])
 
   return (
     <section id="hot100" className="py-24">

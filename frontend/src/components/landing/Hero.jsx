@@ -56,7 +56,7 @@ function AnimatedNumber({ value, suffix = '' }) {
   )
 }
 
-export function Hero() {
+export function Hero({ stats: propStats, artists: propArtists }) {
   const navigate = useNavigate()
   const [platformStats, setPlatformStats] = useState({
     artistCount: 0,
@@ -66,36 +66,41 @@ export function Hero() {
   })
   const [statsLoaded, setStatsLoaded] = useState(false)
 
-  // Fetch real stats from API
+  // Use props from landing endpoint if available, otherwise fetch
   useEffect(() => {
+    if (propStats) {
+      setPlatformStats({
+        artistCount: propStats.artistCount || 0,
+        albumCount: propStats.albums || 0,
+        singleCount: propStats.singles || 0,
+        totalFollowers: propStats.totalFollowers || 0,
+      })
+      setStatsLoaded(true)
+      return
+    }
+
     const fetchStats = async () => {
       try {
-        const [artistsRes, releasesRes] = await Promise.all([
+        const [artistsRes, statsRes] = await Promise.all([
           fetch(`${API_URL}/api/artists/hot100?limit=100`),
-          fetch(`${API_URL}/api/releases?limit=1000`),
+          fetch(`${API_URL}/api/releases/stats`),
         ])
 
         const artistsData = await artistsRes.json()
-        const releasesData = await releasesRes.json()
+        const statsData = await statsRes.json()
 
         const artists = artistsData.artists || []
-        const releases = releasesData.releases || []
-
-        // Calculate stats
-        const albumCount = releases.filter(r => r.type === 'album').length
-        const singleCount = releases.filter(r => r.type === 'single' || r.type === 'Single').length
         const totalFollowers = artists.reduce((sum, a) => sum + (a.followers || 0), 0)
 
         setPlatformStats({
           artistCount: artists.length,
-          albumCount,
-          singleCount,
+          albumCount: statsData.albums || 0,
+          singleCount: statsData.singles || 0,
           totalFollowers,
         })
         setStatsLoaded(true)
       } catch (error) {
         console.error('Failed to fetch stats:', error)
-        // Use fallback values if API fails
         setPlatformStats({
           artistCount: 50,
           albumCount: 120,
@@ -107,7 +112,7 @@ export function Hero() {
     }
 
     fetchStats()
-  }, [])
+  }, [propStats])
 
   const stats = useMemo(() => [
     { label: 'Artists', value: platformStats.artistCount || 50, suffix: '+', icon: Users },
