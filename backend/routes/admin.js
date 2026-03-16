@@ -601,7 +601,7 @@ router.post('/sync-releases', requireAdmin, async (req, res) => {
         } catch (err) {
           const isRateLimit = isRateLimitError(err);
           if (isRateLimit) {
-            const retryAfter = parseInt(err.response?.headers?.['retry-after']) || 60;
+            const retryAfter = Math.min(parseInt(err.response?.headers?.['retry-after']) || 60, 60);
 
             // If wait time is too long, skip this artist and continue
             if (retryAfter > maxWaitSeconds) {

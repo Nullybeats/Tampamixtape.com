@@ -281,7 +281,7 @@ router.post('/hot100/refresh', async (req, res) => {
         } catch (err) {
           if (err.response?.status === 429 && retries < maxRetries - 1) {
             // Rate limited - wait longer and retry
-            const retryAfter = parseInt(err.response.headers?.['retry-after']) || (2 ** retries);
+            const retryAfter = Math.min(parseInt(err.response.headers?.['retry-after']) || (2 ** retries), 60);
             console.log(`Rate limited for ${artist.artistName}, waiting ${retryAfter}s...`);
             await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
             retries++;

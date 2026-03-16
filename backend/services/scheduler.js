@@ -326,7 +326,7 @@ async function runSync() {
             break;
           }
           // Pause and retry this artist
-          const wait = parseInt(err.response?.headers?.['retry-after']) || 30;
+          const wait = Math.min(parseInt(err.response?.headers?.['retry-after']) || 30, 60);
           console.log(`[Scheduler] Rate limited, pausing ${wait}s then resuming...`);
           await new Promise(r => setTimeout(r, wait * 1000));
           // Skip this artist for now, it'll be retried next cycle

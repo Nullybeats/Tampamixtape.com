@@ -93,10 +93,11 @@ async function apiGet(url, params = {}) {
     } catch (err) {
       const status = err.response?.status;
 
-      // Rate limited — wait and retry
+      // Rate limited — wait and retry (cap at 60s to avoid absurd Retry-After values)
       if (status === 429) {
-        const retryAfter = parseInt(err.response.headers['retry-after']) || (2 ** attempt * 2);
-        console.log(`[Spotify] Rate limited, waiting ${retryAfter}s (attempt ${attempt + 1}/3)`);
+        const rawRetry = parseInt(err.response?.headers?.['retry-after']) || 0;
+        const retryAfter = Math.min(Math.max(rawRetry, 2 ** attempt * 2), 60);
+        console.log(`[Spotify] Rate limited, waiting ${retryAfter}s (attempt ${attempt + 1}/3)${rawRetry > 60 ? ` (capped from ${rawRetry}s)` : ''}`);
         await new Promise(r => setTimeout(r, retryAfter * 1000));
         continue;
       }
