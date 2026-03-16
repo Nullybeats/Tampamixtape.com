@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../services/db');
 const spotify = require('../services/spotify');
 const emailService = require('../services/email');
+const { syncSingleArtist } = require('../services/scheduler');
 
 const router = express.Router();
 
@@ -121,7 +122,15 @@ router.post('/users/:id/approve', requireAdmin, async (req, res) => {
     const user = await prisma.user.update({
       where: { id: req.params.id },
       data: { status: 'APPROVED' },
+      select: { id: true, status: true, artistName: true, profileSlug: true, spotifyId: true },
     });
+
+    // Sync releases from Spotify in the background
+    if (user.spotifyId) {
+      syncSingleArtist(user).catch(err =>
+        console.error(`Post-approval sync failed for ${user.artistName}:`, err.message)
+      );
+    }
 
     res.json({ message: 'User approved', user: { id: user.id, status: user.status } });
   } catch (error) {
@@ -370,6 +379,13 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
         createdAt: true,
       },
     });
+
+    // Sync releases from Spotify in the background
+    if (user.spotifyId) {
+      syncSingleArtist(user).catch(err =>
+        console.error(`Post-creation sync failed for ${user.artistName}:`, err.message)
+      );
+    }
 
     res.status(201).json({
       message: 'Artist profile created',
@@ -933,11 +949,19 @@ router.post('/claims/:id/approve', requireAdmin, async (req, res) => {
           email: true,
           artistName: true,
           profileSlug: true,
+          spotifyId: true,
         },
       });
 
       return { claim: updatedClaim, profile: updatedProfile };
     });
+
+    // Sync releases from Spotify in the background
+    if (result.profile.spotifyId) {
+      syncSingleArtist(result.profile).catch(err =>
+        console.error(`Post-claim sync failed for ${result.profile.artistName}:`, err.message)
+      );
+    }
 
     // Send email notification to claimant with login credentials
     emailService.sendClaimApprovedEmail({

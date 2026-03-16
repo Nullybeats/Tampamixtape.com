@@ -12,6 +12,57 @@ function isRateLimitError(err) {
          (err.message && err.message.includes('429'));
 }
 
+// Helper to flush landing/release caches
+function flushLandingCache() {
+  cache.keys().forEach(key => {
+    if (key.startsWith('hot100:') || key.startsWith('releases:') || key === 'landing') {
+      cache.del(key);
+    }
+  });
+}
+
+// Sync releases for a single artist (used after approval/creation)
+async function syncSingleArtist(artist) {
+  if (!artist.spotifyId) return { added: 0 };
+
+  console.log(`[Scheduler] Syncing releases for ${artist.artistName}...`);
+  let added = 0;
+
+  const albums = await spotify.getArtistAlbums(artist.spotifyId);
+  if (albums && albums.length > 0) {
+    for (const album of albums) {
+      await prisma.release.upsert({
+        where: { id: album.id },
+        create: {
+          id: album.id,
+          name: album.name,
+          type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
+          image: album.images?.[0]?.url || null,
+          releaseDate: album.release_date || null,
+          spotifyUrl: album.external_urls?.spotify || null,
+          artistId: artist.id,
+          artistName: artist.artistName,
+          artistSlug: artist.profileSlug,
+        },
+        update: {
+          name: album.name,
+          type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
+          image: album.images?.[0]?.url || null,
+          releaseDate: album.release_date || null,
+          spotifyUrl: album.external_urls?.spotify || null,
+          artistName: artist.artistName,
+          artistSlug: artist.profileSlug,
+        },
+      });
+      added++;
+    }
+  }
+
+  flushLandingCache();
+  console.log(`[Scheduler] Synced ${added} releases for ${artist.artistName}`);
+  return { added };
+}
+
 // Run the sync job
 async function runSync() {
   if (isRunning) {
@@ -165,11 +216,7 @@ async function runSync() {
     });
 
     // Flush cached landing page data so fresh data is served
-    cache.keys().forEach(key => {
-      if (key.startsWith('hot100:') || key.startsWith('releases:') || key === 'landing') {
-        cache.del(key);
-      }
-    });
+    flushLandingCache();
 
     console.log(`[Scheduler] Sync complete: ${message}`);
   } catch (error) {
@@ -207,6 +254,13 @@ async function start() {
       update: {},
     });
 
+    // Always run an initial sync if there are no releases in the DB
+    const releaseCount = await prisma.release.count();
+    if (releaseCount === 0) {
+      console.log('[Scheduler] No releases found, running initial sync...');
+      runSync();
+    }
+
     if (settings.autoSyncEnabled && settings.autoSyncIntervalMins > 0) {
       const intervalMs = settings.autoSyncIntervalMins * 60 * 1000;
       console.log(`[Scheduler] Auto-sync enabled, interval: ${settings.autoSyncIntervalMins} minutes`);
@@ -219,8 +273,11 @@ async function start() {
       // Set up the interval
       syncTimer = setInterval(runSync, intervalMs);
 
-      // Also check if we should run immediately (if last sync was too long ago)
-      if (settings.lastSyncAt) {
+      // Run immediately if never synced or last sync was too long ago
+      if (!settings.lastSyncAt) {
+        console.log('[Scheduler] No previous sync found, running now...');
+        runSync();
+      } else {
         const timeSinceLastSync = Date.now() - new Date(settings.lastSyncAt).getTime();
         if (timeSinceLastSync >= intervalMs) {
           console.log('[Scheduler] Last sync was too long ago, running now...');
@@ -271,5 +328,6 @@ module.exports = {
   stop,
   restart,
   runSync,
+  syncSingleArtist,
   getStatus,
 };
