@@ -133,6 +133,11 @@ export function AdminDashboard() {
   const [isLoadingAutoSync, setIsLoadingAutoSync] = useState(true)
   const [isSavingAutoSync, setIsSavingAutoSync] = useState(false)
 
+  // Sync health state
+  const [syncHealth, setSyncHealth] = useState(null)
+  const [syncLogs, setSyncLogs] = useState([])
+  const [isLoadingSyncHealth, setIsLoadingSyncHealth] = useState(false)
+
   // Pending users state (independent of Users tab filters) - fixes pending tab bug
   const [pendingUsersList, setPendingUsersList] = useState([])
   const [isLoadingPending, setIsLoadingPending] = useState(true)
@@ -526,6 +531,49 @@ export function AdminDashboard() {
     }
   }
 
+  // Fetch sync health data
+  const fetchSyncHealth = async () => {
+    setIsLoadingSyncHealth(true)
+    try {
+      const [statusRes, logsRes] = await Promise.all([
+        fetch(`${API_URL}/api/admin/artists/sync-status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_URL}/api/admin/sync-logs?limit=10`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ])
+      if (statusRes.ok) {
+        const data = await statusRes.json()
+        setSyncHealth(data.summary)
+      }
+      if (logsRes.ok) {
+        const data = await logsRes.json()
+        setSyncLogs(data.logs || [])
+      }
+    } catch (err) {
+      console.error('Error fetching sync health:', err)
+    } finally {
+      setIsLoadingSyncHealth(false)
+    }
+  }
+
+  // Reset sync for a quarantined artist
+  const handleResetArtistSync = async (artistId, artistName) => {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/artists/${artistId}/reset-sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (response.ok) {
+        toast.success(`Sync re-enabled for ${artistName}`)
+        fetchSyncHealth()
+      }
+    } catch (err) {
+      toast.error('Failed to reset sync')
+    }
+  }
+
   // Fetch pending users (independent of Users tab filters) - fixes pending tab bug
   const fetchPendingUsers = async () => {
     if (!token) return
@@ -689,6 +737,7 @@ export function AdminDashboard() {
     fetchStats()
     fetchUsers()
     fetchAutoSyncSettings()
+    fetchSyncHealth()
     fetchPendingUsers()
     fetchClaims()
     fetchClaimStats()
@@ -1993,6 +2042,74 @@ export function AdminDashboard() {
                       )}
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Sync Health */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-primary" />
+                    Sync Health
+                  </CardTitle>
+                  <CardDescription>Artist sync status and recent sync history</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {syncHealth && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 bg-green-500/10 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-green-500">{syncHealth.healthy}</p>
+                        <p className="text-xs text-muted-foreground">Healthy</p>
+                      </div>
+                      <div className="p-3 bg-yellow-500/10 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-yellow-500">{syncHealth.stale}</p>
+                        <p className="text-xs text-muted-foreground">Stale (&gt;24h)</p>
+                      </div>
+                      <div className="p-3 bg-orange-500/10 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-orange-500">{syncHealth.failing}</p>
+                        <p className="text-xs text-muted-foreground">Failing</p>
+                      </div>
+                      <div className="p-3 bg-red-500/10 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-red-500">{syncHealth.quarantined}</p>
+                        <p className="text-xs text-muted-foreground">Quarantined</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent Sync Logs */}
+                  {syncLogs.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Recent Syncs</p>
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {syncLogs.slice(0, 5).map((log) => (
+                          <div key={log.id} className="flex items-center justify-between text-xs p-2 bg-secondary/30 rounded">
+                            <div className="flex items-center gap-2">
+                              {log.status === 'success' ? (
+                                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                              ) : log.status === 'partial' ? (
+                                <AlertCircle className="w-3 h-3 text-yellow-500" />
+                              ) : (
+                                <XCircle className="w-3 h-3 text-red-500" />
+                              )}
+                              <span className="text-muted-foreground">{log.message}</span>
+                            </div>
+                            <span className="text-muted-foreground whitespace-nowrap ml-2">
+                              {new Date(log.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchSyncHealth}
+                    disabled={isLoadingSyncHealth}
+                  >
+                    Refresh Sync Health
+                  </Button>
                 </CardContent>
               </Card>
 

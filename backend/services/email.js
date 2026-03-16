@@ -534,10 +534,41 @@ Questions? Visit tampamixtape.com/contact
   }
 }
 
+async function sendAdminAlert({ subject, message }) {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!adminEmail) {
+    console.log('[Email] No ADMIN_EMAIL configured, skipping alert');
+    return { success: false, error: 'No admin email configured' };
+  }
+
+  try {
+    await sendEmail({
+      from: FROM_EMAIL,
+      to: adminEmail,
+      subject: subject || 'Tampa Mixtape Alert',
+      text: message,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #e11d48;">⚠️ Tampa Mixtape Alert</h2>
+          <p style="font-size: 16px; line-height: 1.5;">${message}</p>
+          <hr style="border: 1px solid #eee; margin: 20px 0;" />
+          <p style="color: #666; font-size: 12px;">This is an automated alert from Tampa Mixtape.</p>
+        </div>
+      `,
+    });
+    console.log('[Email] Admin alert sent:', subject);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send admin alert:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   isConfigured,
   sendContactFormEmail,
   sendClaimSubmittedEmail,
   sendClaimApprovedEmail,
   sendClaimRejectedEmail,
+  sendAdminAlert,
 };

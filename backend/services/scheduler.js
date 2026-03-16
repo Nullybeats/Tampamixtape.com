@@ -6,13 +6,22 @@ const cache = require('./cache');
 let syncTimer = null;
 let isRunning = false;
 
-// Helper to check if error is rate limiting
+const CHUNK_SIZE = 30; // Artists per sync cycle
+const CIRCUIT_BREAKER_THRESHOLD = 3; // Consecutive failures to quarantine
+
+// ==============================
+// Helpers
+// ==============================
+
 function isRateLimitError(err) {
   return err.response?.status === 429 ||
          (err.message && err.message.includes('429'));
 }
 
-// Helper to flush landing/release caches
+function isBadRequestError(err) {
+  return err.response?.status === 400 || err.response?.status === 404;
+}
+
 function flushLandingCache() {
   cache.keys().forEach(key => {
     if (key.startsWith('hot100:') || key.startsWith('releases:') || key === 'landing') {
@@ -21,49 +30,152 @@ function flushLandingCache() {
   });
 }
 
-// Sync releases for a single artist (used after approval/creation)
+function formatGenres(genres) {
+  return genres
+    .slice(0, 3)
+    .map(g => g.split(' ').map(word =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' '))
+    .join(', ');
+}
+
+function releaseType(albumType) {
+  if (albumType === 'album') return 'Album';
+  if (albumType === 'single') return 'Single';
+  return 'EP';
+}
+
+// Upsert releases from Spotify album data
+async function upsertReleases(albums, artist) {
+  let added = 0;
+  for (const album of albums) {
+    await prisma.release.upsert({
+      where: { id: album.id },
+      create: {
+        id: album.id,
+        name: album.name,
+        type: releaseType(album.album_type),
+        image: album.images?.[0]?.url || null,
+        releaseDate: album.release_date || null,
+        spotifyUrl: album.external_urls?.spotify || null,
+        artistId: artist.id,
+        artistName: artist.artistName,
+        artistSlug: artist.profileSlug,
+      },
+      update: {
+        name: album.name,
+        type: releaseType(album.album_type),
+        image: album.images?.[0]?.url || null,
+        releaseDate: album.release_date || null,
+        spotifyUrl: album.external_urls?.spotify || null,
+        artistName: artist.artistName,
+        artistSlug: artist.profileSlug,
+      },
+    });
+    added++;
+  }
+  return added;
+}
+
+// Write a SyncLog entry
+async function writeSyncLog({ type, status, message, artistsSynced, artistsFailed, artistsSkipped, errors, duration }) {
+  try {
+    await prisma.syncLog.create({
+      data: {
+        type,
+        status,
+        message,
+        artistsSynced: artistsSynced || 0,
+        artistsFailed: artistsFailed || 0,
+        artistsSkipped: artistsSkipped || 0,
+        errors: errors ? JSON.stringify(errors) : null,
+        duration: duration || null,
+      },
+    });
+  } catch (err) {
+    console.error('[Scheduler] Failed to write sync log:', err.message);
+  }
+}
+
+// ==============================
+// Single artist sync (used after approval/creation)
+// ==============================
+
 async function syncSingleArtist(artist) {
   if (!artist.spotifyId) return { added: 0 };
 
-  console.log(`[Scheduler] Syncing releases for ${artist.artistName}...`);
-  let added = 0;
-
-  const albums = await spotify.getArtistAlbums(artist.spotifyId);
-  if (albums && albums.length > 0) {
-    for (const album of albums) {
-      await prisma.release.upsert({
-        where: { id: album.id },
-        create: {
-          id: album.id,
-          name: album.name,
-          type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
-          image: album.images?.[0]?.url || null,
-          releaseDate: album.release_date || null,
-          spotifyUrl: album.external_urls?.spotify || null,
-          artistId: artist.id,
-          artistName: artist.artistName,
-          artistSlug: artist.profileSlug,
-        },
-        update: {
-          name: album.name,
-          type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
-          image: album.images?.[0]?.url || null,
-          releaseDate: album.release_date || null,
-          spotifyUrl: album.external_urls?.spotify || null,
-          artistName: artist.artistName,
-          artistSlug: artist.profileSlug,
-        },
-      });
-      added++;
-    }
+  // Validate ID format
+  if (!spotify.isValidSpotifyId(artist.spotifyId)) {
+    console.log(`[Scheduler] Invalid Spotify ID for ${artist.artistName}: ${artist.spotifyId}`);
+    await prisma.user.update({
+      where: { id: artist.id },
+      data: { syncEnabled: false, lastSyncError: 'Invalid Spotify ID format' },
+    });
+    return { added: 0, error: 'Invalid Spotify ID format' };
   }
 
-  flushLandingCache();
-  console.log(`[Scheduler] Synced ${added} releases for ${artist.artistName}`);
-  return { added };
+  console.log(`[Scheduler] Syncing releases for ${artist.artistName}...`);
+  const startTime = Date.now();
+
+  try {
+    const albums = await spotify.getArtistAlbums(artist.spotifyId);
+    const added = albums && albums.length > 0 ? await upsertReleases(albums, artist) : 0;
+
+    // Mark as successfully synced, reset fail count
+    await prisma.user.update({
+      where: { id: artist.id },
+      data: { lastSyncedAt: new Date(), syncFailCount: 0, lastSyncError: null },
+    });
+
+    flushLandingCache();
+
+    await writeSyncLog({
+      type: 'single',
+      status: 'success',
+      message: `Synced ${added} releases for ${artist.artistName}`,
+      artistsSynced: 1,
+      duration: Date.now() - startTime,
+    });
+
+    console.log(`[Scheduler] Synced ${added} releases for ${artist.artistName}`);
+    return { added };
+  } catch (err) {
+    const errorMsg = err.message || 'Unknown error';
+
+    // Increment fail count, quarantine if threshold reached
+    const newFailCount = (artist.syncFailCount || 0) + 1;
+    const shouldDisable = isBadRequestError(err) || newFailCount >= CIRCUIT_BREAKER_THRESHOLD;
+
+    await prisma.user.update({
+      where: { id: artist.id },
+      data: {
+        syncFailCount: newFailCount,
+        lastSyncError: errorMsg,
+        ...(shouldDisable && { syncEnabled: false }),
+      },
+    });
+
+    if (shouldDisable) {
+      console.log(`[Scheduler] Quarantined ${artist.artistName} (${isBadRequestError(err) ? 'bad ID' : 'too many failures'})`);
+    }
+
+    await writeSyncLog({
+      type: 'single',
+      status: 'failed',
+      message: `Failed to sync ${artist.artistName}: ${errorMsg}`,
+      artistsFailed: 1,
+      errors: [{ artistName: artist.artistName, error: errorMsg }],
+      duration: Date.now() - startTime,
+    });
+
+    throw err;
+  }
 }
 
-// Run the sync job
+// ==============================
+// Chunked sync (main sync job)
+// ==============================
+
 async function runSync() {
   if (isRunning) {
     console.log('[Scheduler] Sync already in progress, skipping...');
@@ -71,134 +183,192 @@ async function runSync() {
   }
 
   isRunning = true;
-  console.log('[Scheduler] Starting auto-sync...');
+  const startTime = Date.now();
+  console.log('[Scheduler] Starting chunked sync...');
+
+  const errorList = [];
+  let totalAdded = 0;
+  let totalSkipped = 0;
+  let totalFailed = 0;
+  let totalSynced = 0;
 
   try {
-    // Get all approved artists with Spotify IDs
+    // Step 1: Get the stalest artists (prioritize never-synced, then oldest)
     const artists = await prisma.user.findMany({
       where: {
         status: 'APPROVED',
         role: 'ARTIST',
         spotifyId: { not: null },
+        syncEnabled: true,
       },
+      orderBy: [
+        { lastSyncedAt: 'asc' }, // nulls first in Prisma = never synced come first
+      ],
+      take: CHUNK_SIZE,
       select: {
         id: true,
         artistName: true,
         profileSlug: true,
         spotifyId: true,
         genresLocked: true,
+        syncFailCount: true,
       },
     });
 
-    console.log(`[Scheduler] Syncing ${artists.length} artists...`);
+    if (artists.length === 0) {
+      console.log('[Scheduler] No artists to sync');
+      isRunning = false;
+      return;
+    }
 
-    let totalAdded = 0;
-    let totalSkipped = 0;
-    let totalFailed = 0;
-
-    // Sync releases for each artist
+    // Filter out invalid Spotify IDs and quarantine them
+    const validArtists = [];
     for (const artist of artists) {
-      try {
-        const albums = await spotify.getArtistAlbums(artist.spotifyId);
+      if (!spotify.isValidSpotifyId(artist.spotifyId)) {
+        console.log(`[Scheduler] Quarantining ${artist.artistName} - invalid Spotify ID: ${artist.spotifyId}`);
+        await prisma.user.update({
+          where: { id: artist.id },
+          data: { syncEnabled: false, lastSyncError: 'Invalid Spotify ID format' },
+        });
+        totalSkipped++;
+        errorList.push({ artistName: artist.artistName, error: 'Invalid Spotify ID format' });
+        continue;
+      }
+      validArtists.push(artist);
+    }
 
+    console.log(`[Scheduler] Syncing chunk of ${validArtists.length} artists (${totalSkipped} skipped for bad IDs)...`);
+
+    // Step 2: Batch-fetch artist metadata (popularity, followers, genres, avatar)
+    const spotifyIds = validArtists.map(a => a.spotifyId);
+    let batchMetadata = [];
+    try {
+      batchMetadata = await spotify.getArtistsBatch(spotifyIds);
+    } catch (err) {
+      console.error('[Scheduler] Batch metadata fetch failed:', err.message);
+      // Fall back to individual fetches below
+    }
+
+    // Build a lookup map from batch results
+    const metadataMap = new Map();
+    for (const data of batchMetadata) {
+      if (data) metadataMap.set(data.id, data);
+    }
+
+    // Step 3: Process each artist — fetch albums + update metadata
+    let rateLimitHits = 0;
+
+    for (const artist of validArtists) {
+      try {
+        // Fetch albums
+        const albums = await spotify.getArtistAlbums(artist.spotifyId);
         if (albums && albums.length > 0) {
-          for (const album of albums) {
-            await prisma.release.upsert({
-              where: { id: album.id },
-              create: {
-                id: album.id,
-                name: album.name,
-                type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
-                image: album.images?.[0]?.url || null,
-                releaseDate: album.release_date || null,
-                spotifyUrl: album.external_urls?.spotify || null,
-                artistId: artist.id,
-                artistName: artist.artistName,
-                artistSlug: artist.profileSlug,
-              },
-              update: {
-                name: album.name,
-                type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
-                image: album.images?.[0]?.url || null,
-                releaseDate: album.release_date || null,
-                spotifyUrl: album.external_urls?.spotify || null,
-                artistName: artist.artistName,
-                artistSlug: artist.profileSlug,
-              },
-            });
-            totalAdded++;
-          }
+          totalAdded += await upsertReleases(albums, artist);
         }
 
-        // Also refresh artist data (popularity, followers, etc.)
-        const spotifyData = await spotify.getArtist(artist.spotifyId);
+        // Update artist metadata (from batch or individual fallback)
+        let spotifyData = metadataMap.get(artist.spotifyId);
+        if (!spotifyData) {
+          try {
+            spotifyData = await spotify.getArtist(artist.spotifyId);
+          } catch { /* skip metadata update */ }
+        }
+
         if (spotifyData) {
-          const updateData = {};
+          const updateData = {
+            lastSyncedAt: new Date(),
+            syncFailCount: 0,
+            lastSyncError: null,
+          };
+
           if (typeof spotifyData.popularity === 'number') {
             updateData.popularity = spotifyData.popularity;
           }
           if (spotifyData.followers?.total !== undefined) {
             updateData.followers = spotifyData.followers.total;
           }
+          if (spotifyData.images?.length > 0) {
+            updateData.avatar = spotifyData.images[0].url;
+          }
 
-          // Only update genres if not manually locked by user
+          // Genre update (Spotify → Last.fm fallback)
           if (!artist.genresLocked) {
-            // Try Spotify genres first, fall back to Last.fm tags
             let genres = spotifyData.genres || [];
             if (genres.length === 0 && artist.artistName) {
               try {
                 const lastfmData = await lastfm.getArtistStats(artist.artistName);
                 if (lastfmData?.tags?.length > 0) {
                   genres = lastfmData.tags;
-                  console.log(`[Scheduler] Using Last.fm tags for ${artist.artistName}: ${genres.slice(0, 3).join(', ')}`);
                 }
-              } catch (lfmErr) {
-                // Silently fail, genres will remain empty
-              }
+              } catch { /* skip */ }
             }
-
-            // Limit to 3 genres and format nicely
             if (genres.length > 0) {
-              const formattedGenres = genres
-                .slice(0, 3)
-                .map(g => g.split(' ').map(word =>
-                  word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-                ).join(' '))
-                .join(', ');
-              updateData.genres = formattedGenres;
+              updateData.genres = formatGenres(genres);
             }
-          } else {
-            console.log(`[Scheduler] Skipping genre update for ${artist.artistName} - genres locked`);
           }
 
-          if (spotifyData.images?.length > 0) {
-            updateData.avatar = spotifyData.images[0].url;
-          }
-          if (Object.keys(updateData).length > 0) {
-            await prisma.user.update({
-              where: { id: artist.id },
-              data: updateData,
-            });
-          }
+          await prisma.user.update({ where: { id: artist.id }, data: updateData });
+        } else {
+          // No metadata but albums synced — still mark as synced
+          await prisma.user.update({
+            where: { id: artist.id },
+            data: { lastSyncedAt: new Date(), syncFailCount: 0, lastSyncError: null },
+          });
         }
+
+        totalSynced++;
       } catch (err) {
         if (isRateLimitError(err)) {
-          console.log(`[Scheduler] Rate limited, stopping sync early...`);
+          rateLimitHits++;
+          if (rateLimitHits >= 3) {
+            console.log('[Scheduler] Rate limited 3 times this cycle, stopping early');
+            totalSkipped += validArtists.length - validArtists.indexOf(artist);
+            break;
+          }
+          // Pause and retry this artist
+          const wait = parseInt(err.response?.headers?.['retry-after']) || 30;
+          console.log(`[Scheduler] Rate limited, pausing ${wait}s then resuming...`);
+          await new Promise(r => setTimeout(r, wait * 1000));
+          // Skip this artist for now, it'll be retried next cycle
           totalSkipped++;
-          break; // Stop the sync if rate limited
-        } else {
-          console.error(`[Scheduler] Failed for ${artist.artistName}:`, err.message);
-          totalFailed++;
+          continue;
         }
+
+        // Bad request / not found — quarantine
+        if (isBadRequestError(err)) {
+          await prisma.user.update({
+            where: { id: artist.id },
+            data: { syncEnabled: false, lastSyncError: err.message },
+          });
+          console.log(`[Scheduler] Quarantined ${artist.artistName} - API returned ${err.response?.status}`);
+        } else {
+          // Other error — increment fail count
+          const newFailCount = (artist.syncFailCount || 0) + 1;
+          await prisma.user.update({
+            where: { id: artist.id },
+            data: {
+              syncFailCount: newFailCount,
+              lastSyncError: err.message,
+              ...(newFailCount >= CIRCUIT_BREAKER_THRESHOLD && { syncEnabled: false }),
+            },
+          });
+          if (newFailCount >= CIRCUIT_BREAKER_THRESHOLD) {
+            console.log(`[Scheduler] Quarantined ${artist.artistName} after ${newFailCount} consecutive failures`);
+          }
+        }
+
+        errorList.push({ artistName: artist.artistName, error: err.message });
+        totalFailed++;
       }
 
-      // Delay between artists (1.5 seconds for auto-sync to be gentler)
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Delay between artists
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // Update settings with sync result
+    // Step 4: Write results
     const status = totalFailed > 0 || totalSkipped > 0 ? 'partial' : 'success';
-    const message = `Synced ${totalAdded} releases. ${totalFailed} failed, ${totalSkipped} skipped.`;
+    const duration = Date.now() - startTime;
+    const message = `Chunk: ${totalSynced} synced, ${totalAdded} releases, ${totalFailed} failed, ${totalSkipped} skipped (${Math.round(duration / 1000)}s)`;
 
     await prisma.settings.upsert({
       where: { id: 'app_settings' },
@@ -215,14 +385,33 @@ async function runSync() {
       },
     });
 
-    // Flush cached landing page data so fresh data is served
-    flushLandingCache();
+    await writeSyncLog({
+      type: 'chunk',
+      status,
+      message,
+      artistsSynced: totalSynced,
+      artistsFailed: totalFailed,
+      artistsSkipped: totalSkipped,
+      errors: errorList.length > 0 ? errorList : null,
+      duration,
+    });
 
-    console.log(`[Scheduler] Sync complete: ${message}`);
+    // Send admin alert if too many failures
+    if (totalFailed > validArtists.length * 0.2 && validArtists.length > 5) {
+      try {
+        const emailService = require('./email');
+        emailService.sendAdminAlert({
+          subject: 'Tampa Mixtape: Sync failures detected',
+          message: `${totalFailed}/${validArtists.length} artists failed to sync. Check admin dashboard for details.`,
+        });
+      } catch { /* email not critical */ }
+    }
+
+    flushLandingCache();
+    console.log(`[Scheduler] ${message}`);
   } catch (error) {
     console.error('[Scheduler] Sync error:', error);
 
-    // Update settings with error
     await prisma.settings.upsert({
       where: { id: 'app_settings' },
       create: {
@@ -236,18 +425,28 @@ async function runSync() {
         lastSyncStatus: 'failed',
         lastSyncMessage: error.message,
       },
+    });
+
+    await writeSyncLog({
+      type: 'chunk',
+      status: 'failed',
+      message: error.message,
+      errors: [{ artistName: 'SYSTEM', error: error.message }],
+      duration: Date.now() - startTime,
     });
   } finally {
     isRunning = false;
   }
 }
 
-// Start the scheduler
+// ==============================
+// Scheduler lifecycle
+// ==============================
+
 async function start() {
   console.log('[Scheduler] Initializing...');
 
   try {
-    // Get or create settings
     const settings = await prisma.settings.upsert({
       where: { id: 'app_settings' },
       create: { id: 'app_settings' },
@@ -265,15 +464,12 @@ async function start() {
       const intervalMs = settings.autoSyncIntervalMins * 60 * 1000;
       console.log(`[Scheduler] Auto-sync enabled, interval: ${settings.autoSyncIntervalMins} minutes`);
 
-      // Clear any existing timer
       if (syncTimer) {
         clearInterval(syncTimer);
       }
 
-      // Set up the interval
       syncTimer = setInterval(runSync, intervalMs);
 
-      // Run immediately if never synced or last sync was too long ago
       if (!settings.lastSyncAt) {
         console.log('[Scheduler] No previous sync found, running now...');
         runSync();
@@ -292,7 +488,6 @@ async function start() {
   }
 }
 
-// Stop the scheduler
 function stop() {
   if (syncTimer) {
     clearInterval(syncTimer);
@@ -301,13 +496,11 @@ function stop() {
   }
 }
 
-// Restart with new settings
 async function restart() {
   stop();
   await start();
 }
 
-// Get scheduler status
 async function getStatus() {
   const settings = await prisma.settings.findUnique({
     where: { id: 'app_settings' },

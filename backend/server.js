@@ -44,12 +44,25 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+// Health check route (tests real connectivity)
+app.get('/api/health', async (req, res) => {
+  const prisma = require('./services/db');
+  const spotify = require('./services/spotify');
+
+  const checks = {
+    database: false,
+    spotify: false,
+  };
+
+  try { await prisma.$queryRaw`SELECT 1`; checks.database = true; } catch {}
+  try { await spotify.getAccessToken(); checks.spotify = true; } catch {}
+
+  const healthy = checks.database && checks.spotify;
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'ok' : 'degraded',
     message: 'TampaCharts API is running',
     version: '1.0.0',
+    checks,
     apis: {
       spotify: !!process.env.SPOTIFY_CLIENT_ID,
       youtube: !!process.env.YOUTUBE_API_KEY,
@@ -58,6 +71,7 @@ app.get('/api/health', (req, res) => {
       ticketmaster: !!process.env.TICKETMASTER_API_KEY,
       database: !!process.env.DATABASE_URL,
     },
+    timestamp: new Date().toISOString(),
   });
 });
 

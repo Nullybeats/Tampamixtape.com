@@ -3,6 +3,14 @@ const axios = require('axios');
 let accessToken = null;
 let tokenExpiry = null;
 
+// ==============================
+// Validation
+// ==============================
+
+function isValidSpotifyId(id) {
+  return typeof id === 'string' && /^[a-zA-Z0-9]{22}$/.test(id);
+}
+
 /**
  * Extract Spotify artist ID from various URL formats
  * Supports:
@@ -36,6 +44,10 @@ function extractArtistId(input) {
   return null;
 }
 
+// ==============================
+// Token Management
+// ==============================
+
 async function getAccessToken() {
   // Return cached token if still valid
   if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
@@ -65,48 +77,90 @@ async function getAccessToken() {
   return accessToken;
 }
 
+// ==============================
+// Centralized API wrapper with retry/backoff
+// ==============================
+
+async function apiGet(url, params = {}) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const token = await getAccessToken();
+    try {
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+      });
+      return response.data;
+    } catch (err) {
+      const status = err.response?.status;
+
+      // Rate limited — wait and retry
+      if (status === 429) {
+        const retryAfter = parseInt(err.response.headers['retry-after']) || (2 ** attempt * 2);
+        console.log(`[Spotify] Rate limited, waiting ${retryAfter}s (attempt ${attempt + 1}/3)`);
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        continue;
+      }
+
+      // Token expired mid-request — clear cache and retry once
+      if (status === 401 && attempt === 0) {
+        accessToken = null;
+        tokenExpiry = null;
+        continue;
+      }
+
+      // Non-retryable error
+      throw err;
+    }
+  }
+  throw new Error('Spotify API request failed after 3 retries');
+}
+
+// ==============================
+// Core API methods (all use apiGet for retry/backoff)
+// ==============================
+
 async function searchArtist(query) {
-  const token = await getAccessToken();
-  const response = await axios.get('https://api.spotify.com/v1/search', {
-    headers: { Authorization: `Bearer ${token}` },
-    params: { q: query, type: 'artist', limit: 5 },
+  const data = await apiGet('https://api.spotify.com/v1/search', {
+    q: query, type: 'artist', limit: 5,
   });
-  return response.data.artists.items;
+  return data.artists.items;
 }
 
 async function getArtist(artistId) {
-  const token = await getAccessToken();
-  const response = await axios.get(`https://api.spotify.com/v1/artists/${artistId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
+  return await apiGet(`https://api.spotify.com/v1/artists/${artistId}`);
+}
+
+async function getArtistsBatch(artistIds) {
+  const results = [];
+  for (let i = 0; i < artistIds.length; i += 50) {
+    const chunk = artistIds.slice(i, i + 50);
+    const data = await apiGet('https://api.spotify.com/v1/artists', {
+      ids: chunk.join(','),
+    });
+    results.push(...(data.artists || []));
+  }
+  return results;
 }
 
 async function getArtistTopTracks(artistId, market = 'US') {
-  const token = await getAccessToken();
-  const response = await axios.get(`https://api.spotify.com/v1/artists/${artistId}/top-tracks`, {
-    headers: { Authorization: `Bearer ${token}` },
-    params: { market },
+  const data = await apiGet(`https://api.spotify.com/v1/artists/${artistId}/top-tracks`, {
+    market,
   });
-  return response.data.tracks;
+  return data.tracks;
 }
 
 async function getArtistAlbums(artistId) {
-  const token = await getAccessToken();
-  const response = await axios.get(`https://api.spotify.com/v1/artists/${artistId}/albums`, {
-    headers: { Authorization: `Bearer ${token}` },
-    params: { include_groups: 'album,single', limit: 50 },
+  const data = await apiGet(`https://api.spotify.com/v1/artists/${artistId}/albums`, {
+    include_groups: 'album,single', limit: 50,
   });
-  return response.data.items;
+  return data.items;
 }
 
 async function getAlbumTracks(albumId) {
-  const token = await getAccessToken();
-  const response = await axios.get(`https://api.spotify.com/v1/albums/${albumId}/tracks`, {
-    headers: { Authorization: `Bearer ${token}` },
-    params: { limit: 50 },
+  const data = await apiGet(`https://api.spotify.com/v1/albums/${albumId}/tracks`, {
+    limit: 50,
   });
-  return response.data.items;
+  return data.items;
 }
 
 async function getArtistStats(artistId) {
@@ -123,7 +177,7 @@ async function getArtistStats(artistId) {
       name: artist.name,
       image: artist.images?.[0]?.url || null,
       followers: artist.followers?.total || 0,
-      popularity: artist.popularity || 0, // 0-100 score
+      popularity: artist.popularity || 0,
       genres: artist.genres || [],
       topTracks: topTracks.slice(0, 5).map(track => ({
         id: track.id,
@@ -229,12 +283,6 @@ const SPOTIFY_SCOPES = [
   'user-read-email',
 ].join(' ');
 
-/**
- * Generate Spotify OAuth authorization URL
- * @param {string} state - State parameter for CSRF protection
- * @param {string} redirectUri - Redirect URI after authorization
- * @returns {string} Authorization URL
- */
 function getAuthorizationUrl(state, redirectUri) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   if (!clientId) {
@@ -247,18 +295,12 @@ function getAuthorizationUrl(state, redirectUri) {
     redirect_uri: redirectUri,
     scope: SPOTIFY_SCOPES,
     state: state,
-    show_dialog: 'true', // Always show dialog so user can switch accounts
+    show_dialog: 'true',
   });
 
   return `https://accounts.spotify.com/authorize?${params.toString()}`;
 }
 
-/**
- * Exchange authorization code for access and refresh tokens
- * @param {string} code - Authorization code from Spotify
- * @param {string} redirectUri - Same redirect URI used in authorization
- * @returns {Promise<{accessToken: string, refreshToken: string, expiresIn: number}>}
- */
 async function exchangeCodeForToken(code, redirectUri) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
@@ -289,14 +331,9 @@ async function exchangeCodeForToken(code, redirectUri) {
   };
 }
 
-/**
- * Get Spotify user profile using OAuth access token
- * @param {string} accessToken - User's OAuth access token
- * @returns {Promise<Object>} User profile data
- */
-async function getSpotifyUserProfile(accessToken) {
+async function getSpotifyUserProfile(userAccessToken) {
   const response = await axios.get('https://api.spotify.com/v1/me', {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { Authorization: `Bearer ${userAccessToken}` },
   });
 
   return {
@@ -305,17 +342,12 @@ async function getSpotifyUserProfile(accessToken) {
     email: response.data.email,
     images: response.data.images || [],
     country: response.data.country,
-    product: response.data.product, // 'premium', 'free', etc.
+    product: response.data.product,
     uri: response.data.uri,
     externalUrls: response.data.external_urls,
   };
 }
 
-/**
- * Search for an artist by name and try to match the user
- * @param {string} name - Artist name to search
- * @returns {Promise<Object|null>} Matched artist or null
- */
 async function findArtistByName(name) {
   if (!name) return null;
 
@@ -323,18 +355,15 @@ async function findArtistByName(name) {
     const artists = await searchArtist(name);
     if (!artists || artists.length === 0) return null;
 
-    // Try to find an exact or close match
     const normalizedName = name.toLowerCase().trim();
     const match = artists.find(
       artist => artist.name.toLowerCase().trim() === normalizedName
     );
 
     if (match) {
-      // Return full artist data
       return await getFullArtistData(match.id);
     }
 
-    // Return top result if no exact match
     return await getFullArtistData(artists[0].id);
   } catch (error) {
     console.error('Error finding artist by name:', error.message);
@@ -343,9 +372,12 @@ async function findArtistByName(name) {
 }
 
 module.exports = {
+  isValidSpotifyId,
   extractArtistId,
+  getAccessToken,
   searchArtist,
   getArtist,
+  getArtistsBatch,
   getArtistTopTracks,
   getArtistAlbums,
   getAlbumTracks,

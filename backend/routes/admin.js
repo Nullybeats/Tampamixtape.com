@@ -223,7 +223,16 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
 
     // Set Spotify fields (can be null to unlink)
     if (spotifyId !== undefined) {
-      updateData.spotifyId = spotifyId;
+      if (spotifyId !== null && spotifyId !== '' && !spotify.isValidSpotifyId(spotifyId)) {
+        return res.status(400).json({ error: 'Invalid Spotify ID format. Must be 22 alphanumeric characters.' });
+      }
+      updateData.spotifyId = spotifyId || null;
+      // Reset sync state when Spotify ID changes
+      if (spotifyId) {
+        updateData.syncEnabled = true;
+        updateData.syncFailCount = 0;
+        updateData.lastSyncError = null;
+      }
     }
     if (spotifyUrl !== undefined) {
       updateData.spotifyUrl = spotifyUrl;
@@ -1028,6 +1037,134 @@ router.post('/claims/:id/reject', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Reject claim error:', error);
     res.status(500).json({ error: 'Failed to reject claim' });
+  }
+});
+
+// ==============================
+// Sync monitoring endpoints
+// ==============================
+
+// GET /api/admin/sync-logs - Paginated sync history
+router.get('/sync-logs', requireAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [logs, total] = await Promise.all([
+      prisma.syncLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit),
+      }),
+      prisma.syncLog.count(),
+    ]);
+
+    // Parse JSON errors field
+    const formatted = logs.map(log => ({
+      ...log,
+      errors: log.errors ? JSON.parse(log.errors) : null,
+    }));
+
+    res.json({
+      logs: formatted,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Get sync logs error:', error);
+    res.status(500).json({ error: 'Failed to get sync logs' });
+  }
+});
+
+// GET /api/admin/artists/sync-status - Artists sorted by sync health
+router.get('/artists/sync-status', requireAdmin, async (req, res) => {
+  try {
+    const { filter = 'all' } = req.query;
+
+    const where = {
+      role: 'ARTIST',
+      spotifyId: { not: null },
+    };
+
+    if (filter === 'quarantined') {
+      where.syncEnabled = false;
+    } else if (filter === 'failing') {
+      where.syncFailCount = { gt: 0 };
+      where.syncEnabled = true;
+    } else if (filter === 'stale') {
+      where.syncEnabled = true;
+      where.OR = [
+        { lastSyncedAt: null },
+        { lastSyncedAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+      ];
+    }
+
+    const artists = await prisma.user.findMany({
+      where,
+      orderBy: [
+        { syncEnabled: 'asc' }, // quarantined first
+        { syncFailCount: 'desc' },
+        { lastSyncedAt: 'asc' },
+      ],
+      select: {
+        id: true,
+        artistName: true,
+        spotifyId: true,
+        syncEnabled: true,
+        syncFailCount: true,
+        lastSyncedAt: true,
+        lastSyncError: true,
+        status: true,
+      },
+    });
+
+    // Summary counts
+    const allArtists = await prisma.user.findMany({
+      where: { role: 'ARTIST', spotifyId: { not: null } },
+      select: { syncEnabled: true, syncFailCount: true, lastSyncedAt: true },
+    });
+
+    const summary = {
+      total: allArtists.length,
+      quarantined: allArtists.filter(a => !a.syncEnabled).length,
+      failing: allArtists.filter(a => a.syncEnabled && a.syncFailCount > 0).length,
+      stale: allArtists.filter(a => a.syncEnabled && (!a.lastSyncedAt || Date.now() - new Date(a.lastSyncedAt).getTime() > 24 * 60 * 60 * 1000)).length,
+      healthy: allArtists.filter(a => a.syncEnabled && a.syncFailCount === 0 && a.lastSyncedAt && Date.now() - new Date(a.lastSyncedAt).getTime() <= 24 * 60 * 60 * 1000).length,
+    };
+
+    res.json({ artists, summary });
+  } catch (error) {
+    console.error('Get artist sync status error:', error);
+    res.status(500).json({ error: 'Failed to get artist sync status' });
+  }
+});
+
+// POST /api/admin/artists/:id/reset-sync - Re-enable a quarantined artist
+router.post('/artists/:id/reset-sync', requireAdmin, async (req, res) => {
+  try {
+    const artist = await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        syncEnabled: true,
+        syncFailCount: 0,
+        lastSyncError: null,
+      },
+      select: {
+        id: true,
+        artistName: true,
+        spotifyId: true,
+        syncEnabled: true,
+      },
+    });
+
+    res.json({ message: `Sync re-enabled for ${artist.artistName}`, artist });
+  } catch (error) {
+    console.error('Reset sync error:', error);
+    res.status(500).json({ error: 'Failed to reset sync' });
   }
 });
 

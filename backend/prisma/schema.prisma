@@ -25,6 +25,10 @@ model User {
   followers     Int      @default(0) // Cached Spotify follower count
   spotifyId     String?
   spotifyUrl    String?
+  syncEnabled   Boolean  @default(true)  // False = quarantined from sync (bad ID, repeated failures)
+  syncFailCount Int      @default(0)     // Consecutive sync failures (circuit breaker at 3)
+  lastSyncedAt  DateTime?               // When this artist was last successfully synced
+  lastSyncError String?                 // Last sync error message for debugging
   instagramUrl  String?
   twitterUrl    String?
   youtubeUrl    String?
@@ -96,6 +100,21 @@ enum ClaimStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+model SyncLog {
+  id              String   @id @default(cuid())
+  type            String   // "full", "single", "chunk"
+  status          String   // "success", "partial", "failed"
+  message         String
+  artistsSynced   Int      @default(0)
+  artistsFailed   Int      @default(0)
+  artistsSkipped  Int      @default(0)
+  errors          String?  // JSON array of {artistName, error}
+  duration        Int?     // milliseconds
+  createdAt       DateTime @default(now())
+
+  @@map("sync_logs")
 }
 
 model ProfileClaim {
