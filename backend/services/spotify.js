@@ -2,6 +2,7 @@ const axios = require('axios');
 
 let accessToken = null;
 let tokenExpiry = null;
+let rateLimitedUntil = 0; // Global cooldown — no requests until this timestamp
 
 // ==============================
 // Validation
@@ -81,7 +82,23 @@ async function getAccessToken() {
 // Centralized API wrapper with retry/backoff
 // ==============================
 
+function isInCooldown() {
+  if (Date.now() < rateLimitedUntil) {
+    const remainingSec = Math.round((rateLimitedUntil - Date.now()) / 1000);
+    return { cooldown: true, remainingSec };
+  }
+  return { cooldown: false, remainingSec: 0 };
+}
+
 async function apiGet(url, params = {}) {
+  // Check global cooldown before making any request
+  const cooldown = isInCooldown();
+  if (cooldown.cooldown) {
+    const err = new Error(`Spotify API in cooldown for ${cooldown.remainingSec}s`);
+    err.isRateLimitCooldown = true;
+    throw err;
+  }
+
   for (let attempt = 0; attempt < 3; attempt++) {
     const token = await getAccessToken();
     try {
@@ -93,11 +110,30 @@ async function apiGet(url, params = {}) {
     } catch (err) {
       const status = err.response?.status;
 
-      // Rate limited — wait and retry (cap at 60s to avoid absurd Retry-After values)
+      // 403 Forbidden — not retryable (banned, wrong creds, or restricted endpoint)
+      if (status === 403) {
+        console.log(`[Spotify] 403 Forbidden for ${url} — not retrying`);
+        throw err;
+      }
+
+      // Rate limited (429)
       if (status === 429) {
         const rawRetry = parseInt(err.response?.headers?.['retry-after']) || 0;
-        const retryAfter = Math.min(Math.max(rawRetry, 2 ** attempt * 2), 60);
-        console.log(`[Spotify] Rate limited, waiting ${retryAfter}s (attempt ${attempt + 1}/3)${rawRetry > 60 ? ` (capped from ${rawRetry}s)` : ''}`);
+
+        // Long ban (>5 min) — set global cooldown and bail immediately
+        if (rawRetry > 300) {
+          // Cap cooldown at 1 hour max to avoid permanent lockouts from absurd values
+          const cooldownSec = Math.min(rawRetry, 3600);
+          rateLimitedUntil = Date.now() + cooldownSec * 1000;
+          console.log(`[Spotify] Long rate limit detected (${rawRetry}s). Entering cooldown for ${cooldownSec}s. No retries.`);
+          const cooldownErr = new Error(`Spotify API rate limited for ${rawRetry}s — entering cooldown`);
+          cooldownErr.isRateLimitCooldown = true;
+          throw cooldownErr;
+        }
+
+        // Short rate limit (≤5 min) — wait and retry
+        const retryAfter = Math.max(rawRetry, 2 ** attempt * 2);
+        console.log(`[Spotify] Rate limited, waiting ${retryAfter}s (attempt ${attempt + 1}/3)`);
         await new Promise(r => setTimeout(r, retryAfter * 1000));
         continue;
       }
@@ -166,9 +202,8 @@ async function getAlbumTracks(albumId) {
 
 async function getArtistStats(artistId) {
   try {
-    const [artist, topTracks, albums] = await Promise.all([
+    const [artist, albums] = await Promise.all([
       getArtist(artistId),
-      getArtistTopTracks(artistId),
       getArtistAlbums(artistId),
     ]);
 
@@ -180,13 +215,7 @@ async function getArtistStats(artistId) {
       followers: artist.followers?.total || 0,
       popularity: artist.popularity || 0,
       genres: artist.genres || [],
-      topTracks: topTracks.slice(0, 5).map(track => ({
-        id: track.id,
-        name: track.name,
-        popularity: track.popularity,
-        previewUrl: track.preview_url,
-        albumImage: track.album?.images?.[0]?.url,
-      })),
+      topTracks: [], // Top tracks endpoint removed in Dev Mode (Feb 2026)
       totalAlbums: albums.length,
       url: artist.external_urls?.spotify,
     };
@@ -198,9 +227,8 @@ async function getArtistStats(artistId) {
 
 async function getFullArtistData(artistId) {
   try {
-    const [artist, topTracks, albums] = await Promise.all([
+    const [artist, albums] = await Promise.all([
       getArtist(artistId),
-      getArtistTopTracks(artistId),
       getArtistAlbums(artistId),
     ]);
 
@@ -218,16 +246,7 @@ async function getFullArtistData(artistId) {
       popularity: artist.popularity || 0,
       genres: artist.genres || [],
       url: artist.external_urls?.spotify,
-      topTracks: topTracks.map(track => ({
-        id: track.id,
-        name: track.name,
-        popularity: track.popularity,
-        duration: track.duration_ms,
-        previewUrl: track.preview_url,
-        albumName: track.album?.name,
-        albumImage: track.album?.images?.[0]?.url,
-        url: track.external_urls?.spotify,
-      })),
+      topTracks: [], // Top tracks endpoint removed in Dev Mode (Feb 2026)
       latestReleases: sortedAlbums.slice(0, 6).map(album => ({
         id: album.id,
         name: album.name,
@@ -375,6 +394,7 @@ async function findArtistByName(name) {
 module.exports = {
   isValidSpotifyId,
   extractArtistId,
+  isInCooldown,
   getAccessToken,
   searchArtist,
   getArtist,

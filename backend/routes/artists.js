@@ -168,6 +168,12 @@ router.get('/hot100', async (req, res) => {
 // Refresh all artist data from Spotify (popularity, followers, genres, avatar)
 router.post('/hot100/refresh', async (req, res) => {
   try {
+    // Check Spotify cooldown before making any API calls
+    const cooldown = spotify.isInCooldown();
+    if (cooldown.cooldown) {
+      return res.status(503).json({ error: `Spotify API in cooldown (${cooldown.remainingSec}s remaining)` });
+    }
+
     // Get all artists with Spotify IDs
     const artists = await prisma.user.findMany({
       where: {
@@ -188,113 +194,77 @@ router.post('/hot100/refresh', async (req, res) => {
     const results = [];
     const errors = [];
 
-    // Update each artist's data from Spotify
-    for (const artist of artists) {
-      let retries = 0;
-      const maxRetries = 3;
-
-      while (retries < maxRetries) {
-        try {
-          console.log(`Fetching data for ${artist.artistName} (${artist.spotifyId})`);
-          const spotifyData = await spotify.getArtist(artist.spotifyId);
-
-          if (spotifyData) {
-            // Log the raw Spotify response for debugging
-            console.log(`Spotify data for ${artist.artistName}:`, {
-              popularity: spotifyData.popularity,
-              followers: spotifyData.followers,
-              genres: spotifyData.genres,
-            });
-
-            const updateData = {};
-
-            // Only update popularity if it's a valid number
-            if (typeof spotifyData.popularity === 'number') {
-              updateData.popularity = spotifyData.popularity;
-            }
-
-            // Only update followers if valid
-            if (spotifyData.followers?.total !== undefined) {
-              updateData.followers = spotifyData.followers.total;
-            }
-
-            // Only update genres if not manually locked by user
-            if (!artist.genresLocked) {
-              // Try Spotify genres first, fall back to Last.fm tags
-              let genres = spotifyData.genres || [];
-              if (genres.length === 0 && artist.artistName) {
-                try {
-                  const lastfmData = await lastfm.getArtistStats(artist.artistName);
-                  if (lastfmData?.tags?.length > 0) {
-                    genres = lastfmData.tags;
-                    console.log(`Using Last.fm tags for ${artist.artistName}: ${genres.slice(0, 3).join(', ')}`);
-                  }
-                } catch (lfmErr) {
-                  // Silently fail, genres will remain empty
-                }
-              }
-
-              // Limit to 3 genres and format nicely (capitalize each word)
-              if (genres.length > 0) {
-                const formattedGenres = genres
-                  .slice(0, 3)
-                  .map(g => g.split(' ').map(word =>
-                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-                  ).join(' '))
-                  .join(', ');
-                updateData.genres = formattedGenres;
-              }
-            } else {
-              console.log(`Skipping genre update for ${artist.artistName} - genres locked`);
-            }
-
-            // Update avatar if available
-            if (spotifyData.images && spotifyData.images.length > 0) {
-              updateData.avatar = spotifyData.images[0].url;
-            }
-
-            // Only update if we have data to update
-            if (Object.keys(updateData).length > 0) {
-              await prisma.user.update({
-                where: { id: artist.id },
-                data: updateData,
-              });
-
-              results.push({
-                artistName: artist.artistName,
-                popularity: updateData.popularity ?? 'unchanged',
-                followers: updateData.followers ?? 'unchanged',
-                genres: updateData.genres || 'unchanged',
-              });
-              updated++;
-            } else {
-              console.log(`No data to update for ${artist.artistName}`);
-              errors.push({ artistName: artist.artistName, error: 'No valid data from Spotify' });
-              failed++;
-            }
-          } else {
-            console.log(`No Spotify data returned for ${artist.artistName}`);
-            errors.push({ artistName: artist.artistName, error: 'No data returned' });
-            failed++;
-          }
-          break; // Success, exit retry loop
-        } catch (err) {
-          if (err.response?.status === 429 && retries < maxRetries - 1) {
-            // Rate limited - wait longer and retry
-            const retryAfter = Math.min(parseInt(err.response.headers?.['retry-after']) || (2 ** retries), 60);
-            console.log(`Rate limited for ${artist.artistName}, waiting ${retryAfter}s...`);
-            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-            retries++;
-          } else {
-            console.error(`Failed to update artist ${artist.artistName} (${artist.spotifyId}):`, err.message);
-            errors.push({ artistName: artist.artistName, error: err.message });
-            failed++;
-            break; // Non-retryable error or max retries reached
-          }
-        }
+    // Use batch fetch instead of individual calls (50 at a time instead of 367 individual)
+    const spotifyIds = artists.map(a => a.spotifyId).filter(id => spotify.isValidSpotifyId(id));
+    let batchData = [];
+    try {
+      batchData = await spotify.getArtistsBatch(spotifyIds);
+    } catch (err) {
+      if (err.isRateLimitCooldown) {
+        return res.status(503).json({ error: 'Spotify API rate limited. Try again later.' });
       }
-      // Delay between requests to avoid rate limiting (300ms)
-      await new Promise(resolve => setTimeout(resolve, 300));
+      throw err;
+    }
+
+    const metadataMap = new Map();
+    for (const data of batchData) {
+      if (data) metadataMap.set(data.id, data);
+    }
+
+    // Update each artist from batch results (no additional API calls)
+    for (const artist of artists) {
+      try {
+        const spotifyData = metadataMap.get(artist.spotifyId);
+
+        if (spotifyData) {
+          const updateData = {};
+
+          if (typeof spotifyData.popularity === 'number') {
+            updateData.popularity = spotifyData.popularity;
+          }
+          if (spotifyData.followers?.total !== undefined) {
+            updateData.followers = spotifyData.followers.total;
+          }
+
+          if (!artist.genresLocked) {
+            let genres = spotifyData.genres || [];
+            if (genres.length === 0 && artist.artistName) {
+              try {
+                const lastfmData = await lastfm.getArtistStats(artist.artistName);
+                if (lastfmData?.tags?.length > 0) genres = lastfmData.tags;
+              } catch { /* skip */ }
+            }
+            if (genres.length > 0) {
+              updateData.genres = genres.slice(0, 3)
+                .map(g => g.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' '))
+                .join(', ');
+            }
+          }
+
+          if (spotifyData.images?.length > 0) {
+            updateData.avatar = spotifyData.images[0].url;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            await prisma.user.update({ where: { id: artist.id }, data: updateData });
+            results.push({
+              artistName: artist.artistName,
+              popularity: updateData.popularity ?? 'unchanged',
+              followers: updateData.followers ?? 'unchanged',
+              genres: updateData.genres || 'unchanged',
+            });
+            updated++;
+          } else {
+            failed++;
+          }
+        } else {
+          errors.push({ artistName: artist.artistName, error: 'Not in batch results' });
+          failed++;
+        }
+      } catch (err) {
+        errors.push({ artistName: artist.artistName, error: err.message });
+        failed++;
+      }
     }
 
     // Flush hot100 cache after refresh

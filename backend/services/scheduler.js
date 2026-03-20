@@ -104,6 +104,13 @@ async function writeSyncLog({ type, status, message, artistsSynced, artistsFaile
 async function syncSingleArtist(artist) {
   if (!artist.spotifyId) return { added: 0 };
 
+  // Don't sync if Spotify is in cooldown
+  const cooldown = spotify.isInCooldown();
+  if (cooldown.cooldown) {
+    console.log(`[Scheduler] Spotify in cooldown (${cooldown.remainingSec}s), deferring sync for ${artist.artistName}`);
+    return { added: 0, deferred: true };
+  }
+
   // Validate ID format
   if (!spotify.isValidSpotifyId(artist.spotifyId)) {
     console.log(`[Scheduler] Invalid Spotify ID for ${artist.artistName}: ${artist.spotifyId}`);
@@ -182,6 +189,13 @@ async function runSync() {
     return;
   }
 
+  // Check global Spotify cooldown before doing anything
+  const cooldown = spotify.isInCooldown();
+  if (cooldown.cooldown) {
+    console.log(`[Scheduler] Spotify API in cooldown (${cooldown.remainingSec}s remaining), skipping cycle`);
+    return;
+  }
+
   isRunning = true;
   const startTime = Date.now();
   console.log('[Scheduler] Starting chunked sync...');
@@ -256,8 +270,6 @@ async function runSync() {
     }
 
     // Step 3: Process each artist — fetch albums + update metadata
-    let rateLimitHits = 0;
-
     for (const artist of validArtists) {
       try {
         // Fetch albums
@@ -318,20 +330,11 @@ async function runSync() {
 
         totalSynced++;
       } catch (err) {
-        if (isRateLimitError(err)) {
-          rateLimitHits++;
-          if (rateLimitHits >= 3) {
-            console.log('[Scheduler] Rate limited 3 times this cycle, stopping early');
-            totalSkipped += validArtists.length - validArtists.indexOf(artist);
-            break;
-          }
-          // Pause and retry this artist
-          const wait = Math.min(parseInt(err.response?.headers?.['retry-after']) || 30, 60);
-          console.log(`[Scheduler] Rate limited, pausing ${wait}s then resuming...`);
-          await new Promise(r => setTimeout(r, wait * 1000));
-          // Skip this artist for now, it'll be retried next cycle
-          totalSkipped++;
-          continue;
+        // Rate limit or cooldown — abort entire cycle immediately
+        if (isRateLimitError(err) || err.isRateLimitCooldown) {
+          console.log(`[Scheduler] Rate limited — aborting cycle. Will retry next scheduled interval.`);
+          totalSkipped += validArtists.length - validArtists.indexOf(artist);
+          break;
         }
 
         // Bad request / not found — quarantine
@@ -361,8 +364,8 @@ async function runSync() {
         totalFailed++;
       }
 
-      // Delay between artists
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Delay between artists (2s to stay well under Dev Mode rate limits)
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     // Step 4: Write results
@@ -453,33 +456,16 @@ async function start() {
       update: {},
     });
 
-    // Always run an initial sync if there are no releases in the DB
-    const releaseCount = await prisma.release.count();
-    if (releaseCount === 0) {
-      console.log('[Scheduler] No releases found, running initial sync...');
-      runSync();
-    }
-
     if (settings.autoSyncEnabled && settings.autoSyncIntervalMins > 0) {
       const intervalMs = settings.autoSyncIntervalMins * 60 * 1000;
       console.log(`[Scheduler] Auto-sync enabled, interval: ${settings.autoSyncIntervalMins} minutes`);
+      console.log(`[Scheduler] First sync will run in ${settings.autoSyncIntervalMins} minutes (no startup hammering)`);
 
       if (syncTimer) {
         clearInterval(syncTimer);
       }
 
       syncTimer = setInterval(runSync, intervalMs);
-
-      if (!settings.lastSyncAt) {
-        console.log('[Scheduler] No previous sync found, running now...');
-        runSync();
-      } else {
-        const timeSinceLastSync = Date.now() - new Date(settings.lastSyncAt).getTime();
-        if (timeSinceLastSync >= intervalMs) {
-          console.log('[Scheduler] Last sync was too long ago, running now...');
-          runSync();
-        }
-      }
     } else {
       console.log('[Scheduler] Auto-sync is disabled');
     }

@@ -520,15 +520,15 @@ router.get('/stats', requireAdmin, async (req, res) => {
   }
 });
 
-// Helper to check if error is rate limiting
-function isRateLimitError(err) {
-  return err.response?.status === 429 ||
-         (err.message && err.message.includes('429'));
-}
-
 // Sync releases from Spotify to database
 router.post('/sync-releases', requireAdmin, async (req, res) => {
   try {
+    // Check Spotify cooldown before making any API calls
+    const cooldown = spotify.isInCooldown();
+    if (cooldown.cooldown) {
+      return res.status(503).json({ error: `Spotify API in cooldown (${cooldown.remainingSec}s remaining). Wait and try again.` });
+    }
+
     console.log('Starting releases sync...');
 
     // Get all approved artists with Spotify IDs
@@ -549,124 +549,79 @@ router.post('/sync-releases', requireAdmin, async (req, res) => {
     console.log(`Syncing releases for ${artists.length} artists`);
 
     let totalAdded = 0;
-    let totalSkipped = 0;
     let totalFailed = 0;
     const errors = [];
-    let rateLimitedUntil = null;
 
-    // Fetch releases from Spotify for each artist
+    // Fetch releases from Spotify for each artist (apiGet handles retries)
     for (const artist of artists) {
-      let retries = 0;
-      const maxRetries = 2;
-      const maxWaitSeconds = 30; // Don't wait more than 30 seconds per retry
+      try {
+        const albums = await spotify.getArtistAlbums(artist.spotifyId);
 
-      while (retries < maxRetries) {
-        try {
-          const albums = await spotify.getArtistAlbums(artist.spotifyId);
+        if (albums && albums.length > 0) {
+          for (const album of albums) {
+            const releaseData = {
+              id: album.id,
+              name: album.name,
+              type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
+              image: album.images?.[0]?.url || null,
+              releaseDate: album.release_date || null,
+              spotifyUrl: album.external_urls?.spotify || null,
+              artistId: artist.id,
+              artistName: artist.artistName,
+              artistSlug: artist.profileSlug,
+            };
 
-          if (albums && albums.length > 0) {
-            for (const album of albums) {
-              const releaseData = {
-                id: album.id,
-                name: album.name,
-                type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
-                image: album.images?.[0]?.url || null,
-                releaseDate: album.release_date || null,
-                spotifyUrl: album.external_urls?.spotify || null,
-                artistId: artist.id,
-                artistName: artist.artistName,
-                artistSlug: artist.profileSlug,
-              };
+            await prisma.release.upsert({
+              where: { id: album.id },
+              create: releaseData,
+              update: {
+                name: releaseData.name,
+                type: releaseData.type,
+                image: releaseData.image,
+                releaseDate: releaseData.releaseDate,
+                spotifyUrl: releaseData.spotifyUrl,
+                artistName: releaseData.artistName,
+                artistSlug: releaseData.artistSlug,
+              },
+            });
 
-              // Upsert - create if doesn't exist, update if it does
-              await prisma.release.upsert({
-                where: { id: album.id },
-                create: releaseData,
-                update: {
-                  name: releaseData.name,
-                  type: releaseData.type,
-                  image: releaseData.image,
-                  releaseDate: releaseData.releaseDate,
-                  spotifyUrl: releaseData.spotifyUrl,
-                  artistName: releaseData.artistName,
-                  artistSlug: releaseData.artistSlug,
-                },
-              });
-
-              totalAdded++;
-            }
-          }
-          console.log(`Synced ${albums?.length || 0} releases for ${artist.artistName}`);
-          break; // Success, exit retry loop
-        } catch (err) {
-          const isRateLimit = isRateLimitError(err);
-          if (isRateLimit) {
-            const retryAfter = Math.min(parseInt(err.response?.headers?.['retry-after']) || 60, 60);
-
-            // If wait time is too long, skip this artist and continue
-            if (retryAfter > maxWaitSeconds) {
-              console.log(`Rate limited for ${artist.artistName}, retry-after ${retryAfter}s is too long - skipping`);
-              errors.push({
-                artistName: artist.artistName,
-                error: `Rate limited (retry in ${Math.ceil(retryAfter / 60)} min)`
-              });
-              totalSkipped++;
-
-              // Track when rate limit will be lifted
-              const unlockTime = new Date(Date.now() + retryAfter * 1000);
-              if (!rateLimitedUntil || unlockTime > rateLimitedUntil) {
-                rateLimitedUntil = unlockTime;
-              }
-              break;
-            }
-
-            // Wait and retry for short waits
-            if (retries < maxRetries - 1) {
-              console.log(`Rate limited for ${artist.artistName}, waiting ${retryAfter}s (retry ${retries + 1}/${maxRetries})...`);
-              await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-              retries++;
-            } else {
-              console.error(`Failed to sync releases for ${artist.artistName} after retries`);
-              errors.push({ artistName: artist.artistName, error: 'Rate limit exceeded' });
-              totalFailed++;
-              break;
-            }
-          } else {
-            console.error(`Failed to sync releases for ${artist.artistName}:`, err.message);
-            errors.push({ artistName: artist.artistName, error: err.message });
-            totalFailed++;
-            break;
+            totalAdded++;
           }
         }
+        console.log(`Synced ${albums?.length || 0} releases for ${artist.artistName}`);
+      } catch (err) {
+        // Rate limit or cooldown — stop entire sync, don't burn more calls
+        if (err.isRateLimitCooldown || err.response?.status === 429) {
+          console.log(`[sync-releases] Rate limited — stopping sync. ${totalAdded} releases synced so far.`);
+          return res.json({
+            message: 'Sync stopped due to Spotify rate limiting',
+            processed: totalAdded,
+            failed: totalFailed,
+            totalReleases: await prisma.release.count(),
+            errors: errors.length > 0 ? errors : undefined,
+            rateLimitMessage: 'Spotify rate limit hit. Remaining artists will sync on next scheduled cycle.',
+          });
+        }
+
+        console.error(`Failed to sync releases for ${artist.artistName}:`, err.message);
+        errors.push({ artistName: artist.artistName, error: err.message });
+        totalFailed++;
       }
 
-      // Delay between artists to avoid rate limiting (1 second)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 2s delay between artists
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
-    // Get final count
     const totalReleases = await prisma.release.count();
+    console.log(`Sync complete: ${totalAdded} releases processed, ${totalFailed} failed`);
 
-    console.log(`Sync complete: ${totalAdded} releases processed, ${totalSkipped} skipped, ${totalFailed} failed`);
-
-    const response = {
-      message: totalSkipped > 0
-        ? 'Releases sync partially complete - some artists skipped due to rate limiting'
-        : 'Releases sync complete',
+    res.json({
+      message: 'Releases sync complete',
       processed: totalAdded,
-      skipped: totalSkipped,
       failed: totalFailed,
       totalReleases,
       errors: errors.length > 0 ? errors : undefined,
-    };
-
-    // Add helpful message if rate limited
-    if (rateLimitedUntil) {
-      const waitMinutes = Math.ceil((rateLimitedUntil - Date.now()) / 60000);
-      response.rateLimitMessage = `Spotify rate limit active. Try again in ~${waitMinutes} minutes to sync remaining artists.`;
-    }
-
-    res.json(response);
+    });
   } catch (error) {
     console.error('Sync releases error:', error);
     res.status(500).json({ error: 'Failed to sync releases', details: error.message });
