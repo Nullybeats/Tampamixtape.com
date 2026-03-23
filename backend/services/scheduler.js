@@ -4,10 +4,13 @@ const lastfm = require('./lastfm');
 const cache = require('./cache');
 
 let syncTimer = null;
-let isRunning = false;
+let syncInProgress = false; // Module-level lock for ALL sync entry points
+let cycleCount = 0; // Track cycles for metadata refresh cadence
 
-const CHUNK_SIZE = 30; // Artists per sync cycle
+const CHUNK_SIZE = 10; // Artists per sync cycle (reduced for Dev Mode)
 const CIRCUIT_BREAKER_THRESHOLD = 3; // Consecutive failures to quarantine
+const METADATA_REFRESH_INTERVAL = 12; // Every 12th cycle (~6 hours at 30min interval)
+const API_DELAY_MS = 3000; // 3 seconds between every Spotify API call
 
 // ==============================
 // Helpers
@@ -104,9 +107,15 @@ async function writeSyncLog({ type, status, message, artistsSynced, artistsFaile
 async function syncSingleArtist(artist) {
   if (!artist.spotifyId) return { added: 0 };
 
+  // Check module-level lock
+  if (syncInProgress) {
+    console.log(`[Scheduler] Sync in progress, deferring single sync for ${artist.artistName}`);
+    return { added: 0, deferred: true };
+  }
+
   // Don't sync if Spotify is in cooldown
-  const cooldown = spotify.isInCooldown();
-  if (cooldown.cooldown) {
+  if (spotify.isRateLimited()) {
+    const cooldown = spotify.isInCooldown();
     console.log(`[Scheduler] Spotify in cooldown (${cooldown.remainingSec}s), deferring sync for ${artist.artistName}`);
     return { added: 0, deferred: true };
   }
@@ -121,6 +130,7 @@ async function syncSingleArtist(artist) {
     return { added: 0, error: 'Invalid Spotify ID format' };
   }
 
+  syncInProgress = true;
   console.log(`[Scheduler] Syncing releases for ${artist.artistName}...`);
   const startTime = Date.now();
 
@@ -176,6 +186,8 @@ async function syncSingleArtist(artist) {
     });
 
     throw err;
+  } finally {
+    syncInProgress = false;
   }
 }
 
@@ -184,21 +196,24 @@ async function syncSingleArtist(artist) {
 // ==============================
 
 async function runSync() {
-  if (isRunning) {
+  // Check module-level lock (shared with syncSingleArtist and admin triggers)
+  if (syncInProgress) {
     console.log('[Scheduler] Sync already in progress, skipping...');
     return;
   }
 
   // Check global Spotify cooldown before doing anything
-  const cooldown = spotify.isInCooldown();
-  if (cooldown.cooldown) {
+  if (spotify.isRateLimited()) {
+    const cooldown = spotify.isInCooldown();
     console.log(`[Scheduler] Spotify API in cooldown (${cooldown.remainingSec}s remaining), skipping cycle`);
     return;
   }
 
-  isRunning = true;
+  syncInProgress = true;
+  cycleCount++;
+  const isMetadataRefresh = (cycleCount % METADATA_REFRESH_INTERVAL === 0);
   const startTime = Date.now();
-  console.log('[Scheduler] Starting chunked sync...');
+  console.log(`[Scheduler] Starting sync cycle #${cycleCount} (${isMetadataRefresh ? 'release + metadata' : 'release only'})...`);
 
   const errorList = [];
   let totalAdded = 0;
@@ -207,7 +222,7 @@ async function runSync() {
   let totalSynced = 0;
 
   try {
-    // Step 1: Get the stalest artists (prioritize never-synced, then oldest)
+    // Step 1: Get the stalest artists (prioritize never-synced, then oldest lastSyncedAt)
     const artists = await prisma.user.findMany({
       where: {
         status: 'APPROVED',
@@ -231,7 +246,7 @@ async function runSync() {
 
     if (artists.length === 0) {
       console.log('[Scheduler] No artists to sync');
-      isRunning = false;
+      syncInProgress = false;
       return;
     }
 
@@ -253,75 +268,90 @@ async function runSync() {
 
     console.log(`[Scheduler] Syncing chunk of ${validArtists.length} artists (${totalSkipped} skipped for bad IDs)...`);
 
-    // Step 2: Batch-fetch artist metadata (popularity, followers, genres, avatar)
-    const spotifyIds = validArtists.map(a => a.spotifyId);
-    let batchMetadata = [];
-    try {
-      batchMetadata = await spotify.getArtistsBatch(spotifyIds);
-    } catch (err) {
-      console.error('[Scheduler] Batch metadata fetch failed:', err.message);
-      // Fall back to individual fetches below
-    }
-
-    // Build a lookup map from batch results
-    const metadataMap = new Map();
-    for (const data of batchMetadata) {
-      if (data) metadataMap.set(data.id, data);
-    }
-
-    // Step 3: Process each artist — fetch albums + update metadata
+    // Step 2: Process each artist
     for (const artist of validArtists) {
+      // Check rate limit before EVERY artist — abort entire cycle if limited
+      if (spotify.isRateLimited()) {
+        console.log(`[Scheduler] Rate limited — aborting cycle. Will retry next scheduled interval.`);
+        totalSkipped += validArtists.length - validArtists.indexOf(artist);
+        break;
+      }
+
       try {
-        // Fetch albums
+        // --- Release sync (every cycle) ---
         const albums = await spotify.getArtistAlbums(artist.spotifyId);
         if (albums && albums.length > 0) {
           totalAdded += await upsertReleases(albums, artist);
         }
 
-        // Update artist metadata (from batch or individual fallback)
-        let spotifyData = metadataMap.get(artist.spotifyId);
-        if (!spotifyData) {
-          try {
-            spotifyData = await spotify.getArtist(artist.spotifyId);
-          } catch { /* skip metadata update */ }
-        }
+        // 3-second delay between API calls
+        await new Promise(r => setTimeout(r, API_DELAY_MS));
 
-        if (spotifyData) {
-          const updateData = {
-            lastSyncedAt: new Date(),
-            syncFailCount: 0,
-            lastSyncError: null,
-          };
-
-          if (typeof spotifyData.popularity === 'number') {
-            updateData.popularity = spotifyData.popularity;
-          }
-          if (spotifyData.followers?.total !== undefined) {
-            updateData.followers = spotifyData.followers.total;
-          }
-          if (spotifyData.images?.length > 0) {
-            updateData.avatar = spotifyData.images[0].url;
+        // --- Metadata refresh (every 12th cycle) ---
+        if (isMetadataRefresh) {
+          // Check rate limit again before metadata call
+          if (spotify.isRateLimited()) {
+            console.log(`[Scheduler] Rate limited during metadata phase — aborting cycle.`);
+            totalSkipped += validArtists.length - validArtists.indexOf(artist);
+            break;
           }
 
-          // Genre update (Spotify → Last.fm fallback)
-          if (!artist.genresLocked) {
-            let genres = spotifyData.genres || [];
-            if (genres.length === 0 && artist.artistName) {
-              try {
-                const lastfmData = await lastfm.getArtistStats(artist.artistName);
-                if (lastfmData?.tags?.length > 0) {
-                  genres = lastfmData.tags;
-                }
-              } catch { /* skip */ }
+          const spotifyData = await spotify.getArtistSafe(artist.spotifyId);
+
+          if (spotifyData) {
+            const updateData = {};
+
+            if (spotifyData.followers?.total !== undefined) {
+              updateData.followers = spotifyData.followers.total;
             }
-            if (genres.length > 0) {
-              updateData.genres = formatGenres(genres);
+            if (spotifyData.images?.length > 0) {
+              updateData.avatar = spotifyData.images[0].url;
             }
+
+            // Genre update (Spotify -> Last.fm fallback)
+            if (!artist.genresLocked) {
+              let genres = spotifyData.genres || [];
+              if (genres.length === 0 && artist.artistName) {
+                try {
+                  const lastfmData = await lastfm.getArtistStats(artist.artistName);
+                  if (lastfmData?.tags?.length > 0) {
+                    genres = lastfmData.tags;
+                  }
+                } catch { /* skip */ }
+              }
+              if (genres.length > 0) {
+                updateData.genres = formatGenres(genres);
+              }
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              await prisma.user.update({
+                where: { id: artist.id },
+                data: {
+                  ...updateData,
+                  lastSyncedAt: new Date(),
+                  syncFailCount: 0,
+                  lastSyncError: null,
+                },
+              });
+            } else {
+              await prisma.user.update({
+                where: { id: artist.id },
+                data: { lastSyncedAt: new Date(), syncFailCount: 0, lastSyncError: null },
+              });
+            }
+          } else {
+            // getArtistSafe returned null (403/404) — still mark release sync as done
+            await prisma.user.update({
+              where: { id: artist.id },
+              data: { lastSyncedAt: new Date(), syncFailCount: 0, lastSyncError: null },
+            });
           }
 
-          await prisma.user.update({ where: { id: artist.id }, data: updateData });
+          // 3-second delay after metadata call
+          await new Promise(r => setTimeout(r, API_DELAY_MS));
         } else {
-          // No metadata but albums synced — still mark as synced
+          // Release-only cycle — just mark as synced
           await prisma.user.update({
             where: { id: artist.id },
             data: { lastSyncedAt: new Date(), syncFailCount: 0, lastSyncError: null },
@@ -364,14 +394,17 @@ async function runSync() {
         totalFailed++;
       }
 
-      // Delay between artists (2s to stay well under Dev Mode rate limits)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 3-second delay between artists (unless we already delayed after metadata)
+      if (!isMetadataRefresh) {
+        await new Promise(r => setTimeout(r, API_DELAY_MS));
+      }
     }
 
-    // Step 4: Write results
+    // Step 3: Write results
     const status = totalFailed > 0 || totalSkipped > 0 ? 'partial' : 'success';
     const duration = Date.now() - startTime;
-    const message = `Chunk: ${totalSynced} synced, ${totalAdded} releases, ${totalFailed} failed, ${totalSkipped} skipped (${Math.round(duration / 1000)}s)`;
+    const mode = isMetadataRefresh ? 'release+metadata' : 'release-only';
+    const message = `Chunk [${mode}]: ${totalSynced} synced, ${totalAdded} releases, ${totalFailed} failed, ${totalSkipped} skipped (${Math.round(duration / 1000)}s)`;
 
     await prisma.settings.upsert({
       where: { id: 'app_settings' },
@@ -438,7 +471,7 @@ async function runSync() {
       duration: Date.now() - startTime,
     });
   } finally {
-    isRunning = false;
+    syncInProgress = false;
   }
 }
 
@@ -498,8 +531,16 @@ async function getStatus() {
     lastSyncAt: settings?.lastSyncAt,
     lastSyncStatus: settings?.lastSyncStatus,
     lastSyncMessage: settings?.lastSyncMessage,
-    isRunning,
+    isRunning: syncInProgress,
   };
+}
+
+/**
+ * Check if a sync is currently in progress.
+ * Used by admin routes to prevent concurrent syncs.
+ */
+function isSyncInProgress() {
+  return syncInProgress;
 }
 
 module.exports = {
@@ -509,4 +550,5 @@ module.exports = {
   runSync,
   syncSingleArtist,
   getStatus,
+  isSyncInProgress,
 };

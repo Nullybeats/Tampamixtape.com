@@ -23,7 +23,6 @@ router.get('/landing', async (req, res) => {
           spotifyId: { not: null },
         },
         orderBy: [
-          { popularity: 'desc' },
           { followers: 'desc' },
         ],
         take: 50,

@@ -1,7 +1,6 @@
 const express = require('express');
 const prisma = require('../services/db');
 const spotify = require('../services/spotify');
-const lastfm = require('../services/lastfm');
 const cache = require('../services/cache');
 
 const router = express.Router();
@@ -126,7 +125,6 @@ router.get('/hot100', async (req, res) => {
         spotifyId: { not: null },
       },
       orderBy: [
-        { popularity: 'desc' },
         { followers: 'desc' },
       ],
       take: parseInt(limit),
@@ -165,120 +163,48 @@ router.get('/hot100', async (req, res) => {
   }
 });
 
-// Refresh all artist data from Spotify (popularity, followers, genres, avatar)
+// Refresh Hot 100 — returns fresh data from DB (no Spotify calls).
+// The scheduler handles all Spotify API calls now.
 router.post('/hot100/refresh', async (req, res) => {
   try {
-    // Check Spotify cooldown before making any API calls
-    const cooldown = spotify.isInCooldown();
-    if (cooldown.cooldown) {
-      return res.status(503).json({ error: `Spotify API in cooldown (${cooldown.remainingSec}s remaining)` });
-    }
+    // Flush hot100 cache so next GET returns fresh DB data
+    cache.keys().filter(k => k.startsWith('hot100:') || k === 'landing').forEach(k => cache.del(k));
 
-    // Get all artists with Spotify IDs
+    // Return current Hot 100 from DB
     const artists = await prisma.user.findMany({
       where: {
+        status: 'APPROVED',
+        role: 'ARTIST',
         spotifyId: { not: null },
       },
+      orderBy: [
+        { followers: 'desc' },
+      ],
+      take: 100,
       select: {
         id: true,
-        spotifyId: true,
         artistName: true,
-        genresLocked: true,
+        profileSlug: true,
+        avatar: true,
+        spotifyId: true,
+        spotifyUrl: true,
+        followers: true,
+        genres: true,
+        region: true,
       },
     });
 
-    console.log(`Starting refresh for ${artists.length} artists`);
-
-    let updated = 0;
-    let failed = 0;
-    const results = [];
-    const errors = [];
-
-    // Use batch fetch instead of individual calls (50 at a time instead of 367 individual)
-    const spotifyIds = artists.map(a => a.spotifyId).filter(id => spotify.isValidSpotifyId(id));
-    let batchData = [];
-    try {
-      batchData = await spotify.getArtistsBatch(spotifyIds);
-    } catch (err) {
-      if (err.isRateLimitCooldown) {
-        return res.status(503).json({ error: 'Spotify API rate limited. Try again later.' });
-      }
-      throw err;
-    }
-
-    const metadataMap = new Map();
-    for (const data of batchData) {
-      if (data) metadataMap.set(data.id, data);
-    }
-
-    // Update each artist from batch results (no additional API calls)
-    for (const artist of artists) {
-      try {
-        const spotifyData = metadataMap.get(artist.spotifyId);
-
-        if (spotifyData) {
-          const updateData = {};
-
-          if (typeof spotifyData.popularity === 'number') {
-            updateData.popularity = spotifyData.popularity;
-          }
-          if (spotifyData.followers?.total !== undefined) {
-            updateData.followers = spotifyData.followers.total;
-          }
-
-          if (!artist.genresLocked) {
-            let genres = spotifyData.genres || [];
-            if (genres.length === 0 && artist.artistName) {
-              try {
-                const lastfmData = await lastfm.getArtistStats(artist.artistName);
-                if (lastfmData?.tags?.length > 0) genres = lastfmData.tags;
-              } catch { /* skip */ }
-            }
-            if (genres.length > 0) {
-              updateData.genres = genres.slice(0, 3)
-                .map(g => g.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' '))
-                .join(', ');
-            }
-          }
-
-          if (spotifyData.images?.length > 0) {
-            updateData.avatar = spotifyData.images[0].url;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            await prisma.user.update({ where: { id: artist.id }, data: updateData });
-            results.push({
-              artistName: artist.artistName,
-              popularity: updateData.popularity ?? 'unchanged',
-              followers: updateData.followers ?? 'unchanged',
-              genres: updateData.genres || 'unchanged',
-            });
-            updated++;
-          } else {
-            failed++;
-          }
-        } else {
-          errors.push({ artistName: artist.artistName, error: 'Not in batch results' });
-          failed++;
-        }
-      } catch (err) {
-        errors.push({ artistName: artist.artistName, error: err.message });
-        failed++;
-      }
-    }
-
-    // Flush hot100 cache after refresh
-    cache.keys().filter(k => k.startsWith('hot100:') || k === 'landing').forEach(k => cache.del(k));
-
-    console.log(`Refresh complete: ${updated} updated, ${failed} failed`);
+    const rankedArtists = artists.map((artist, index) => ({
+      ...artist,
+      rank: index + 1,
+    }));
 
     res.json({
-      message: 'Artist data refresh complete',
-      updated,
-      failed,
-      total: artists.length,
-      results,
-      errors: errors.length > 0 ? errors : undefined,
+      message: 'Hot 100 cache refreshed from database',
+      updated: rankedArtists.length,
+      failed: 0,
+      total: rankedArtists.length,
+      results: rankedArtists,
     });
   } catch (error) {
     console.error('Refresh Hot 100 error:', error);
@@ -335,7 +261,7 @@ router.get('/', async (req, res) => {
         orderBy = { createdAt: 'asc' };
         break;
       case 'popular':
-        orderBy = [{ popularity: 'desc' }, { followers: 'desc' }];
+        orderBy = [{ followers: 'desc' }];
         break;
       case 'followers':
         orderBy = { followers: 'desc' };

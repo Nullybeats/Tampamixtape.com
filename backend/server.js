@@ -44,7 +44,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Health check route (tests real connectivity)
+// Health check route (no proactive Spotify API calls — just checks cached token)
 app.get('/api/health', async (req, res) => {
   const prisma = require('./services/db');
   const spotify = require('./services/spotify');
@@ -55,9 +55,10 @@ app.get('/api/health', async (req, res) => {
   };
 
   try { await prisma.$queryRaw`SELECT 1`; checks.database = true; } catch {}
-  try { await spotify.getAccessToken(); checks.spotify = true; } catch {}
+  // Don't call getAccessToken() proactively — just check if token is already cached
+  checks.spotify = spotify.hasValidToken();
 
-  const healthy = checks.database && checks.spotify;
+  const healthy = checks.database;
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'ok' : 'degraded',
     message: 'TampaCharts API is running',

@@ -78,8 +78,16 @@ async function getAccessToken() {
   return accessToken;
 }
 
+/**
+ * Check if token is already cached (no network call).
+ * Used by health check to avoid proactive Spotify API calls.
+ */
+function hasValidToken() {
+  return !!(accessToken && tokenExpiry && Date.now() < tokenExpiry);
+}
+
 // ==============================
-// Centralized API wrapper with retry/backoff
+// Rate limit helpers
 // ==============================
 
 function isInCooldown() {
@@ -90,6 +98,18 @@ function isInCooldown() {
   return { cooldown: false, remainingSec: 0 };
 }
 
+/**
+ * Returns true if the Spotify API is currently rate-limited.
+ * Used by scheduler to abort sync cycles early.
+ */
+function isRateLimited() {
+  return Date.now() < rateLimitedUntil;
+}
+
+// ==============================
+// Centralized API wrapper — NO retries on 429
+// ==============================
+
 async function apiGet(url, params = {}) {
   // Check global cooldown before making any request
   const cooldown = isInCooldown();
@@ -99,7 +119,7 @@ async function apiGet(url, params = {}) {
     throw err;
   }
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const token = await getAccessToken();
     try {
       const response = await axios.get(url, {
@@ -110,32 +130,22 @@ async function apiGet(url, params = {}) {
     } catch (err) {
       const status = err.response?.status;
 
-      // 403 Forbidden — not retryable (banned, wrong creds, or restricted endpoint)
+      // 403 Forbidden — log the URL so we can distinguish removed endpoints vs rate limit
       if (status === 403) {
-        console.log(`[Spotify] 403 Forbidden for ${url} — not retrying`);
+        console.log(`[Spotify] 403 Forbidden for ${url} — possible removed endpoint or rate limit`);
         throw err;
       }
 
-      // Rate limited (429)
+      // Rate limited (429) — set global cooldown and abort immediately, NO retries
       if (status === 429) {
-        const rawRetry = parseInt(err.response?.headers?.['retry-after']) || 0;
-
-        // Long ban (>5 min) — set global cooldown and bail immediately
-        if (rawRetry > 300) {
-          // Cap cooldown at 1 hour max to avoid permanent lockouts from absurd values
-          const cooldownSec = Math.min(rawRetry, 3600);
-          rateLimitedUntil = Date.now() + cooldownSec * 1000;
-          console.log(`[Spotify] Long rate limit detected (${rawRetry}s). Entering cooldown for ${cooldownSec}s. No retries.`);
-          const cooldownErr = new Error(`Spotify API rate limited for ${rawRetry}s — entering cooldown`);
-          cooldownErr.isRateLimitCooldown = true;
-          throw cooldownErr;
-        }
-
-        // Short rate limit (≤5 min) — wait and retry
-        const retryAfter = Math.max(rawRetry, 2 ** attempt * 2);
-        console.log(`[Spotify] Rate limited, waiting ${retryAfter}s (attempt ${attempt + 1}/3)`);
-        await new Promise(r => setTimeout(r, retryAfter * 1000));
-        continue;
+        const rawRetry = parseInt(err.response?.headers?.['retry-after']) || 30;
+        // Cap cooldown at 1 hour max
+        const cooldownSec = Math.min(rawRetry, 3600);
+        rateLimitedUntil = Date.now() + cooldownSec * 1000;
+        console.log(`[Spotify] 429 Rate limited on ${url}. Retry-After: ${rawRetry}s. Entering cooldown for ${cooldownSec}s. No retries.`);
+        const cooldownErr = new Error(`Spotify API rate limited for ${rawRetry}s — entering cooldown`);
+        cooldownErr.isRateLimitCooldown = true;
+        throw cooldownErr;
       }
 
       // Token expired mid-request — clear cache and retry once
@@ -149,11 +159,11 @@ async function apiGet(url, params = {}) {
       throw err;
     }
   }
-  throw new Error('Spotify API request failed after 3 retries');
+  throw new Error('Spotify API request failed after retries');
 }
 
 // ==============================
-// Core API methods (all use apiGet for retry/backoff)
+// Core API methods (all use apiGet)
 // ==============================
 
 async function searchArtist(query) {
@@ -167,23 +177,22 @@ async function getArtist(artistId) {
   return await apiGet(`https://api.spotify.com/v1/artists/${artistId}`);
 }
 
-async function getArtistsBatch(artistIds) {
-  const results = [];
-  for (let i = 0; i < artistIds.length; i += 50) {
-    const chunk = artistIds.slice(i, i + 50);
-    const data = await apiGet('https://api.spotify.com/v1/artists', {
-      ids: chunk.join(','),
-    });
-    results.push(...(data.artists || []));
+/**
+ * Safe wrapper around getArtist — returns null instead of throwing on 403/404.
+ * Use this when you want to gracefully skip unavailable artists.
+ */
+async function getArtistSafe(artistId) {
+  try {
+    return await getArtist(artistId);
+  } catch (err) {
+    const status = err.response?.status;
+    if (status === 403 || status === 404) {
+      console.log(`[Spotify] getArtistSafe: ${status} for artist ${artistId}, returning null`);
+      return null;
+    }
+    // Re-throw rate limit and other errors
+    throw err;
   }
-  return results;
-}
-
-async function getArtistTopTracks(artistId, market = 'US') {
-  const data = await apiGet(`https://api.spotify.com/v1/artists/${artistId}/top-tracks`, {
-    market,
-  });
-  return data.tracks;
 }
 
 async function getArtistAlbums(artistId) {
@@ -213,7 +222,6 @@ async function getArtistStats(artistId) {
       name: artist.name,
       image: artist.images?.[0]?.url || null,
       followers: artist.followers?.total || 0,
-      popularity: artist.popularity || 0,
       genres: artist.genres || [],
       topTracks: [], // Top tracks endpoint removed in Dev Mode (Feb 2026)
       totalAlbums: albums.length,
@@ -243,7 +251,6 @@ async function getFullArtistData(artistId) {
       name: artist.name,
       image: artist.images?.[0]?.url || null,
       followers: artist.followers?.total || 0,
-      popularity: artist.popularity || 0,
       genres: artist.genres || [],
       url: artist.external_urls?.spotify,
       topTracks: [], // Top tracks endpoint removed in Dev Mode (Feb 2026)
@@ -395,11 +402,12 @@ module.exports = {
   isValidSpotifyId,
   extractArtistId,
   isInCooldown,
+  isRateLimited,
+  hasValidToken,
   getAccessToken,
   searchArtist,
   getArtist,
-  getArtistsBatch,
-  getArtistTopTracks,
+  getArtistSafe,
   getArtistAlbums,
   getAlbumTracks,
   getArtistStats,

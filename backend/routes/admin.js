@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../services/db');
 const spotify = require('../services/spotify');
 const emailService = require('../services/email');
-const { syncSingleArtist } = require('../services/scheduler');
+const { syncSingleArtist, runSync, isSyncInProgress } = require('../services/scheduler');
 
 const router = express.Router();
 
@@ -125,8 +125,8 @@ router.post('/users/:id/approve', requireAdmin, async (req, res) => {
       select: { id: true, status: true, artistName: true, profileSlug: true, spotifyId: true },
     });
 
-    // Sync releases from Spotify in the background
-    if (user.spotifyId) {
+    // Sync releases from Spotify in the background (if not rate limited)
+    if (user.spotifyId && !spotify.isRateLimited()) {
       syncSingleArtist(user).catch(err =>
         console.error(`Post-approval sync failed for ${user.artistName}:`, err.message)
       );
@@ -520,111 +520,29 @@ router.get('/stats', requireAdmin, async (req, res) => {
   }
 });
 
-// Sync releases from Spotify to database
+// Sync releases from Spotify to database — delegates to scheduler
 router.post('/sync-releases', requireAdmin, async (req, res) => {
   try {
-    // Check Spotify cooldown before making any API calls
+    // Check if sync is already running
+    if (isSyncInProgress()) {
+      return res.status(409).json({ error: 'Sync already in progress. Please wait for it to complete.' });
+    }
+
+    // Check Spotify cooldown
     const cooldown = spotify.isInCooldown();
     if (cooldown.cooldown) {
       return res.status(503).json({ error: `Spotify API in cooldown (${cooldown.remainingSec}s remaining). Wait and try again.` });
     }
 
-    console.log('Starting releases sync...');
-
-    // Get all approved artists with Spotify IDs
-    const artists = await prisma.user.findMany({
-      where: {
-        status: 'APPROVED',
-        role: 'ARTIST',
-        spotifyId: { not: null },
-      },
-      select: {
-        id: true,
-        artistName: true,
-        profileSlug: true,
-        spotifyId: true,
-      },
-    });
-
-    console.log(`Syncing releases for ${artists.length} artists`);
-
-    let totalAdded = 0;
-    let totalFailed = 0;
-    const errors = [];
-
-    // Fetch releases from Spotify for each artist (apiGet handles retries)
-    for (const artist of artists) {
-      try {
-        const albums = await spotify.getArtistAlbums(artist.spotifyId);
-
-        if (albums && albums.length > 0) {
-          for (const album of albums) {
-            const releaseData = {
-              id: album.id,
-              name: album.name,
-              type: album.album_type === 'album' ? 'Album' : album.album_type === 'single' ? 'Single' : 'EP',
-              image: album.images?.[0]?.url || null,
-              releaseDate: album.release_date || null,
-              spotifyUrl: album.external_urls?.spotify || null,
-              artistId: artist.id,
-              artistName: artist.artistName,
-              artistSlug: artist.profileSlug,
-            };
-
-            await prisma.release.upsert({
-              where: { id: album.id },
-              create: releaseData,
-              update: {
-                name: releaseData.name,
-                type: releaseData.type,
-                image: releaseData.image,
-                releaseDate: releaseData.releaseDate,
-                spotifyUrl: releaseData.spotifyUrl,
-                artistName: releaseData.artistName,
-                artistSlug: releaseData.artistSlug,
-              },
-            });
-
-            totalAdded++;
-          }
-        }
-        console.log(`Synced ${albums?.length || 0} releases for ${artist.artistName}`);
-      } catch (err) {
-        // Rate limit or cooldown — stop entire sync, don't burn more calls
-        if (err.isRateLimitCooldown || err.response?.status === 429) {
-          console.log(`[sync-releases] Rate limited — stopping sync. ${totalAdded} releases synced so far.`);
-          return res.json({
-            message: 'Sync stopped due to Spotify rate limiting',
-            processed: totalAdded,
-            failed: totalFailed,
-            totalReleases: await prisma.release.count(),
-            errors: errors.length > 0 ? errors : undefined,
-            rateLimitMessage: 'Spotify rate limit hit. Remaining artists will sync on next scheduled cycle.',
-          });
-        }
-
-        console.error(`Failed to sync releases for ${artist.artistName}:`, err.message);
-        errors.push({ artistName: artist.artistName, error: err.message });
-        totalFailed++;
-      }
-
-      // 2s delay between artists
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-
-    const totalReleases = await prisma.release.count();
-    console.log(`Sync complete: ${totalAdded} releases processed, ${totalFailed} failed`);
+    // Trigger scheduler sync in background — don't block the response
+    runSync();
 
     res.json({
-      message: 'Releases sync complete',
-      processed: totalAdded,
-      failed: totalFailed,
-      totalReleases,
-      errors: errors.length > 0 ? errors : undefined,
+      message: 'Sync started in background. The scheduler will process artists in chunks.',
     });
   } catch (error) {
     console.error('Sync releases error:', error);
-    res.status(500).json({ error: 'Failed to sync releases', details: error.message });
+    res.status(500).json({ error: 'Failed to start sync', details: error.message });
   }
 });
 
