@@ -202,14 +202,14 @@ async function getArtistSafe(artistId) {
 
 async function getArtistAlbums(artistId) {
   const data = await apiGet(`https://api.spotify.com/v1/artists/${artistId}/albums`, {
-    include_groups: 'album,single', limit: 50,
+    include_groups: 'album,single', limit: 20,
   });
   return data.items;
 }
 
 async function getAlbumTracks(albumId) {
   const data = await apiGet(`https://api.spotify.com/v1/albums/${albumId}/tracks`, {
-    limit: 50,
+    limit: 20,
   });
   return data.items;
 }

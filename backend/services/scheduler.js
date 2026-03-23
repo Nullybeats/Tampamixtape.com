@@ -499,18 +499,20 @@ async function start() {
       update: {},
     });
 
-    // On startup, re-enable artists that were quarantined (they may have been wrongly disabled)
+    // On startup, re-enable artists that were quarantined due to "Invalid limit" bug
+    // (they had valid IDs, just a bad API parameter)
     const reEnabled = await prisma.user.updateMany({
       where: {
         status: 'APPROVED',
         role: 'ARTIST',
         spotifyId: { not: null },
         syncEnabled: false,
+        lastSyncError: { contains: 'Invalid limit' },
       },
-      data: { syncEnabled: true, syncFailCount: 0 },
+      data: { syncEnabled: true, syncFailCount: 0, lastSyncError: null },
     });
     if (reEnabled.count > 0) {
-      console.log(`[Scheduler] Re-enabled ${reEnabled.count} previously quarantined artists`);
+      console.log(`[Scheduler] Re-enabled ${reEnabled.count} artists quarantined by Invalid limit bug`);
     }
 
     if (settings.autoSyncEnabled && settings.autoSyncIntervalMins > 0) {
