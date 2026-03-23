@@ -155,6 +155,11 @@ async function apiGet(url, params = {}) {
         continue;
       }
 
+      // Log full error body for debugging
+      if (status === 400) {
+        console.log(`[Spotify] 400 Bad Request for ${url}:`, JSON.stringify(err.response?.data));
+      }
+
       // Non-retryable error
       throw err;
     }

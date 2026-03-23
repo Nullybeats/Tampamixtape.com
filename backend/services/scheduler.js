@@ -161,7 +161,7 @@ async function syncSingleArtist(artist) {
 
     // Increment fail count, quarantine if threshold reached
     const newFailCount = (artist.syncFailCount || 0) + 1;
-    const shouldDisable = isBadRequestError(err) || newFailCount >= CIRCUIT_BREAKER_THRESHOLD;
+    const shouldDisable = newFailCount >= CIRCUIT_BREAKER_THRESHOLD;
 
     await prisma.user.update({
       where: { id: artist.id },
@@ -367,13 +367,23 @@ async function runSync() {
           break;
         }
 
-        // Bad request / not found — quarantine
+        // Bad request / not found — increment fail count, quarantine after threshold
         if (isBadRequestError(err)) {
+          const newFailCount = (artist.syncFailCount || 0) + 1;
+          const shouldQuarantine = newFailCount >= CIRCUIT_BREAKER_THRESHOLD;
           await prisma.user.update({
             where: { id: artist.id },
-            data: { syncEnabled: false, lastSyncError: err.message },
+            data: {
+              syncFailCount: newFailCount,
+              lastSyncError: `API returned ${err.response?.status}: ${JSON.stringify(err.response?.data || err.message)}`,
+              ...(shouldQuarantine && { syncEnabled: false }),
+            },
           });
-          console.log(`[Scheduler] Quarantined ${artist.artistName} - API returned ${err.response?.status}`);
+          if (shouldQuarantine) {
+            console.log(`[Scheduler] Quarantined ${artist.artistName} after ${newFailCount} consecutive 400s`);
+          } else {
+            console.log(`[Scheduler] ${artist.artistName} failed (${newFailCount}/${CIRCUIT_BREAKER_THRESHOLD}) - API returned ${err.response?.status}`);
+          }
         } else {
           // Other error — increment fail count
           const newFailCount = (artist.syncFailCount || 0) + 1;
@@ -488,6 +498,20 @@ async function start() {
       create: { id: 'app_settings' },
       update: {},
     });
+
+    // On startup, re-enable artists that were quarantined (they may have been wrongly disabled)
+    const reEnabled = await prisma.user.updateMany({
+      where: {
+        status: 'APPROVED',
+        role: 'ARTIST',
+        spotifyId: { not: null },
+        syncEnabled: false,
+      },
+      data: { syncEnabled: true, syncFailCount: 0 },
+    });
+    if (reEnabled.count > 0) {
+      console.log(`[Scheduler] Re-enabled ${reEnabled.count} previously quarantined artists`);
+    }
 
     if (settings.autoSyncEnabled && settings.autoSyncIntervalMins > 0) {
       const intervalMs = settings.autoSyncIntervalMins * 60 * 1000;
