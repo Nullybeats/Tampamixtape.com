@@ -7,10 +7,10 @@ let syncTimer = null;
 let syncInProgress = false; // Module-level lock for ALL sync entry points
 let cycleCount = 0; // Track cycles for metadata refresh cadence
 
-const CHUNK_SIZE = 10; // Artists per sync cycle (reduced for Dev Mode)
+const CHUNK_SIZE = 3; // Artists per sync cycle (conservative for Dev Mode rate limits)
 const CIRCUIT_BREAKER_THRESHOLD = 3; // Consecutive failures to quarantine
 const METADATA_REFRESH_INTERVAL = 12; // Every 12th cycle (~6 hours at 30min interval)
-const API_DELAY_MS = 3000; // 3 seconds between every Spotify API call
+const API_DELAY_MS = 5000; // 5 seconds between every Spotify API call
 
 // ==============================
 // Helpers
@@ -498,20 +498,6 @@ async function start() {
       create: { id: 'app_settings' },
       update: {},
     });
-
-    // Re-enable all quarantined artists — the "Invalid limit" bug wrongly disabled them all
-    const reEnabled = await prisma.user.updateMany({
-      where: {
-        status: 'APPROVED',
-        role: 'ARTIST',
-        spotifyId: { not: null },
-        syncEnabled: false,
-      },
-      data: { syncEnabled: true, syncFailCount: 0, lastSyncError: null },
-    });
-    if (reEnabled.count > 0) {
-      console.log(`[Scheduler] Re-enabled ${reEnabled.count} quarantined artists`);
-    }
 
     if (settings.autoSyncEnabled && settings.autoSyncIntervalMins > 0) {
       const intervalMs = settings.autoSyncIntervalMins * 60 * 1000;

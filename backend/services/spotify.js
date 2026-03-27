@@ -174,7 +174,7 @@ async function apiGet(url, params = {}) {
 
 async function searchArtist(query) {
   const data = await apiGet('https://api.spotify.com/v1/search', {
-    q: query, type: 'artist', limit: 5,
+    q: query, type: 'artist', limit: 3,
   });
   return data.artists.items;
 }
@@ -202,15 +202,27 @@ async function getArtistSafe(artistId) {
 }
 
 async function getArtistAlbums(artistId) {
-  const data = await apiGet(`https://api.spotify.com/v1/artists/${artistId}/albums`, {
-    include_groups: 'album,single', limit: 20,
-  });
-  return data.items;
+  const allItems = [];
+  let offset = 0;
+  const limit = 10; // Dev Mode max is 10
+
+  while (true) {
+    const data = await apiGet(`https://api.spotify.com/v1/artists/${artistId}/albums`, {
+      include_groups: 'album,single', limit, offset,
+    });
+    allItems.push(...data.items);
+
+    // Stop if we got everything or hit a safe cap (100 releases)
+    if (!data.next || allItems.length >= 100) break;
+    offset += limit;
+  }
+
+  return allItems;
 }
 
 async function getAlbumTracks(albumId) {
   const data = await apiGet(`https://api.spotify.com/v1/albums/${albumId}/tracks`, {
-    limit: 20,
+    limit: 10,
   });
   return data.items;
 }
