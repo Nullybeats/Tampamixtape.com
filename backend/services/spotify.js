@@ -139,10 +139,11 @@ async function apiGet(url, params = {}) {
       // Rate limited (429) — set global cooldown and abort immediately, NO retries
       if (status === 429) {
         const rawRetry = parseInt(err.response?.headers?.['retry-after']) || 30;
-        // Cap cooldown at 1 hour max
-        const cooldownSec = Math.min(rawRetry, 3600);
+        // Respect Spotify's Retry-After fully — capping just causes repeated 429s
+        const cooldownSec = rawRetry;
         rateLimitedUntil = Date.now() + cooldownSec * 1000;
-        console.log(`[Spotify] 429 Rate limited on ${url}. Retry-After: ${rawRetry}s. Entering cooldown for ${cooldownSec}s. No retries.`);
+        const hours = (cooldownSec / 3600).toFixed(1);
+        console.log(`[Spotify] 429 Rate limited on ${url}. Retry-After: ${rawRetry}s (~${hours}h). Entering cooldown for ${cooldownSec}s. No retries.`);
         const cooldownErr = new Error(`Spotify API rate limited for ${rawRetry}s — entering cooldown`);
         cooldownErr.isRateLimitCooldown = true;
         throw cooldownErr;
