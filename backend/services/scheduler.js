@@ -467,6 +467,17 @@ async function start() {
       update: {},
     });
 
+    // One-time cleanup: delete old Spotify releases (alphanumeric IDs with no Apple Music URL)
+    const legacyReleases = await prisma.release.deleteMany({
+      where: {
+        appleMusicUrl: null,
+        spotifyUrl: { not: null },
+      },
+    });
+    if (legacyReleases.count > 0) {
+      console.log(`[Scheduler] Cleaned up ${legacyReleases.count} legacy Spotify releases`);
+    }
+
     if (settings.autoSyncEnabled && settings.autoSyncIntervalMins > 0) {
       const intervalMs = settings.autoSyncIntervalMins * 60 * 1000;
       console.log(`[Scheduler] Auto-sync enabled, interval: ${settings.autoSyncIntervalMins} minutes`);
