@@ -289,4 +289,45 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get distinct genres in use (for filter dropdowns)
+router.get('/genres', async (req, res) => {
+  try {
+    const cacheKey = 'genres:list';
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const artists = await prisma.user.findMany({
+      where: {
+        status: 'APPROVED',
+        role: 'ARTIST',
+        genres: { not: null },
+      },
+      select: { genres: true },
+    });
+
+    // Parse comma-separated genres, count occurrences, sort by frequency
+    const genreCounts = {};
+    for (const artist of artists) {
+      if (!artist.genres) continue;
+      for (const g of artist.genres.split(',')) {
+        const trimmed = g.trim();
+        if (trimmed) {
+          genreCounts[trimmed] = (genreCounts[trimmed] || 0) + 1;
+        }
+      }
+    }
+
+    const genres = Object.entries(genreCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+
+    const result = { genres };
+    cache.set(cacheKey, result, 600); // Cache 10 min
+    res.json(result);
+  } catch (error) {
+    console.error('Get genres error:', error);
+    res.status(500).json({ error: 'Failed to get genres' });
+  }
+});
+
 module.exports = router;

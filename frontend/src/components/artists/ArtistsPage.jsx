@@ -32,20 +32,18 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
-// Common genres for filtering
-const GENRES = [
-  'All Genres',
-  'Hip Hop',
-  'R&B',
+// Fallback genres (used until API loads real ones)
+const FALLBACK_GENRES = [
+  'Hip-Hop/Rap',
+  'R&B/Soul',
   'Pop',
   'Rock',
+  'Alternative',
   'Electronic',
   'Latin',
   'Country',
   'Jazz',
-  'Soul',
   'Reggae',
-  'Alternative',
 ]
 
 const REGIONS = [
@@ -222,6 +220,19 @@ export function ArtistsPage() {
   const [region, setRegion] = useState('all')
   const [viewMode, setViewMode] = useState('grid')
   const [pagination, setPagination] = useState({ page: 1, limit: 24, total: 0, pages: 0 })
+  const [genreList, setGenreList] = useState(FALLBACK_GENRES)
+
+  // Fetch real genres from API
+  useEffect(() => {
+    fetch(`${API_URL}/api/artists/genres`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.genres?.length > 0) {
+          setGenreList(data.genres.map(g => g.name))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const fetchArtists = async (page = 1) => {
     setLoading(true)
@@ -349,8 +360,9 @@ export function ArtistsPage() {
                 <SelectValue placeholder="Genre" />
               </SelectTrigger>
               <SelectContent>
-                {GENRES.map((g) => (
-                  <SelectItem key={g} value={g === 'All Genres' ? 'all' : g}>
+                <SelectItem value="all">All Genres</SelectItem>
+                {genreList.map((g) => (
+                  <SelectItem key={g} value={g}>
                     {g}
                   </SelectItem>
                 ))}
