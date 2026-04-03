@@ -514,7 +514,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2 pb-4">
+            <div className="flex flex-wrap gap-2 pb-4">
               {isOwnProfile && (
                 <Button
                   variant="outline"
