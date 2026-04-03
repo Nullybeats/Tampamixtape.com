@@ -102,57 +102,58 @@ export function DiscoverySection({ releases: propReleases }) {
             )}
           </div>
 
-          {/* Features List */}
+          {/* Features Card */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             className="lg:sticky lg:top-24"
           >
-            <Card className="p-8">
-              <h3 className="text-2xl font-bold mb-6">Never Miss a Drop</h3>
-              <div className="space-y-6">
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-1">Real-Time Updates</h4>
-                    <p className="text-sm text-muted-foreground">
-                      See the latest releases from Tampa Bay artists as they drop.
-                    </p>
-                  </div>
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card to-primary/5">
+              {/* Decorative background */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/3 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
+
+              <div className="relative p-8">
+                <h3 className="font-display text-3xl font-bold uppercase tracking-tight mb-2">
+                  Never Miss<br />a Drop
+                </h3>
+                <p className="text-sm text-muted-foreground mb-8">
+                  Stay locked in with Tampa Bay's music scene.
+                </p>
+
+                {/* Feature pills */}
+                <div className="space-y-3 mb-8">
+                  {[
+                    { icon: TrendingUp, label: 'Real-time release tracking', color: 'text-primary' },
+                    { icon: Disc3, label: 'Powered by Apple Music', color: 'text-primary' },
+                    { icon: Sparkles, label: 'Tampa & St. Pete artists only', color: 'text-primary' },
+                  ].map((feature, i) => {
+                    const Icon = feature.icon
+                    return (
+                      <motion.div
+                        key={feature.label}
+                        initial={{ opacity: 0, x: 20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.1 + i * 0.1 }}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Icon className={`w-4 h-4 ${feature.color}`} />
+                        </div>
+                        <span className="text-sm font-medium">{feature.label}</span>
+                      </motion.div>
+                    )
+                  })}
                 </div>
 
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <Disc3 className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-1">Powered by Apple Music</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Direct integration with Apple Music for accurate release data and streaming links.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-1">Local Talent First</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Focused exclusively on artists from the Tampa Bay and St. Pete area.
-                    </p>
-                  </div>
-                </div>
-
-                <Button className="w-full mt-4" size="lg" onClick={() => navigate('/releases')}>
+                <Button className="w-full gap-2" size="lg" onClick={() => navigate('/releases')}>
+                  <Disc3 className="w-4 h-4" />
                   Browse All Releases
                 </Button>
               </div>
-            </Card>
+            </div>
           </motion.div>
         </div>
       </div>
