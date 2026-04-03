@@ -161,6 +161,55 @@ app.listen(PORT, async () => {
     console.error('[Migration] Error:', error.message);
   }
 
+  // One-time genre sync from Apple Music (runs if artists have appleMusicId but no genres)
+  try {
+    const prisma = require('./services/db');
+    const appleMusic = require('./services/applemusic');
+
+    const needsGenres = await prisma.user.findMany({
+      where: {
+        role: 'ARTIST',
+        status: 'APPROVED',
+        appleMusicId: { not: null },
+        genresLocked: false,
+        OR: [{ genres: null }, { genres: '' }],
+      },
+      select: { id: true, artistName: true, appleMusicId: true },
+    });
+
+    if (needsGenres.length > 0 && process.env.APPLE_TEAM_ID) {
+      console.log(`[GenreSync] Updating genres for ${needsGenres.length} artists from Apple Music...`);
+      let updated = 0;
+      for (const artist of needsGenres) {
+        try {
+          const data = await appleMusic.getArtist(artist.appleMusicId);
+          await new Promise(r => setTimeout(r, 200));
+          if (data?.genres?.length > 0) {
+            const formatted = data.genres
+              .slice(0, 3)
+              .map(g => g.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' '))
+              .join(', ');
+            await prisma.user.update({
+              where: { id: artist.id },
+              data: { genres: formatted },
+            });
+            console.log(`[GenreSync] ✅ ${artist.artistName} → ${formatted}`);
+            updated++;
+          }
+        } catch (err) {
+          if (err.response?.status === 429) {
+            const wait = parseInt(err.response?.headers?.['retry-after']) || 30;
+            console.log(`[GenreSync] Rate limited, waiting ${wait}s...`);
+            await new Promise(r => setTimeout(r, wait * 1000));
+          }
+        }
+      }
+      console.log(`[GenreSync] Complete: ${updated}/${needsGenres.length} updated`);
+    }
+  } catch (error) {
+    console.error('[GenreSync] Error:', error.message);
+  }
+
   // Start the auto-sync scheduler
   try {
     const scheduler = require('./services/scheduler');
