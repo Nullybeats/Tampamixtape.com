@@ -58,12 +58,11 @@ function TrendingArtistCard({ artist, rank, index }) {
       </div>
 
       <div className="text-right hidden sm:block">
-        <div className="flex items-center gap-1 text-sm font-mono font-medium text-primary">
-          <TrendingUp className="w-4 h-4" />
-          {artist.popularity}
+        <div className="font-mono text-lg font-bold text-primary">
+          {artist.demandScore || 0}
         </div>
-        <p className="text-xs font-mono text-muted-foreground">
-          {formatNumber(artist.followers)} followers
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          {artist.demandScoreTier || 'score'}
         </p>
       </div>
 
@@ -125,7 +124,7 @@ export function TrendingSection({ artists: propArtists, releases: propReleases }
       type: 'trending',
       artistName: artist.artistName,
       message: `is trending in Tampa #${idx + 1}`,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString().split('T')[0],
       image: artist.avatar,
       profileSlug: artist.profileSlug,
     }))

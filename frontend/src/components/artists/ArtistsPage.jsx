@@ -114,13 +114,13 @@ function ArtistListItem({ artist, index }) {
 
             {/* Stats */}
             <div className="hidden sm:flex items-center gap-6 text-sm text-muted-foreground">
-              {artist.popularity > 0 && (
+              {(artist.demandScore > 0 || artist.popularity > 0) && (
                 <div className="text-center">
                   <div className="font-mono font-medium text-foreground flex items-center gap-1">
                     <TrendingUp className="w-3 h-3 text-primary" />
-                    {artist.popularity}
+                    {artist.demandScore || artist.popularity}
                   </div>
-                  <div className="text-xs uppercase tracking-wider">popularity</div>
+                  <div className="text-xs uppercase tracking-wider">demand</div>
                 </div>
               )}
               {artist.followers > 0 && (
@@ -178,11 +178,11 @@ function ArtistGridItem({ artist, index }) {
                 View Profile
               </Button>
             </div>
-            {/* Popularity badge */}
-            {artist.popularity > 0 && (
+            {/* Demand Score badge */}
+            {artist.demandScore > 0 && (
               <Badge className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm font-mono">
                 <TrendingUp className="w-3 h-3 mr-1" />
-                {artist.popularity}
+                {artist.demandScore}
               </Badge>
             )}
           </div>

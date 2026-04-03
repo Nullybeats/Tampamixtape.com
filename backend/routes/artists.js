@@ -245,7 +245,7 @@ router.get('/', async (req, res) => {
         orderBy = { createdAt: 'asc' };
         break;
       case 'popular':
-        orderBy = [{ followers: 'desc' }];
+        orderBy = [{ demandScore: 'desc' }, { followers: 'desc' }];
         break;
       case 'followers':
         orderBy = { followers: 'desc' };
@@ -271,6 +271,8 @@ router.get('/', async (req, res) => {
           region: true,
           popularity: true,
           followers: true,
+          demandScore: true,
+          demandScoreTier: true,
           createdAt: true,
         },
       }),
