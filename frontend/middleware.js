@@ -88,10 +88,10 @@ function generateOGResponse({ artistName, bio, image, pageUrl }) {
   })
 }
 
-// Handle /artist/:spotifyId routes
-async function handleArtistPage(spotifyId) {
+// Handle /artist/:appleMusicId routes
+async function handleArtistPage(appleMusicId) {
   try {
-    const response = await fetch(`${API_URL}/api/artists/spotify/${spotifyId}/full`, {
+    const response = await fetch(`${API_URL}/api/artists/apple-music/${appleMusicId}/full`, {
       headers: { 'Accept': 'application/json' }
     })
 
@@ -102,9 +102,9 @@ async function handleArtistPage(spotifyId) {
 
     return generateOGResponse({
       artistName: artist.name,
-      bio: null, // Spotify-only artists don't have bios
+      bio: null,
       image: artist.image,
-      pageUrl: `https://tampamixtape.com/artist/${spotifyId}`,
+      pageUrl: `https://tampamixtape.com/artist/${appleMusicId}`,
     })
   } catch (error) {
     console.error('Artist page middleware error:', error.message)
@@ -149,8 +149,8 @@ export default async function middleware(request) {
   const url = new URL(request.url)
   const pathname = url.pathname
 
-  // Handle /artist/:spotifyId routes (Spotify ID is 22 alphanumeric chars)
-  const artistRouteMatch = pathname.match(/^\/artist\/([a-zA-Z0-9]{22})$/)
+  // Handle /artist/:appleMusicId routes (Apple Music IDs are numeric strings)
+  const artistRouteMatch = pathname.match(/^\/artist\/(\d+)$/)
   if (artistRouteMatch) {
     return handleArtistPage(artistRouteMatch[1])
   }

@@ -69,9 +69,7 @@ export function Footer({ adSettings: propAdSettings }) {
   }
 
   const socialLinks = [
-    { name: 'Twitter', icon: Twitter, href: '#' },
-    { name: 'Instagram', icon: Instagram, href: '#' },
-    { name: 'YouTube', icon: Youtube, href: '#' },
+    { name: 'Instagram', icon: Instagram, href: 'https://instagram.com/tampamixtape' },
   ]
 
   // Determine which image to show
