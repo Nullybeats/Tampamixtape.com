@@ -144,8 +144,8 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
         }
       } else {
         const release = searchResults.releases[selectedIndex - searchResults.artists.length]
-        if (release.spotifyUrl) {
-          window.open(release.spotifyUrl, '_blank')
+        if (release.appleMusicUrl) {
+          window.open(release.appleMusicUrl, '_blank')
         }
       }
       setSearchOpen(false)
@@ -156,8 +156,8 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
   const handleResultClick = (type, item) => {
     if (type === 'artist' && item.profileSlug) {
       navigate(`/${item.profileSlug}`)
-    } else if (type === 'release' && item.spotifyUrl) {
-      window.open(item.spotifyUrl, '_blank')
+    } else if (type === 'release' && item.appleMusicUrl) {
+      window.open(item.appleMusicUrl, '_blank')
     }
     setSearchOpen(false)
     setSearchQuery('')

@@ -47,8 +47,8 @@ const getSampleCreators = () => [
       appleMusic: '',
       website: '',
     },
-    connectedPlatforms: { spotify: true, apple: false, soundcloud: true, youtube: true },
-    spotifyArtistId: null,
+    connectedPlatforms: { appleMusic: true, apple: false, soundcloud: true, youtube: true },
+    appleMusicArtistId: null,
     events: [],
   },
   {
@@ -76,8 +76,8 @@ const getSampleCreators = () => [
       appleMusic: '',
       website: 'https://baycitybeats.com',
     },
-    connectedPlatforms: { spotify: true, apple: true, soundcloud: false, youtube: false },
-    spotifyArtistId: null,
+    connectedPlatforms: { appleMusic: true, apple: true, soundcloud: false, youtube: false },
+    appleMusicArtistId: null,
     events: [
       {
         id: 'event-bcb-1',
@@ -117,8 +117,8 @@ const getSampleCreators = () => [
       appleMusic: '',
       website: '',
     },
-    connectedPlatforms: { spotify: false, apple: false, soundcloud: false, youtube: false },
-    spotifyArtistId: null,
+    connectedPlatforms: { appleMusic: false, apple: false, soundcloud: false, youtube: false },
+    appleMusicArtistId: null,
     events: [],
   },
   {
@@ -146,8 +146,8 @@ const getSampleCreators = () => [
       appleMusic: '',
       website: '',
     },
-    connectedPlatforms: { spotify: true, apple: false, soundcloud: false, youtube: false },
-    spotifyArtistId: null,
+    connectedPlatforms: { appleMusic: true, apple: false, soundcloud: false, youtube: false },
+    appleMusicArtistId: null,
     events: [],
   },
 ]
@@ -157,10 +157,6 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [creators, setCreators] = useState([])
-  // Spotify OAuth state
-  const [spotifyUser, setSpotifyUser] = useState(null)
-  const [spotifyArtist, setSpotifyArtist] = useState(null)
-  const [spotifyConnecting, setSpotifyConnecting] = useState(false)
 
   // Fetch current user from API using token
   const fetchCurrentUser = async (authToken) => {
@@ -217,11 +213,11 @@ export function AuthProvider({ children }) {
   }
 
   // Check if artist already exists
-  const isArtistRegistered = (artistName, spotifyArtistId = null) => {
+  const isArtistRegistered = (artistName, appleMusicArtistId = null) => {
     const normalizedName = artistName.toLowerCase().trim()
     return creators.some(creator => {
-      // Check by Spotify ID if available
-      if (spotifyArtistId && creator.spotifyArtistId === spotifyArtistId) {
+      // Check by Apple Music ID if available
+      if (appleMusicArtistId && creator.appleMusicArtistId === appleMusicArtistId) {
         return true
       }
       // Check by name (case-insensitive)
@@ -229,19 +225,19 @@ export function AuthProvider({ children }) {
     })
   }
 
-  // Search Spotify for artists via backend
-  const searchSpotifyArtists = async (query) => {
+  // Search for artists via backend
+  const searchArtists = async (query) => {
     if (!query) return []
     try {
-      const response = await fetch(`${API_URL}/api/spotify/search?q=${encodeURIComponent(query)}`)
+      const response = await fetch(`${API_URL}/api/music/search?q=${encodeURIComponent(query)}`)
       if (!response.ok) {
-        console.error('Spotify search failed:', response.status)
+        console.error('Artist search failed:', response.status)
         return []
       }
       const data = await response.json()
       return data.artists || []
     } catch (error) {
-      console.error('Error searching Spotify artists:', error)
+      console.error('Error searching artists:', error)
       return []
     }
   }
@@ -262,9 +258,9 @@ export function AuthProvider({ children }) {
           password: userData.password,
           name: userData.name,
           artistName: userData.artistName,
-          // Include Spotify data if provided
-          ...(userData.spotifyId && { spotifyId: userData.spotifyId }),
-          ...(userData.spotifyUrl && { spotifyUrl: userData.spotifyUrl }),
+          // Include Apple Music data if provided
+          ...(userData.appleMusicId && { appleMusicId: userData.appleMusicId }),
+          ...(userData.appleMusicUrl && { appleMusicUrl: userData.appleMusicUrl }),
           ...(userData.avatar && { avatar: userData.avatar }),
         }),
       })
@@ -427,7 +423,7 @@ export function AuthProvider({ children }) {
   // Admin: Add a new creator
   const addCreatorByAdmin = (creatorData) => {
     // Check for duplicate
-    if (isArtistRegistered(creatorData.artistName, creatorData.spotifyArtistId)) {
+    if (isArtistRegistered(creatorData.artistName, creatorData.appleMusicArtistId)) {
       throw new Error('This artist is already registered on TampaMixtape')
     }
 
@@ -455,14 +451,12 @@ export function AuthProvider({ children }) {
         website: '',
       },
       connectedPlatforms: {
-        spotify: !!creatorData.spotifyArtistId,
+        appleMusic: !!creatorData.appleMusicArtistId,
         apple: false,
         soundcloud: false,
         youtube: false,
       },
-      spotifyId: null,
-      spotifyArtistId: creatorData.spotifyArtistId || null,
-      spotifyProfile: null,
+      appleMusicArtistId: creatorData.appleMusicArtistId || null,
       settings: {
         profileVisible: true,
         showStats: true,
@@ -604,72 +598,6 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // ===========================================
-  // Spotify OAuth Methods
-  // ===========================================
-
-  // Initiate Spotify OAuth login flow
-  const loginWithSpotify = async (returnTo = '/') => {
-    try {
-      setSpotifyConnecting(true)
-      const redirectUri = `${window.location.origin}/callback`
-      const response = await fetch(
-        `${API_URL}/api/spotify/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}&return_to=${encodeURIComponent(returnTo)}`
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to initiate Spotify login')
-      }
-
-      const data = await response.json()
-
-      if (data.authUrl) {
-        // Store state in sessionStorage for validation
-        sessionStorage.setItem('spotify_oauth_state', data.state)
-        // Redirect to Spotify
-        window.location.href = data.authUrl
-      } else {
-        throw new Error('Failed to get authorization URL')
-      }
-    } catch (error) {
-      console.error('Spotify login error:', error)
-      setSpotifyConnecting(false)
-      throw error
-    }
-  }
-
-  // Handle Spotify callback data (called from SpotifyCallback page)
-  const handleSpotifyCallback = (spotifyData) => {
-    if (spotifyData.spotifyProfile) {
-      setSpotifyUser(spotifyData.spotifyProfile)
-    }
-    if (spotifyData.artistData) {
-      setSpotifyArtist(spotifyData.artistData)
-    }
-    setSpotifyConnecting(false)
-    return spotifyData
-  }
-
-  // Clear Spotify connection state
-  const clearSpotifyConnection = () => {
-    setSpotifyUser(null)
-    setSpotifyArtist(null)
-    setSpotifyConnecting(false)
-    sessionStorage.removeItem('spotify_oauth_state')
-  }
-
-  // Get avatar URL from Spotify data (artist image preferred, then user profile)
-  const getSpotifyAvatar = () => {
-    if (spotifyArtist?.image) {
-      return spotifyArtist.image
-    }
-    if (spotifyUser?.images?.[0]?.url) {
-      return spotifyUser.images[0].url
-    }
-    return null
-  }
-
   const value = {
     user,
     token,
@@ -700,7 +628,7 @@ export function AuthProvider({ children }) {
     checkFollowStatus,
     getFollowingArtists,
     // Admin functions
-    searchSpotifyArtists,
+    searchArtists,
     isArtistRegistered,
     addCreatorByAdmin,
     updateCreatorByAdmin,
@@ -708,14 +636,6 @@ export function AuthProvider({ children }) {
     approveCreatorByAdmin,
     rejectCreatorByAdmin,
     getCreatorBySlug,
-    // Spotify OAuth
-    spotifyUser,
-    spotifyArtist,
-    spotifyConnecting,
-    loginWithSpotify,
-    handleSpotifyCallback,
-    clearSpotifyConnection,
-    getSpotifyAvatar,
   }
 
   return (

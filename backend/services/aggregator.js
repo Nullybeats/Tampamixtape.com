@@ -1,5 +1,5 @@
 const NodeCache = require('node-cache');
-const spotify = require('./spotify');
+const appleMusic = require('./applemusic');
 const youtube = require('./youtube');
 const lastfm = require('./lastfm');
 
@@ -13,31 +13,30 @@ function formatNumber(num) {
   return num.toString();
 }
 
-async function getAggregatedStats(artistName, spotifyId = null) {
-  const cacheKey = `artist:${artistName.toLowerCase()}:${spotifyId || 'auto'}`;
+async function getAggregatedStats(artistName, appleMusicId = null) {
+  const cacheKey = `artist:${artistName.toLowerCase()}:${appleMusicId || 'auto'}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     return { ...cached, cached: true };
   }
 
   // Fetch from all platforms in parallel
-  const [spotifyData, youtubeData, lastfmData] = await Promise.allSettled([
-    spotifyId
-      ? spotify.getArtistStats(spotifyId)
-      : spotify.searchArtist(artistName).then(artists =>
-          artists[0] ? spotify.getArtistStats(artists[0].id) : null
+  const [appleMusicData, youtubeData, lastfmData] = await Promise.allSettled([
+    appleMusicId
+      ? appleMusic.getArtistStats(appleMusicId)
+      : appleMusic.searchArtist(artistName).then(artists =>
+          artists[0] ? appleMusic.getArtistStats(artists[0].id) : null
         ),
     youtube.getArtistYouTubeStats(artistName),
     lastfm.getArtistStats(artistName),
   ]);
 
-  const spotifyStats = spotifyData.status === 'fulfilled' ? spotifyData.value : null;
+  const appleMusicStats = appleMusicData.status === 'fulfilled' ? appleMusicData.value : null;
   const youtubeStats = youtubeData.status === 'fulfilled' ? youtubeData.value : null;
   const lastfmStats = lastfmData.status === 'fulfilled' ? lastfmData.value : null;
 
   // Calculate totals
   const totalReach = {
-    spotifyFollowers: spotifyStats?.followers || 0,
     youtubeSubscribers: youtubeStats?.subscribers || 0,
     youtubeViews: youtubeStats?.totalChannelViews || 0,
     lastfmListeners: lastfmStats?.listeners || 0,
@@ -45,25 +44,22 @@ async function getAggregatedStats(artistName, spotifyId = null) {
   };
 
   const grandTotal =
-    totalReach.spotifyFollowers +
     totalReach.youtubeSubscribers +
     totalReach.youtubeViews +
     totalReach.lastfmListeners;
 
   const result = {
     artist: {
-      name: spotifyStats?.name || lastfmStats?.name || artistName,
-      image: spotifyStats?.image || lastfmStats?.image || youtubeStats?.topVideos?.[0]?.thumbnail,
-      genres: spotifyStats?.genres || lastfmStats?.tags || [],
+      name: appleMusicStats?.name || lastfmStats?.name || artistName,
+      image: appleMusicStats?.image || lastfmStats?.image || youtubeStats?.topVideos?.[0]?.thumbnail,
+      genres: appleMusicStats?.genres || lastfmStats?.tags || [],
     },
     platforms: {
-      spotify: spotifyStats ? {
+      appleMusic: appleMusicStats ? {
         available: true,
-        followers: spotifyStats.followers,
-        followersFormatted: formatNumber(spotifyStats.followers),
-        popularity: spotifyStats.popularity,
-        topTracks: spotifyStats.topTracks,
-        url: spotifyStats.url,
+        genres: appleMusicStats.genres,
+        totalAlbums: appleMusicStats.totalAlbums,
+        url: appleMusicStats.url,
       } : { available: false },
 
       youtube: youtubeStats && !youtubeStats.error ? {
@@ -87,8 +83,8 @@ async function getAggregatedStats(artistName, spotifyId = null) {
       } : { available: false },
     },
     totals: {
-      followers: totalReach.spotifyFollowers + totalReach.youtubeSubscribers,
-      followersFormatted: formatNumber(totalReach.spotifyFollowers + totalReach.youtubeSubscribers),
+      followers: totalReach.youtubeSubscribers,
+      followersFormatted: formatNumber(totalReach.youtubeSubscribers),
       views: totalReach.youtubeViews,
       viewsFormatted: formatNumber(totalReach.youtubeViews),
       plays: totalReach.lastfmPlays,
@@ -107,9 +103,9 @@ async function getAggregatedStats(artistName, spotifyId = null) {
 }
 
 async function getMultipleArtistsStats(artists) {
-  // artists is an array of { name, spotifyId? }
+  // artists is an array of { name, appleMusicId? }
   const results = await Promise.allSettled(
-    artists.map(artist => getAggregatedStats(artist.name, artist.spotifyId))
+    artists.map(artist => getAggregatedStats(artist.name, artist.appleMusicId))
   );
 
   return results.map((result, index) => ({
@@ -121,28 +117,27 @@ async function getMultipleArtistsStats(artists) {
 }
 
 async function searchArtists(query) {
-  const [spotifyResults, lastfmResults] = await Promise.allSettled([
-    spotify.searchArtist(query),
+  const [appleMusicResults, lastfmResults] = await Promise.allSettled([
+    appleMusic.searchArtist(query),
     lastfm.searchArtist(query),
   ]);
 
-  const spotifyArtists = spotifyResults.status === 'fulfilled' ? spotifyResults.value : [];
+  const appleMusicArtists = appleMusicResults.status === 'fulfilled' ? appleMusicResults.value : [];
   const lastfmArtists = lastfmResults.status === 'fulfilled' ? lastfmResults.value : [];
 
   // Merge and dedupe results
   const seen = new Set();
   const merged = [];
 
-  for (const artist of spotifyArtists) {
+  for (const artist of appleMusicArtists) {
     const key = artist.name.toLowerCase();
     if (!seen.has(key)) {
       seen.add(key);
       merged.push({
         name: artist.name,
-        spotifyId: artist.id,
-        image: artist.images?.[0]?.url,
-        followers: artist.followers?.total || 0,
-        source: 'spotify',
+        appleMusicId: artist.id,
+        image: artist.artwork,
+        source: 'apple_music',
       });
     }
   }

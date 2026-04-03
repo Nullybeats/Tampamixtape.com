@@ -163,7 +163,7 @@ export function AdminDashboard() {
   const [settings, setSettings] = useState({
     allowRegistration: true,
     requireApproval: true,
-    allowSpotifyConnect: true,
+    allowAppleMusicConnect: true,
     maintenanceMode: false,
     siteName: 'TampaMixtape',
     siteDescription: 'Tampa Bay Music Analytics Platform',
@@ -172,77 +172,77 @@ export function AdminDashboard() {
     defaultUserRole: 'USER',
   })
 
-  // Spotify linking state for edit user dialog
-  const [spotifyUrlInput, setSpotifyUrlInput] = useState('')
-  const [spotifyLoading, setSpotifyLoading] = useState(false)
-  const [spotifyPreview, setSpotifyPreview] = useState(null)
+  // Apple Music linking state for edit user dialog
+  const [appleMusicUrlInput, setAppleMusicUrlInput] = useState('')
+  const [appleMusicLoading, setAppleMusicLoading] = useState(false)
+  const [appleMusicPreview, setAppleMusicPreview] = useState(null)
 
-  // Fetch Spotify artist preview
-  const handleSpotifyPreview = async () => {
-    if (!spotifyUrlInput.trim()) {
-      toast.error('Please enter a Spotify artist URL')
+  // Fetch Apple Music artist preview
+  const handleAppleMusicPreview = async () => {
+    if (!appleMusicUrlInput.trim()) {
+      toast.error('Please enter an Apple Music artist URL')
       return
     }
 
-    setSpotifyLoading(true)
-    setSpotifyPreview(null)
+    setAppleMusicLoading(true)
+    setAppleMusicPreview(null)
 
     try {
-      const response = await fetch(`${API_URL}/api/spotify/artist?url=${encodeURIComponent(spotifyUrlInput)}`)
+      const response = await fetch(`${API_URL}/api/music/artist?url=${encodeURIComponent(appleMusicUrlInput)}`)
       const data = await response.json()
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch artist')
       }
 
-      setSpotifyPreview(data)
+      setAppleMusicPreview(data)
     } catch (error) {
       toast.error('Could not find artist', {
         description: error.message || 'Please check the URL and try again',
       })
     } finally {
-      setSpotifyLoading(false)
+      setAppleMusicLoading(false)
     }
   }
 
-  // Link Spotify to user (admin action) - stages change for save
-  const handleAdminSpotifyLink = async () => {
-    if (!spotifyPreview || !selectedUser) return
+  // Link Apple Music to user (admin action) - stages change for save
+  const handleAdminAppleMusicLink = async () => {
+    if (!appleMusicPreview || !selectedUser) return
 
-    setSpotifyLoading(true)
+    setAppleMusicLoading(true)
     try {
       // Stage the changes locally - will be saved when "Save Changes" is clicked
       const updatedUser = {
         ...selectedUser,
-        spotifyId: spotifyPreview.id,
-        spotifyUrl: spotifyPreview.url,
+        appleMusicId: appleMusicPreview.id,
+        appleMusicUrl: appleMusicPreview.url,
       }
       setSelectedUser(updatedUser)
-      setSpotifyPreview(null)
-      setSpotifyUrlInput('')
+      setAppleMusicPreview(null)
+      setAppleMusicUrlInput('')
 
-      toast.info('Spotify linked', {
+      toast.info('Apple Music linked', {
         description: 'Click "Save Changes" to apply.',
       })
     } catch (error) {
-      toast.error('Failed to link Spotify', {
+      toast.error('Failed to link Apple Music', {
         description: error.message,
       })
     } finally {
-      setSpotifyLoading(false)
+      setAppleMusicLoading(false)
     }
   }
 
-  // Clear Spotify from user (admin action) - stages change for save
-  const handleAdminSpotifyUnlink = () => {
+  // Clear Apple Music from user (admin action) - stages change for save
+  const handleAdminAppleMusicUnlink = () => {
     if (!selectedUser) return
     const updatedUser = {
       ...selectedUser,
-      spotifyId: null,
-      spotifyUrl: null,
+      appleMusicId: null,
+      appleMusicUrl: null,
     }
     setSelectedUser(updatedUser)
-    toast.info('Spotify unlinked', {
+    toast.info('Apple Music unlinked', {
       description: 'Click "Save Changes" to apply.',
     })
   }
@@ -284,7 +284,7 @@ export function AdminDashboard() {
     }
   }
 
-  // Refresh all artist data from Spotify (popularity, followers, genres)
+  // Refresh all artist data from Apple Music (popularity, followers, genres)
   const handleRefreshArtistData = async () => {
     setIsRefreshingArtists(true)
     try {
@@ -303,11 +303,11 @@ export function AdminDashboard() {
 
       if (data.updated === 0) {
         toast.info('No artists to update', {
-          description: 'No artists with Spotify IDs found.',
+          description: 'No artists with Apple Music IDs found.',
         })
       } else {
         toast.success(`Updated ${data.updated} artist${data.updated > 1 ? 's' : ''}`, {
-          description: `Popularity, followers, and genres refreshed from Spotify.${data.failed > 0 ? ` (${data.failed} failed)` : ''}`,
+          description: `Popularity, followers, and genres refreshed from Apple Music.${data.failed > 0 ? ` (${data.failed} failed)` : ''}`,
         })
         // Refresh users list to see updated data
         fetchUsers(pagination.page)
@@ -321,7 +321,7 @@ export function AdminDashboard() {
     }
   }
 
-  // Sync releases from Spotify to database
+  // Sync releases from Apple Music to database
   const handleSyncReleases = async () => {
     setIsSyncingReleases(true)
     try {
@@ -367,12 +367,12 @@ export function AdminDashboard() {
     }
   }
 
-  // Reset Spotify state when dialog closes
+  // Reset Apple Music state when dialog closes
   const handleEditDialogChange = (open) => {
     setShowEditUser(open)
     if (!open) {
-      setSpotifyUrlInput('')
-      setSpotifyPreview(null)
+      setAppleMusicUrlInput('')
+      setAppleMusicPreview(null)
     }
   }
 
@@ -388,7 +388,7 @@ export function AdminDashboard() {
   // Preview artist for Add Artist dialog
   const handleAddArtistPreview = async () => {
     if (!addArtistUrl.trim()) {
-      toast.error('Please enter a Spotify artist URL')
+      toast.error('Please enter an Apple Music artist URL')
       return
     }
 
@@ -396,7 +396,7 @@ export function AdminDashboard() {
     setAddArtistPreview(null)
 
     try {
-      const response = await fetch(`${API_URL}/api/spotify/artist?url=${encodeURIComponent(addArtistUrl)}`)
+      const response = await fetch(`${API_URL}/api/music/artist?url=${encodeURIComponent(addArtistUrl)}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -413,19 +413,19 @@ export function AdminDashboard() {
     }
   }
 
-  // Create artist from Spotify URL
-  const handleCreateArtistFromSpotify = async () => {
+  // Create artist from Apple Music URL
+  const handleCreateArtistFromAppleMusic = async () => {
     if (!addArtistPreview) return
 
     setAddArtistLoading(true)
     try {
-      const response = await fetch(`${API_URL}/api/admin/users/create-from-spotify`, {
+      const response = await fetch(`${API_URL}/api/admin/users/create-from-apple-music`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ spotifyUrl: addArtistUrl }),
+        body: JSON.stringify({ appleMusicUrl: addArtistUrl }),
       })
 
       const data = await response.json()
@@ -867,7 +867,7 @@ export function AdminDashboard() {
     }
   }
 
-  // Save all user changes (role, status, spotify)
+  // Save all user changes (role, status, apple music)
   const handleSaveUser = async () => {
     if (!selectedUser) return
 
@@ -885,8 +885,8 @@ export function AdminDashboard() {
         body: JSON.stringify({
           role: selectedUser.role,
           status: selectedUser.status,
-          spotifyId: selectedUser.spotifyId,
-          spotifyUrl: selectedUser.spotifyUrl,
+          appleMusicId: selectedUser.appleMusicId,
+          appleMusicUrl: selectedUser.appleMusicUrl,
           region: selectedUser.region,
           genres: selectedUser.genres,
           instagramUrl: selectedUser.instagramUrl,
@@ -921,8 +921,8 @@ export function AdminDashboard() {
         const changes = []
         if (originalUser.role !== selectedUser.role) changes.push(`role → ${selectedUser.role}`)
         if (originalUser.status !== selectedUser.status) changes.push(`status → ${selectedUser.status}`)
-        if (originalUser.spotifyId !== selectedUser.spotifyId) {
-          changes.push(selectedUser.spotifyId ? 'Spotify linked' : 'Spotify unlinked')
+        if (originalUser.appleMusicId !== selectedUser.appleMusicId) {
+          changes.push(selectedUser.appleMusicId ? 'Apple Music linked' : 'Apple Music unlinked')
         }
         if (originalUser.region !== selectedUser.region) changes.push(`region → ${selectedUser.region}`)
         if (originalUser.genres !== selectedUser.genres) changes.push('genres updated')
@@ -1390,18 +1390,16 @@ export function AdminDashboard() {
                               </div>
                               {/* Social Links Preview */}
                               <div className="flex items-center gap-2 mt-2">
-                                {u.spotifyUrl && (
+                                {u.appleMusicUrl && (
                                   <a
-                                    href={u.spotifyUrl}
+                                    href={u.appleMusicUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-green-400 hover:text-green-300 transition-colors"
+                                    className="text-pink-400 hover:text-pink-300 transition-colors"
                                     onClick={(e) => e.stopPropagation()}
-                                    title="Spotify"
+                                    title="Apple Music"
                                   >
-                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                                      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                                    </svg>
+                                    <Music className="w-4 h-4" />
                                   </a>
                                 )}
                                 {u.instagramUrl && (
@@ -1825,12 +1823,12 @@ export function AdminDashboard() {
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                     <div>
-                      <p className="font-medium">Spotify Connect</p>
-                      <p className="text-sm text-muted-foreground">Allow Spotify OAuth</p>
+                      <p className="font-medium">Apple Music Connect</p>
+                      <p className="text-sm text-muted-foreground">Allow Apple Music OAuth</p>
                     </div>
                     <Switch
-                      checked={settings.allowSpotifyConnect}
-                      onCheckedChange={(checked) => setSettings({ ...settings, allowSpotifyConnect: checked })}
+                      checked={settings.allowAppleMusicConnect}
+                      onCheckedChange={(checked) => setSettings({ ...settings, allowAppleMusicConnect: checked })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1880,13 +1878,13 @@ export function AdminDashboard() {
                     />
                   </div>
 
-                  {/* Refresh Artist Data from Spotify */}
+                  {/* Refresh Artist Data from Apple Music */}
                   <div className="pt-4 border-t border-border">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">Refresh Artist Data</p>
                         <p className="text-sm text-muted-foreground">
-                          Update popularity, followers, genres & avatars from Spotify for all artists
+                          Update popularity, followers, genres & avatars from Apple Music for all artists
                         </p>
                       </div>
                       <Button
@@ -1946,7 +1944,7 @@ export function AdminDashboard() {
                       <div>
                         <p className="font-medium">Sync Releases</p>
                         <p className="text-sm text-muted-foreground">
-                          Fetch all releases from Spotify and store in database (survives server restarts)
+                          Fetch all releases from Apple Music and store in database (survives server restarts)
                         </p>
                       </div>
                       <Button
@@ -1975,9 +1973,9 @@ export function AdminDashboard() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium">Auto-Sync Spotify</p>
+                          <p className="font-medium">Auto-Sync Apple Music</p>
                           <p className="text-sm text-muted-foreground">
-                            Automatically sync artist data and releases from Spotify
+                            Automatically sync artist data and releases from Apple Music
                           </p>
                         </div>
                         <Switch
@@ -2178,7 +2176,7 @@ export function AdminDashboard() {
                 Edit User
               </DialogTitle>
               <DialogDescription>
-                Update user role, status, region, genres, links, and Spotify profile
+                Update user role, status, region, genres, links, and Apple Music profile
               </DialogDescription>
             </DialogHeader>
 
@@ -2337,28 +2335,26 @@ export function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Spotify Profile Section */}
+                {/* Apple Music Profile Section */}
                 <div className="space-y-3 pt-4 border-t border-border">
                   <Label className="flex items-center gap-2">
-                    <svg viewBox="0 0 24 24" fill="#1DB954" className="w-4 h-4">
-                      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                    </svg>
-                    Spotify Artist Profile
+                    <Music className="w-4 h-4 text-pink-500" />
+                    Apple Music Artist Profile
                   </Label>
 
-                  {selectedUser.spotifyId ? (
-                    <div className="p-3 rounded-lg border border-green-500/30 bg-green-500/5">
+                  {selectedUser.appleMusicId ? (
+                    <div className="p-3 rounded-lg border border-pink-500/30 bg-pink-500/5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-green-400" />
-                          <span className="text-sm">Linked: {selectedUser.spotifyId}</span>
+                          <CheckCircle2 className="w-4 h-4 text-pink-400" />
+                          <span className="text-sm">Linked: {selectedUser.appleMusicId}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {selectedUser.spotifyUrl && (
+                          {selectedUser.appleMusicUrl && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(selectedUser.spotifyUrl, '_blank')}
+                              onClick={() => window.open(selectedUser.appleMusicUrl, '_blank')}
                               className="h-8 w-8 p-0"
                             >
                               <ExternalLink className="w-3 h-3" />
@@ -2367,7 +2363,7 @@ export function AdminDashboard() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={handleAdminSpotifyUnlink}
+                            onClick={handleAdminAppleMusicUnlink}
                             className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
                           >
                             <Unplug className="w-3 h-3" />
@@ -2379,17 +2375,17 @@ export function AdminDashboard() {
                     <>
                       <div className="flex gap-2">
                         <Input
-                          value={spotifyUrlInput}
-                          onChange={(e) => setSpotifyUrlInput(e.target.value)}
-                          placeholder="https://open.spotify.com/artist/..."
+                          value={appleMusicUrlInput}
+                          onChange={(e) => setAppleMusicUrlInput(e.target.value)}
+                          placeholder="https://music.apple.com/artist/..."
                           className="flex-1"
                         />
                         <Button
-                          onClick={handleSpotifyPreview}
-                          disabled={spotifyLoading || !spotifyUrlInput.trim()}
+                          onClick={handleAppleMusicPreview}
+                          disabled={appleMusicLoading || !appleMusicUrlInput.trim()}
                           size="sm"
                         >
-                          {spotifyLoading ? (
+                          {appleMusicLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <Search className="w-4 h-4" />
@@ -2397,13 +2393,13 @@ export function AdminDashboard() {
                         </Button>
                       </div>
 
-                      {spotifyPreview && (
+                      {appleMusicPreview && (
                         <div className="p-3 rounded-lg border border-border bg-secondary/30">
                           <div className="flex items-center gap-3">
-                            {spotifyPreview.image ? (
+                            {appleMusicPreview.image ? (
                               <img
-                                src={spotifyPreview.image}
-                                alt={spotifyPreview.name}
+                                src={appleMusicPreview.image}
+                                alt={appleMusicPreview.name}
                                 className="w-12 h-12 rounded object-cover"
                               />
                             ) : (
@@ -2412,16 +2408,16 @@ export function AdminDashboard() {
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{spotifyPreview.name}</p>
+                              <p className="font-medium truncate">{appleMusicPreview.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {spotifyPreview.followers?.toLocaleString()} followers
+                                {appleMusicPreview.followers?.toLocaleString()} followers
                               </p>
                             </div>
                             <Button
-                              onClick={handleAdminSpotifyLink}
-                              disabled={spotifyLoading}
+                              onClick={handleAdminAppleMusicLink}
+                              disabled={appleMusicLoading}
                               size="sm"
-                              className="gap-1 bg-[#1DB954] hover:bg-[#1ed760]"
+                              className="gap-1 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600"
                             >
                               <Plug className="w-3 h-3" />
                               Link
@@ -2474,29 +2470,29 @@ export function AdminDashboard() {
           </DialogContent>
         </Dialog>
 
-        {/* Add Artist from Spotify Dialog */}
+        {/* Add Artist from Apple Music Dialog */}
         <Dialog open={showAddArtist} onOpenChange={handleAddArtistDialogChange}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-primary" />
-                Add Artist from Spotify
+                Add Artist from Apple Music
               </DialogTitle>
               <DialogDescription>
-                Create a new artist profile by entering their Spotify URL. The profile will be auto-populated with their Spotify data.
+                Create a new artist profile by entering their Apple Music URL. The profile will be auto-populated with their Apple Music data.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              {/* Spotify URL Input */}
+              {/* Apple Music URL Input */}
               <div className="space-y-2">
-                <Label htmlFor="addArtistUrl">Spotify Artist URL</Label>
+                <Label htmlFor="addArtistUrl">Apple Music Artist URL</Label>
                 <div className="flex gap-2">
                   <Input
                     id="addArtistUrl"
                     value={addArtistUrl}
                     onChange={(e) => setAddArtistUrl(e.target.value)}
-                    placeholder="https://open.spotify.com/artist/..."
+                    placeholder="https://music.apple.com/artist/..."
                     className="flex-1"
                   />
                   <Button
@@ -2575,9 +2571,9 @@ export function AdminDashboard() {
                 Cancel
               </Button>
               <Button
-                onClick={handleCreateArtistFromSpotify}
+                onClick={handleCreateArtistFromAppleMusic}
                 disabled={!addArtistPreview || addArtistLoading}
-                className="gap-2 bg-[#1DB954] hover:bg-[#1ed760]"
+                className="gap-2 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600"
               >
                 {addArtistLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -2816,17 +2812,15 @@ export function AdminDashboard() {
                   <div>
                     <p className="text-xs text-muted-foreground mb-2">Social Links</p>
                     <div className="space-y-2">
-                      {selectedPendingUser.spotifyUrl && (
+                      {selectedPendingUser.appleMusicUrl && (
                         <a
-                          href={selectedPendingUser.spotifyUrl}
+                          href={selectedPendingUser.appleMusicUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm text-green-400 hover:text-green-300 transition-colors"
+                          className="flex items-center gap-2 text-sm text-pink-400 hover:text-pink-300 transition-colors"
                         >
-                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                          </svg>
-                          Spotify Profile
+                          <Music className="w-4 h-4" />
+                          Apple Music Profile
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
@@ -2892,18 +2886,18 @@ export function AdminDashboard() {
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
-                      {!selectedPendingUser.spotifyUrl && !selectedPendingUser.instagramUrl && !selectedPendingUser.twitterUrl && !selectedPendingUser.youtubeUrl && !selectedPendingUser.tiktokUrl && !selectedPendingUser.websiteUrl && (
+                      {!selectedPendingUser.appleMusicUrl && !selectedPendingUser.instagramUrl && !selectedPendingUser.twitterUrl && !selectedPendingUser.youtubeUrl && !selectedPendingUser.tiktokUrl && !selectedPendingUser.websiteUrl && (
                         <p className="text-sm text-muted-foreground italic">No social links provided</p>
                       )}
                     </div>
                   </div>
 
-                  {/* Spotify Stats */}
+                  {/* Apple Music Stats */}
                   {(selectedPendingUser.followers > 0 || selectedPendingUser.popularity > 0) && (
                     <div className="grid grid-cols-2 gap-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                       {selectedPendingUser.followers > 0 && (
                         <div>
-                          <p className="text-xs text-muted-foreground">Spotify Followers</p>
+                          <p className="text-xs text-muted-foreground">Apple Music Followers</p>
                           <p className="text-sm font-medium text-green-400">{selectedPendingUser.followers.toLocaleString()}</p>
                         </div>
                       )}

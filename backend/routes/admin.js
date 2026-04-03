@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const prisma = require('../services/db');
-const spotify = require('../services/spotify');
+const appleMusic = require('../services/applemusic');
 const emailService = require('../services/email');
 const { syncSingleArtist, runSync, isSyncInProgress } = require('../services/scheduler');
 
@@ -89,7 +89,8 @@ router.get('/users', requireAdmin, async (req, res) => {
           genres: true,
           popularity: true,
           followers: true,
-          spotifyId: true,
+          appleMusicId: true,
+          appleMusicUrl: true,
           instagramUrl: true,
           twitterUrl: true,
           youtubeUrl: true,
@@ -122,11 +123,11 @@ router.post('/users/:id/approve', requireAdmin, async (req, res) => {
     const user = await prisma.user.update({
       where: { id: req.params.id },
       data: { status: 'APPROVED' },
-      select: { id: true, status: true, artistName: true, profileSlug: true, spotifyId: true },
+      select: { id: true, status: true, artistName: true, profileSlug: true, appleMusicId: true },
     });
 
-    // Sync releases from Spotify in the background (if not rate limited)
-    if (user.spotifyId && !spotify.isRateLimited()) {
+    // Sync releases from Apple Music in the background
+    if (user.appleMusicId) {
       syncSingleArtist(user).catch(err =>
         console.error(`Post-approval sync failed for ${user.artistName}:`, err.message)
       );
@@ -174,14 +175,14 @@ router.patch('/users/:id/role', requireAdmin, async (req, res) => {
   }
 });
 
-// Comprehensive user update (role, status, spotify, region, genres, links)
+// Comprehensive user update (role, status, apple music, region, genres, links)
 router.patch('/users/:id', requireAdmin, async (req, res) => {
   try {
     const {
       role,
       status,
-      spotifyId,
-      spotifyUrl,
+      appleMusicId,
+      appleMusicUrl,
       region,
       genres,
       instagramUrl,
@@ -221,21 +222,21 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
       updateData.genres = genres;
     }
 
-    // Set Spotify fields (can be null to unlink)
-    if (spotifyId !== undefined) {
-      if (spotifyId !== null && spotifyId !== '' && !spotify.isValidSpotifyId(spotifyId)) {
-        return res.status(400).json({ error: 'Invalid Spotify ID format. Must be 22 alphanumeric characters.' });
+    // Set Apple Music fields (can be null to unlink)
+    if (appleMusicId !== undefined) {
+      if (appleMusicId !== null && appleMusicId !== '' && !appleMusic.isValidAppleMusicId(appleMusicId)) {
+        return res.status(400).json({ error: 'Invalid Apple Music ID format. Must be a numeric string.' });
       }
-      updateData.spotifyId = spotifyId || null;
-      // Reset sync state when Spotify ID changes
-      if (spotifyId) {
+      updateData.appleMusicId = appleMusicId || null;
+      // Reset sync state when Apple Music ID changes
+      if (appleMusicId) {
         updateData.syncEnabled = true;
         updateData.syncFailCount = 0;
         updateData.lastSyncError = null;
       }
     }
-    if (spotifyUrl !== undefined) {
-      updateData.spotifyUrl = spotifyUrl;
+    if (appleMusicUrl !== undefined) {
+      updateData.appleMusicUrl = appleMusicUrl;
     }
 
     // Set social link fields (can be null to remove)
@@ -273,8 +274,8 @@ router.patch('/users/:id', requireAdmin, async (req, res) => {
         status: true,
         region: true,
         genres: true,
-        spotifyId: true,
-        spotifyUrl: true,
+        appleMusicId: true,
+        appleMusicUrl: true,
         instagramUrl: true,
         twitterUrl: true,
         youtubeUrl: true,
@@ -301,25 +302,25 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// Create artist from Spotify URL (managed profile)
-router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
+// Create artist from Apple Music URL (managed profile)
+router.post('/users/create-from-apple-music', requireAdmin, async (req, res) => {
   try {
-    const { spotifyUrl } = req.body;
+    const { appleMusicUrl } = req.body;
 
     // Validate input
-    if (!spotifyUrl) {
-      return res.status(400).json({ error: 'Spotify URL is required' });
+    if (!appleMusicUrl) {
+      return res.status(400).json({ error: 'Apple Music URL is required' });
     }
 
     // Extract artist ID from URL
-    const artistId = spotify.extractArtistId(spotifyUrl);
+    const artistId = appleMusic.extractArtistId(appleMusicUrl);
     if (!artistId) {
-      return res.status(400).json({ error: 'Invalid Spotify URL format' });
+      return res.status(400).json({ error: 'Invalid Apple Music URL format' });
     }
 
     // Check if artist already exists
     const existingUser = await prisma.user.findFirst({
-      where: { spotifyId: artistId },
+      where: { appleMusicId: artistId },
     });
     if (existingUser) {
       return res.status(409).json({
@@ -332,21 +333,25 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
       });
     }
 
-    // Fetch artist data from Spotify
-    let spotifyData;
+    // Fetch artist data from Apple Music
+    let artistData;
     try {
-      spotifyData = await spotify.getFullArtistData(artistId);
-    } catch (spotifyError) {
-      console.error('Spotify fetch error:', spotifyError.message);
-      return res.status(404).json({ error: 'Artist not found on Spotify' });
+      artistData = await appleMusic.getFullArtistData(artistId);
+    } catch (fetchError) {
+      console.error('Apple Music fetch error:', fetchError.message);
+      return res.status(404).json({ error: 'Artist not found on Apple Music' });
+    }
+
+    if (!artistData) {
+      return res.status(404).json({ error: 'Artist not found on Apple Music' });
     }
 
     // Generate profile slug from artist name (no dashes, just lowercase alphanumeric)
-    let baseSlug = spotifyData.name
+    let baseSlug = artistData.name
       .toLowerCase()
-      .replace(/[^a-z0-9]/g, ''); // Remove everything except letters and numbers
+      .replace(/[^a-z0-9]/g, '');
 
-    // Fallback if slug is empty (artist name had no alphanumeric chars)
+    // Fallback if slug is empty
     if (!baseSlug) {
       baseSlug = `artist${artistId.substring(0, 8)}`;
     }
@@ -360,20 +365,20 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
     }
 
     // Generate placeholder email (for managed profiles)
-    const placeholderEmail = `${artistId}@managed.tampamixtape.local`;
+    const placeholderEmail = `am${artistId}@managed.tampamixtape.local`;
 
     // Create the managed profile
     const user = await prisma.user.create({
       data: {
         email: placeholderEmail,
-        password: null, // Managed profile - no login
-        artistName: spotifyData.name,
+        password: null,
+        artistName: artistData.name,
         profileSlug,
-        avatar: spotifyData.image,
+        avatar: artistData.image,
         role: 'ARTIST',
         status: 'APPROVED',
-        spotifyId: artistId,
-        spotifyUrl: spotifyData.url,
+        appleMusicId: artistId,
+        appleMusicUrl: artistData.url,
       },
       select: {
         id: true,
@@ -383,14 +388,14 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
         avatar: true,
         role: true,
         status: true,
-        spotifyId: true,
-        spotifyUrl: true,
+        appleMusicId: true,
+        appleMusicUrl: true,
         createdAt: true,
       },
     });
 
-    // Sync releases from Spotify in the background
-    if (user.spotifyId) {
+    // Sync releases from Apple Music in the background
+    if (user.appleMusicId) {
       syncSingleArtist(user).catch(err =>
         console.error(`Post-creation sync failed for ${user.artistName}:`, err.message)
       );
@@ -399,16 +404,14 @@ router.post('/users/create-from-spotify', requireAdmin, async (req, res) => {
     res.status(201).json({
       message: 'Artist profile created',
       user,
-      spotifyData: {
-        name: spotifyData.name,
-        followers: spotifyData.followers,
-        genres: spotifyData.genres,
-        image: spotifyData.image,
+      artistData: {
+        name: artistData.name,
+        genres: artistData.genres,
+        image: artistData.image,
       },
     });
   } catch (error) {
-    console.error('Create artist from Spotify error:', error);
-    // Return more detailed error for debugging
+    console.error('Create artist from Apple Music error:', error);
     const errorMessage = error.code === 'P2002'
       ? 'Artist with this email or profile already exists'
       : error.message || 'Failed to create artist profile';
@@ -520,18 +523,12 @@ router.get('/stats', requireAdmin, async (req, res) => {
   }
 });
 
-// Sync releases from Spotify to database — delegates to scheduler
+// Sync releases from Apple Music to database — delegates to scheduler
 router.post('/sync-releases', requireAdmin, async (req, res) => {
   try {
     // Check if sync is already running
     if (isSyncInProgress()) {
       return res.status(409).json({ error: 'Sync already in progress. Please wait for it to complete.' });
-    }
-
-    // Check Spotify cooldown
-    const cooldown = spotify.isInCooldown();
-    if (cooldown.cooldown) {
-      return res.status(503).json({ error: `Spotify API in cooldown (${cooldown.remainingSec}s remaining). Wait and try again.` });
     }
 
     // Trigger scheduler sync in background — don't block the response
@@ -831,15 +828,15 @@ router.post('/claims/:id/approve', requireAdmin, async (req, res) => {
           email: true,
           artistName: true,
           profileSlug: true,
-          spotifyId: true,
+          appleMusicId: true,
         },
       });
 
       return { claim: updatedClaim, profile: updatedProfile };
     });
 
-    // Sync releases from Spotify in the background
-    if (result.profile.spotifyId) {
+    // Sync releases from Apple Music in the background
+    if (result.profile.appleMusicId) {
       syncSingleArtist(result.profile).catch(err =>
         console.error(`Post-claim sync failed for ${result.profile.artistName}:`, err.message)
       );
@@ -960,7 +957,7 @@ router.get('/artists/sync-status', requireAdmin, async (req, res) => {
 
     const where = {
       role: 'ARTIST',
-      spotifyId: { not: null },
+      appleMusicId: { not: null },
     };
 
     if (filter === 'quarantined') {
@@ -986,7 +983,7 @@ router.get('/artists/sync-status', requireAdmin, async (req, res) => {
       select: {
         id: true,
         artistName: true,
-        spotifyId: true,
+        appleMusicId: true,
         syncEnabled: true,
         syncFailCount: true,
         lastSyncedAt: true,
@@ -997,7 +994,7 @@ router.get('/artists/sync-status', requireAdmin, async (req, res) => {
 
     // Summary counts
     const allArtists = await prisma.user.findMany({
-      where: { role: 'ARTIST', spotifyId: { not: null } },
+      where: { role: 'ARTIST', appleMusicId: { not: null } },
       select: { syncEnabled: true, syncFailCount: true, lastSyncedAt: true },
     });
 
@@ -1029,7 +1026,7 @@ router.post('/artists/:id/reset-sync', requireAdmin, async (req, res) => {
       select: {
         id: true,
         artistName: true,
-        spotifyId: true,
+        appleMusicId: true,
         syncEnabled: true,
       },
     });

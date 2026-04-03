@@ -1,6 +1,6 @@
 const express = require('express');
 const prisma = require('../services/db');
-const spotify = require('../services/spotify');
+const appleMusic = require('../services/applemusic');
 const events = require('../services/events');
 
 const router = express.Router();
@@ -20,8 +20,8 @@ router.get('/:slug', async (req, res) => {
         avatar: true,
         role: true,
         status: true,
-        spotifyId: true,
-        spotifyUrl: true,
+        appleMusicId: true,
+        appleMusicUrl: true,
         region: true,
         genres: true,
         instagramUrl: true,
@@ -42,13 +42,13 @@ router.get('/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Fetch Spotify data and events in parallel for performance
+    // Fetch Apple Music data and events in parallel for performance
     const artistName = user.artistName;
-    const [spotifyData, eventsData] = await Promise.all([
-      // Spotify data
-      user.spotifyId
-        ? spotify.getFullArtistData(user.spotifyId).catch(err => {
-            console.error('Failed to fetch Spotify data:', err.message);
+    const [artistData, eventsData] = await Promise.all([
+      // Apple Music data
+      user.appleMusicId
+        ? appleMusic.getFullArtistData(user.appleMusicId).catch(err => {
+            console.error('Failed to fetch Apple Music data:', err.message);
             return null;
           })
         : Promise.resolve(null),
@@ -63,7 +63,7 @@ router.get('/:slug', async (req, res) => {
 
     res.json({
       profile: user,
-      spotifyData,
+      artistData,
       events: eventsData,
     });
   } catch (error) {

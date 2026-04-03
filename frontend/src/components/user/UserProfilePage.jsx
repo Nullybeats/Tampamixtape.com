@@ -58,11 +58,6 @@ const socialIcons = {
   instagram: Instagram,
   twitter: Twitter,
   youtube: Youtube,
-  spotify: () => (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-    </svg>
-  ),
   tiktok: () => (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
       <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
@@ -85,7 +80,7 @@ const socialLabels = {
   instagram: 'Instagram',
   twitter: 'X (Twitter)',
   youtube: 'YouTube',
-  spotify: 'Spotify',
+  appleMusic: 'Apple Music',
   tiktok: 'TikTok',
   soundcloud: 'SoundCloud',
   appleMusic: 'Apple Music',
@@ -124,7 +119,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const { playTrack, currentTrack, isPlaying } = useAudioPlayer()
   const [copied, setCopied] = useState(false)
   const [fetchedProfile, setFetchedProfile] = useState(null)
-  const [spotifyData, setSpotifyData] = useState(null)
+  const [appleMusicData, setAppleMusicData] = useState(null)
   const [eventsData, setEventsData] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -141,7 +136,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   useEffect(() => {
     if (isOwnProfile || !profileSlug) {
       setFetchedProfile(null)
-      setSpotifyData(null)
+      setAppleMusicData(null)
       setEventsData([])
       setSinglesVisible(12)
       return
@@ -158,7 +153,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
         }
         const data = await response.json()
         setFetchedProfile(data.profile)
-        setSpotifyData(data.spotifyData)
+        setAppleMusicData(data.artistData)
         setEventsData(data.events || [])
       } catch (err) {
         console.error('Failed to fetch profile:', err)
@@ -206,8 +201,8 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           // Determine which profile to check
           const targetProfile = isOwnProfile ? user : fetchedProfile
 
-          if (targetProfile?.spotifyId) {
-            const artistIndex = artists.findIndex(a => a.spotifyId === targetProfile.spotifyId)
+          if (targetProfile?.appleMusicId) {
+            const artistIndex = artists.findIndex(a => a.appleMusicId === targetProfile.appleMusicId)
             if (artistIndex !== -1) {
               setRankingData({
                 rank: artistIndex + 1,
@@ -240,15 +235,15 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
     const fetchSimilarArtists = async () => {
       // Determine which profile to check
       const targetProfile = isOwnProfile ? user : fetchedProfile
-      const targetSpotifyData = isOwnProfile ? null : spotifyData
+      const targetAppleMusicData = isOwnProfile ? null : appleMusicData
 
-      // Get genres from profile or Spotify data
+      // Get genres from profile or Apple Music data
       const profileGenres = targetProfile?.genres || []
-      const spotifyGenres = targetSpotifyData?.genres || []
-      const allGenres = [...new Set([...profileGenres, ...spotifyGenres])]
+      const appleMusicGenres = targetAppleMusicData?.genres || []
+      const allGenres = [...new Set([...profileGenres, ...appleMusicGenres])]
         .map(g => g.toLowerCase())
 
-      if (allGenres.length === 0 && !targetProfile?.spotifyId) {
+      if (allGenres.length === 0 && !targetProfile?.appleMusicId) {
         setSimilarArtists([])
         return
       }
@@ -263,7 +258,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           const similar = artists
             .filter(a => {
               // Exclude current artist
-              if (a.spotifyId && a.spotifyId === targetProfile?.spotifyId) return false
+              if (a.appleMusicId && a.appleMusicId === targetProfile?.appleMusicId) return false
               if (a.id === targetProfile?.id) return false
               return true
             })
@@ -287,10 +282,10 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
     }
 
     // Only fetch if we have profile data
-    if ((isOwnProfile && user) || (fetchedProfile && spotifyData)) {
+    if ((isOwnProfile && user) || (fetchedProfile && appleMusicData)) {
       fetchSimilarArtists()
     }
-  }, [isOwnProfile, user, fetchedProfile, spotifyData])
+  }, [isOwnProfile, user, fetchedProfile, appleMusicData])
 
   // Check follow status for public profiles
   useEffect(() => {
@@ -382,7 +377,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
     ...(profileData.instagramUrl && { instagram: profileData.instagramUrl }),
     ...(profileData.twitterUrl && { twitter: profileData.twitterUrl }),
     ...(profileData.websiteUrl && { website: profileData.websiteUrl }),
-    ...(profileData.spotifyUrl && { spotify: profileData.spotifyUrl }),
+    ...(profileData.appleMusicUrl && { appleMusic: profileData.appleMusicUrl }),
   }
 
   // Use socialLinks from profile data or construct from individual fields
@@ -424,10 +419,10 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               alt="Header"
               className="w-full h-full object-cover"
             />
-          ) : spotifyData?.latestReleases?.[0]?.image || profileImage ? (
+          ) : appleMusicData?.latestReleases?.[0]?.image || profileImage ? (
             <>
               <img
-                src={spotifyData?.latestReleases?.[0]?.image || profileImage}
+                src={appleMusicData?.latestReleases?.[0]?.image || profileImage}
                 alt="Header"
                 className="w-full h-full object-cover scale-110 blur-2xl opacity-60"
               />
@@ -489,10 +484,10 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   </p>
                 )}
 
-                {/* Genres - from Spotify data */}
-                {(spotifyData?.genres?.length > 0 || profileData.genres?.length > 0) && (
+                {/* Genres - from Apple Music data */}
+                {(appleMusicData?.genres?.length > 0 || profileData.genres?.length > 0) && (
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {(spotifyData?.genres || profileData.genres || []).map((genre) => (
+                    {(appleMusicData?.genres || profileData.genres || []).map((genre) => (
                       <Badge key={genre} variant="secondary" className="capitalize">
                         {genre}
                       </Badge>
@@ -661,7 +656,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             {/* Stats Cards */}
-            {spotifyData && (
+            {appleMusicData && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -676,7 +671,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                         </div>
                         <div>
                           <div className="text-2xl font-bold text-primary">
-                            {spotifyData.followers?.toLocaleString() || '0'}
+                            {appleMusicData.followers?.toLocaleString() || '0'}
                           </div>
                           <div className="text-sm text-muted-foreground">Followers</div>
                         </div>
@@ -733,7 +728,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                         </div>
                         <div>
                           <div className="text-2xl font-bold text-primary">
-                            {spotifyData.totalAlbums || 0}
+                            {appleMusicData.totalAlbums || 0}
                           </div>
                           <div className="text-sm text-muted-foreground">Albums</div>
                         </div>
@@ -755,7 +750,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                         </div>
                         <div>
                           <div className="text-2xl font-bold text-primary">
-                            {spotifyData.totalSingles || 0}
+                            {appleMusicData.totalSingles || 0}
                           </div>
                           <div className="text-sm text-muted-foreground">Singles</div>
                         </div>
@@ -767,7 +762,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
             )}
 
             {/* Popularity Chart */}
-            {spotifyData && (
+            {appleMusicData && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -779,7 +774,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   <div className="grid md:grid-cols-2 gap-6">
                     {/* Popularity Gauge */}
                     <div className="flex flex-col items-center">
-                      <h4 className="text-sm font-medium text-muted-foreground mb-4">Spotify Popularity Score</h4>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-4">Popularity Score</h4>
                       <div className="h-48 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <RadialBarChart
@@ -788,7 +783,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                             innerRadius="60%"
                             outerRadius="90%"
                             barSize={20}
-                            data={[{ name: 'Popularity', value: spotifyData.popularity, fill: '#22c55e' }]}
+                            data={[{ name: 'Popularity', value: appleMusicData.popularity, fill: '#22c55e' }]}
                             startAngle={180}
                             endAngle={0}
                           >
@@ -800,20 +795,20 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                           </RadialBarChart>
                         </ResponsiveContainer>
                         <div className="text-center -mt-20">
-                          <div className="text-4xl font-bold text-primary">{spotifyData.popularity}</div>
+                          <div className="text-4xl font-bold text-primary">{appleMusicData.popularity}</div>
                           <div className="text-sm text-muted-foreground">out of 100</div>
                         </div>
                       </div>
                     </div>
 
                     {/* Top Tracks Popularity */}
-                    {spotifyData.topTracks?.length > 0 && (
+                    {appleMusicData.topTracks?.length > 0 && (
                       <div>
                         <h4 className="text-sm font-medium text-muted-foreground mb-4">Top Tracks Popularity</h4>
                         <div className="h-48">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
-                              data={spotifyData.topTracks.slice(0, 5).map(t => ({
+                              data={appleMusicData.topTracks.slice(0, 5).map(t => ({
                                 name: t.name.length > 15 ? t.name.substring(0, 15) + '...' : t.name,
                                 popularity: t.popularity
                               }))}
@@ -824,7 +819,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                               <YAxis type="category" dataKey="name" width={100} stroke="#71717a" fontSize={11} />
                               <Tooltip content={<CustomTooltip />} />
                               <Bar dataKey="popularity" radius={[0, 4, 4, 0]}>
-                                {spotifyData.topTracks.slice(0, 5).map((_, index) => (
+                                {appleMusicData.topTracks.slice(0, 5).map((_, index) => (
                                   <Cell key={index} fill={index === 0 ? '#22c55e' : '#22c55e80'} />
                                 ))}
                               </Bar>
@@ -839,7 +834,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
             )}
 
             {/* Latest Release Highlight */}
-            {spotifyData?.latestReleases?.[0] && (
+            {appleMusicData?.latestReleases?.[0] && (
               <Card className="overflow-hidden">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -850,20 +845,20 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 <CardContent>
                   <div
                     className="flex flex-col md:flex-row items-center gap-6 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-transparent cursor-pointer hover:from-primary/20 transition-colors"
-                    onClick={() => window.open(spotifyData.latestReleases[0].url, '_blank')}
+                    onClick={() => window.open(appleMusicData.latestReleases[0].url, '_blank')}
                   >
                     <img
-                      src={spotifyData.latestReleases[0].image}
-                      alt={spotifyData.latestReleases[0].name}
+                      src={appleMusicData.latestReleases[0].image}
+                      alt={appleMusicData.latestReleases[0].name}
                       className="w-40 h-40 rounded-lg shadow-2xl"
                     />
                     <div className="flex-1 text-center md:text-left">
                       <Badge variant="outline" className="mb-2 capitalize">
-                        {spotifyData.latestReleases[0].type}
+                        {appleMusicData.latestReleases[0].type}
                       </Badge>
-                      <h3 className="text-2xl font-bold mb-2">{spotifyData.latestReleases[0].name}</h3>
+                      <h3 className="text-2xl font-bold mb-2">{appleMusicData.latestReleases[0].name}</h3>
                       <p className="text-muted-foreground mb-4">
-                        Released {new Date(spotifyData.latestReleases[0].releaseDate).toLocaleDateString('en-US', {
+                        Released {new Date(appleMusicData.latestReleases[0].releaseDate).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric'
@@ -871,11 +866,11 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       </p>
                       <div className="flex items-center gap-4 justify-center md:justify-start">
                         <Badge variant="secondary">
-                          {spotifyData.latestReleases[0].totalTracks} track{spotifyData.latestReleases[0].totalTracks !== 1 ? 's' : ''}
+                          {appleMusicData.latestReleases[0].totalTracks} track{appleMusicData.latestReleases[0].totalTracks !== 1 ? 's' : ''}
                         </Badge>
                         <Button size="sm" className="gap-2">
                           <Play className="w-4 h-4" />
-                          Listen on Spotify
+                          Listen on Apple Music
                         </Button>
                       </div>
                     </div>
@@ -962,14 +957,14 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               </Card>
             )}
 
-            {/* No Spotify Data Message */}
-            {!spotifyData && (
+            {/* No Music Data Message */}
+            {!appleMusicData && (
               <Card>
                 <CardContent className="py-12 text-center">
                   <Music className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Spotify Data</h3>
+                  <h3 className="text-lg font-semibold mb-2">No Music Data</h3>
                   <p className="text-muted-foreground">
-                    This artist hasn't linked their Spotify profile yet.
+                    This artist hasn't linked their Apple Music profile yet.
                   </p>
                 </CardContent>
               </Card>
@@ -978,16 +973,16 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
 
           {/* Music Tab */}
           <TabsContent value="music" className="space-y-6">
-            {spotifyData ? (
+            {appleMusicData ? (
               <>
                 {/* Top Tracks */}
-                {spotifyData.topTracks?.length > 0 && (
+                {appleMusicData.topTracks?.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
                         <Headphones className="w-5 h-5 text-primary" />
                         Top Tracks
-                        {spotifyData.topTracks.some(t => t.previewUrl) && (
+                        {appleMusicData.topTracks.some(t => t.previewUrl) && (
                           <Badge variant="secondary" className="text-[10px] ml-2">
                             30s Previews Available
                           </Badge>
@@ -996,7 +991,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {spotifyData.topTracks.map((track, index) => {
+                        {appleMusicData.topTracks.map((track, index) => {
                           const isCurrentTrack = currentTrack?.id === track.id
                           const isTrackPlaying = isCurrentTrack && isPlaying
 
@@ -1011,7 +1006,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                               }`}
                               onClick={() => {
                                 if (track.previewUrl) {
-                                  playTrack(track, spotifyData.topTracks, index)
+                                  playTrack(track, appleMusicData.topTracks, index)
                                 } else {
                                   window.open(track.url, '_blank')
                                 }
@@ -1065,7 +1060,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                               </div>
                               {!track.previewUrl && (
                                 <Badge variant="outline" className="text-[10px] opacity-0 group-hover:opacity-100">
-                                  Open Spotify
+                                  Open Apple Music
                                 </Badge>
                               )}
                             </motion.div>
@@ -1077,7 +1072,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 )}
 
                 {/* Albums */}
-                {spotifyData.discography?.albums?.length > 0 && (
+                {appleMusicData.discography?.albums?.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
@@ -1087,7 +1082,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {spotifyData.discography.albums.map((album, index) => (
+                        {appleMusicData.discography.albums.map((album, index) => (
                           <motion.div
                             key={album.id}
                             initial={{ opacity: 0, scale: 0.9 }}
@@ -1118,20 +1113,20 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 )}
 
                 {/* Singles & EPs */}
-                {spotifyData.discography?.singles?.length > 0 && (
+                {appleMusicData.discography?.singles?.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
                         <Disc3 className="w-5 h-5 text-primary" />
                         Singles & EPs
                         <Badge variant="secondary" className="ml-2">
-                          {spotifyData.discography.singles.length}
+                          {appleMusicData.discography.singles.length}
                         </Badge>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {spotifyData.discography.singles.slice(0, singlesVisible).map((single, index) => (
+                        {appleMusicData.discography.singles.slice(0, singlesVisible).map((single, index) => (
                           <motion.div
                             key={single.id}
                             initial={{ opacity: 0, scale: 0.9 }}
@@ -1157,7 +1152,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                           </motion.div>
                         ))}
                       </div>
-                      {spotifyData.discography.singles.length > singlesVisible && (
+                      {appleMusicData.discography.singles.length > singlesVisible && (
                         <div className="flex justify-center pt-4">
                           <Button
                             variant="outline"
@@ -1165,7 +1160,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                             className="gap-2"
                           >
                             <ListMusic className="w-4 h-4" />
-                            Load More ({spotifyData.discography.singles.length - singlesVisible} remaining)
+                            Load More ({appleMusicData.discography.singles.length - singlesVisible} remaining)
                           </Button>
                         </div>
                       )}
@@ -1179,7 +1174,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   <Disc3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No Music Data</h3>
                   <p className="text-muted-foreground mb-4">
-                    Connect a Spotify artist profile to display music here.
+                    Connect an Apple Music artist profile to display music here.
                   </p>
                   {isOwnProfile && (
                     <Button onClick={() => navigate('/settings')} className="gap-2">
@@ -1194,7 +1189,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
 
           {/* Gallery Tab */}
           <TabsContent value="gallery">
-            {spotifyData?.latestReleases?.length > 0 ? (
+            {appleMusicData?.latestReleases?.length > 0 ? (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -1207,7 +1202,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                     {/* Collect all unique album art */}
                     {[
                       ...new Map(
-                        [...(spotifyData.discography?.albums || []), ...(spotifyData.discography?.singles || [])]
+                        [...(appleMusicData.discography?.albums || []), ...(appleMusicData.discography?.singles || [])]
                           .filter(item => item.image)
                           .map(item => [item.image, item])
                       ).values()
@@ -1242,7 +1237,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   <Image className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No Gallery Images</h3>
                   <p className="text-muted-foreground">
-                    Album artwork will appear here once Spotify data is connected.
+                    Album artwork will appear here once Apple Music data is connected.
                   </p>
                 </CardContent>
               </Card>
@@ -1489,7 +1484,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   <CardContent className="pt-6">
                     <div className="text-center">
                       <div className="text-3xl font-bold">
-                        {spotifyData?.popularity || 0}
+                        {appleMusicData?.popularity || 0}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">Popularity Score</p>
                       <p className="text-xs text-muted-foreground">out of 100</p>
@@ -1500,9 +1495,9 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   <CardContent className="pt-6">
                     <div className="text-center">
                       <div className="text-3xl font-bold">
-                        {formatNumber(spotifyData?.followers || 0)}
+                        {formatNumber(appleMusicData?.followers || 0)}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">Spotify Followers</p>
+                      <p className="text-sm text-muted-foreground mt-1">Followers</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -1529,13 +1524,13 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                     <div className="space-y-4">
                       <div>
                         <div className="flex justify-between text-sm mb-1">
-                          <span>Spotify Popularity</span>
-                          <span className="font-medium">{spotifyData?.popularity || 0}/100</span>
+                          <span>Popularity</span>
+                          <span className="font-medium">{appleMusicData?.popularity || 0}/100</span>
                         </div>
                         <div className="h-2 bg-secondary rounded-full overflow-hidden">
                           <div
                             className="h-full bg-primary rounded-full transition-all"
-                            style={{ width: `${spotifyData?.popularity || 0}%` }}
+                            style={{ width: `${appleMusicData?.popularity || 0}%` }}
                           />
                         </div>
                       </div>
@@ -1568,7 +1563,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                               if (profileData.artistName) score += 20
                               if (profileData.bio) score += 20
                               if (profileData.avatar) score += 20
-                              if (profileData.spotifyUrl) score += 20
+                              if (profileData.appleMusicUrl) score += 20
                               if (profileData.instagramUrl) score += 20
                               return `${score}%`
                             })()}
@@ -1583,7 +1578,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                                 if (profileData.artistName) score += 20
                                 if (profileData.bio) score += 20
                                 if (profileData.avatar) score += 20
-                                if (profileData.spotifyUrl) score += 20
+                                if (profileData.appleMusicUrl) score += 20
                                 if (profileData.instagramUrl) score += 20
                                 return `${score}%`
                               })()
@@ -1607,21 +1602,21 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                           <Headphones className="w-5 h-5 text-primary" />
                           <span>Top Tracks</span>
                         </div>
-                        <span className="font-bold">{spotifyData?.topTracks?.length || 0}</span>
+                        <span className="font-bold">{appleMusicData?.topTracks?.length || 0}</span>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                         <div className="flex items-center gap-3">
                           <Album className="w-5 h-5 text-primary" />
                           <span>Albums</span>
                         </div>
-                        <span className="font-bold">{spotifyData?.discography?.albums?.length || 0}</span>
+                        <span className="font-bold">{appleMusicData?.discography?.albums?.length || 0}</span>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                         <div className="flex items-center gap-3">
                           <Disc3 className="w-5 h-5 text-primary" />
                           <span>Singles & EPs</span>
                         </div>
-                        <span className="font-bold">{spotifyData?.discography?.singles?.length || 0}</span>
+                        <span className="font-bold">{appleMusicData?.discography?.singles?.length || 0}</span>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                         <div className="flex items-center gap-3">
@@ -1645,7 +1640,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                     <div>
                       <h3 className="font-semibold mb-2">Tips to Improve Your Ranking</h3>
                       <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• Release new music consistently to boost your Spotify popularity</li>
+                        <li>• Release new music consistently to boost your popularity</li>
                         <li>• Share your Tampa Mixtape profile on social media</li>
                         <li>• Complete your profile with all social links</li>
                         <li>• Add upcoming events to engage with fans</li>

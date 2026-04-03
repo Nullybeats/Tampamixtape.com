@@ -19,10 +19,10 @@ const isValidUrl = (urlString) => {
   }
 };
 
-const isValidSpotifyId = (id) => {
+const isValidAppleMusicId = (id) => {
   if (!id) return true; // Optional field
-  // Spotify IDs are 22 character base62 strings
-  return typeof id === 'string' && /^[a-zA-Z0-9]{22}$/.test(id);
+  // Apple Music IDs are numeric strings
+  return typeof id === 'string' && /^\d+$/.test(id);
 };
 
 const sanitizeString = (str, maxLength = 500) => {
@@ -33,7 +33,7 @@ const sanitizeString = (str, maxLength = 500) => {
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, artistName, spotifyId, spotifyUrl, avatar } = req.body;
+    const { email, password, name, artistName, appleMusicId, appleMusicUrl, avatar } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -45,13 +45,13 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Validate Spotify fields if provided
-    if (spotifyId && !isValidSpotifyId(spotifyId)) {
-      return res.status(400).json({ error: 'Invalid Spotify ID format' });
+    // Validate Apple Music fields if provided
+    if (appleMusicId && !isValidAppleMusicId(appleMusicId)) {
+      return res.status(400).json({ error: 'Invalid Apple Music ID format' });
     }
 
-    if (spotifyUrl && !isValidUrl(spotifyUrl)) {
-      return res.status(400).json({ error: 'Invalid Spotify URL format' });
+    if (appleMusicUrl && !isValidUrl(appleMusicUrl)) {
+      return res.status(400).json({ error: 'Invalid Apple Music URL format' });
     }
 
     if (avatar && !isValidUrl(avatar)) {
@@ -80,9 +80,9 @@ router.post('/register', async (req, res) => {
         profileSlug,
         role: 'USER',
         status: 'PENDING',
-        // Include Spotify data if provided during signup (already validated)
-        ...(spotifyId && { spotifyId }),
-        ...(spotifyUrl && { spotifyUrl }),
+        // Include Apple Music data if provided during signup (already validated)
+        ...(appleMusicId && { appleMusicId }),
+        ...(appleMusicUrl && { appleMusicUrl }),
         ...(avatar && { avatar }),
       },
     });
@@ -103,8 +103,8 @@ router.post('/register', async (req, res) => {
         status: user.status,
         avatar: user.avatar,
         bio: user.bio,
-        spotifyId: user.spotifyId,
-        spotifyUrl: user.spotifyUrl,
+        appleMusicId: user.appleMusicId,
+        appleMusicUrl: user.appleMusicUrl,
       },
     });
   } catch (error) {
@@ -186,8 +186,8 @@ router.post('/login', async (req, res) => {
         status: user.status,
         avatar: user.avatar,
         bio: user.bio,
-        spotifyId: user.spotifyId,
-        spotifyUrl: user.spotifyUrl,
+        appleMusicId: user.appleMusicId,
+        appleMusicUrl: user.appleMusicUrl,
       },
     });
   } catch (error) {
@@ -295,8 +295,8 @@ router.get('/me', async (req, res) => {
         region: true,
         genres: true,
         genresLocked: true,
-        spotifyId: true,
-        spotifyUrl: true,
+        appleMusicId: true,
+        appleMusicUrl: true,
         instagramUrl: true,
         twitterUrl: true,
         youtubeUrl: true,
@@ -370,8 +370,8 @@ router.patch('/me', async (req, res) => {
         region: true,
         genres: true,
         genresLocked: true,
-        spotifyId: true,
-        spotifyUrl: true,
+        appleMusicId: true,
+        appleMusicUrl: true,
         instagramUrl: true,
         twitterUrl: true,
         youtubeUrl: true,

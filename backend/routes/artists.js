@@ -1,14 +1,14 @@
 const express = require('express');
 const prisma = require('../services/db');
-const spotify = require('../services/spotify');
+const appleMusic = require('../services/applemusic');
 const cache = require('../services/cache');
 
 const router = express.Router();
 
-// Search for artists (in database and optionally Spotify)
+// Search for artists (in database and optionally Apple Music)
 router.get('/search', async (req, res) => {
   try {
-    const { q, includeSpotify = 'true' } = req.query;
+    const { q, includeAppleMusic = 'true' } = req.query;
 
     if (!q) {
       return res.status(400).json({ error: 'Search query is required' });
@@ -30,7 +30,7 @@ router.get('/search', async (req, res) => {
         artistName: true,
         profileSlug: true,
         avatar: true,
-        spotifyId: true,
+        appleMusicId: true,
         genres: true,
         region: true,
         popularity: true,
@@ -38,35 +38,33 @@ router.get('/search', async (req, res) => {
       },
     });
 
-    // If requested, also search Spotify
-    let spotifyArtists = [];
-    if (includeSpotify === 'true' && dbArtists.length < 5) {
+    // If requested, also search Apple Music
+    let appleMusicArtists = [];
+    if (includeAppleMusic === 'true' && dbArtists.length < 5) {
       try {
-        spotifyArtists = await spotify.searchArtist(q);
+        appleMusicArtists = await appleMusic.searchArtist(q);
       } catch (err) {
-        console.error('Spotify search failed:', err.message);
+        console.error('Apple Music search failed:', err.message);
       }
     }
 
-    // Combine database and Spotify results for compatibility
-    // Frontend expects 'results' array with spotifyId field
+    // Combine database and Apple Music results
     const combinedResults = [
       ...dbArtists,
-      ...spotifyArtists.map(sa => ({
-        id: sa.id,
-        artistName: sa.name,
-        spotifyId: sa.id,
-        avatar: sa.image,
-        genres: sa.genres?.join(', ') || '',
-        followers: sa.followers,
-        isSpotifyResult: true,
+      ...appleMusicArtists.map(a => ({
+        id: a.id,
+        artistName: a.name,
+        appleMusicId: a.id,
+        avatar: a.artwork,
+        genres: a.genres?.join(', ') || '',
+        isAppleMusicResult: true,
       })),
     ];
 
     res.json({
       artists: dbArtists,
-      spotifyArtists,
-      results: combinedResults, // For frontend compatibility
+      appleMusicArtists,
+      results: combinedResults,
       total: combinedResults.length,
     });
   } catch (error) {
@@ -75,34 +73,34 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// Get full Spotify artist data by Spotify ID
-router.get('/spotify/:spotifyId/full', async (req, res) => {
+// Get full Apple Music artist data by Apple Music ID
+router.get('/apple-music/:appleMusicId/full', async (req, res) => {
   try {
-    const { spotifyId } = req.params;
+    const { appleMusicId } = req.params;
 
-    if (!spotifyId) {
-      return res.status(400).json({ error: 'Spotify ID is required' });
+    if (!appleMusicId) {
+      return res.status(400).json({ error: 'Apple Music ID is required' });
     }
 
-    // Validate Spotify ID format (22 character alphanumeric)
-    if (!/^[a-zA-Z0-9]{22}$/.test(spotifyId)) {
-      return res.status(400).json({ error: 'Invalid Spotify ID format' });
+    // Validate Apple Music ID format (numeric string)
+    if (!/^\d+$/.test(appleMusicId)) {
+      return res.status(400).json({ error: 'Invalid Apple Music ID format' });
     }
 
-    // Get full artist data from Spotify
-    const artistData = await spotify.getFullArtistData(spotifyId);
+    // Get full artist data from Apple Music
+    const artistData = await appleMusic.getFullArtistData(appleMusicId);
 
     if (!artistData) {
-      return res.status(404).json({ error: 'Artist not found on Spotify' });
+      return res.status(404).json({ error: 'Artist not found on Apple Music' });
     }
 
     res.json(artistData);
   } catch (error) {
-    console.error('Get Spotify artist error:', error.message);
+    console.error('Get Apple Music artist error:', error.message);
     if (error.response?.status === 404) {
-      return res.status(404).json({ error: 'Artist not found on Spotify' });
+      return res.status(404).json({ error: 'Artist not found on Apple Music' });
     }
-    res.status(500).json({ error: 'Failed to fetch artist data from Spotify' });
+    res.status(500).json({ error: 'Failed to fetch artist data from Apple Music' });
   }
 });
 
@@ -117,12 +115,12 @@ router.get('/hot100', async (req, res) => {
       return res.json(cached);
     }
 
-    // Get all approved artists with Spotify IDs
+    // Get all approved artists with Apple Music IDs
     const artists = await prisma.user.findMany({
       where: {
         status: 'APPROVED',
         role: 'ARTIST',
-        spotifyId: { not: null },
+        appleMusicId: { not: null },
       },
       orderBy: [
         { followers: 'desc' },
@@ -133,8 +131,8 @@ router.get('/hot100', async (req, res) => {
         artistName: true,
         profileSlug: true,
         avatar: true,
-        spotifyId: true,
-        spotifyUrl: true,
+        appleMusicId: true,
+        appleMusicUrl: true,
         popularity: true,
         followers: true,
         genres: true,
@@ -163,8 +161,7 @@ router.get('/hot100', async (req, res) => {
   }
 });
 
-// Refresh Hot 100 — returns fresh data from DB (no Spotify calls).
-// The scheduler handles all Spotify API calls now.
+// Refresh Hot 100 — returns fresh data from DB (no API calls).
 router.post('/hot100/refresh', async (req, res) => {
   try {
     // Flush hot100 cache so next GET returns fresh DB data
@@ -175,7 +172,7 @@ router.post('/hot100/refresh', async (req, res) => {
       where: {
         status: 'APPROVED',
         role: 'ARTIST',
-        spotifyId: { not: null },
+        appleMusicId: { not: null },
       },
       orderBy: [
         { followers: 'desc' },
@@ -186,8 +183,8 @@ router.post('/hot100/refresh', async (req, res) => {
         artistName: true,
         profileSlug: true,
         avatar: true,
-        spotifyId: true,
-        spotifyUrl: true,
+        appleMusicId: true,
+        appleMusicUrl: true,
         followers: true,
         genres: true,
         region: true,
@@ -282,7 +279,7 @@ router.get('/', async (req, res) => {
           profileSlug: true,
           avatar: true,
           bio: true,
-          spotifyId: true,
+          appleMusicId: true,
           genres: true,
           region: true,
           popularity: true,

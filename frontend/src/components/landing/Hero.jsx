@@ -164,7 +164,7 @@ export function Hero({ stats: propStats, artists: propArtists }) {
             className="text-xl text-muted-foreground max-w-2xl mx-auto"
           >
             Discover Tampa Bay's hottest artists. Artist rankings, new releases,
-            and music discovery powered by Spotify.
+            and music discovery powered by Apple Music.
           </motion.p>
 
           {/* CTA Buttons */}

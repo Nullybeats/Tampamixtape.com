@@ -110,84 +110,84 @@ export function UserSettings() {
     price: '',
   })
 
-  // Spotify URL linking state
-  const [spotifyUrlInput, setSpotifyUrlInput] = useState('')
-  const [spotifyLoading, setSpotifyLoading] = useState(false)
-  const [spotifyData, setSpotifyData] = useState(null)
-  const [spotifyPreview, setSpotifyPreview] = useState(null)
+  // Apple Music URL linking state
+  const [appleMusicUrlInput, setAppleMusicUrlInput] = useState('')
+  const [appleMusicLoading, setAppleMusicLoading] = useState(false)
+  const [appleMusicData, setAppleMusicData] = useState(null)
+  const [appleMusicPreview, setAppleMusicPreview] = useState(null)
 
-  // Fetch Spotify artist preview
-  const handleSpotifyPreview = async () => {
-    if (!spotifyUrlInput.trim()) {
-      toast.error('Please enter a Spotify artist URL')
+  // Fetch Apple Music artist preview
+  const handleAppleMusicPreview = async () => {
+    if (!appleMusicUrlInput.trim()) {
+      toast.error('Please enter an Apple Music artist URL')
       return
     }
 
-    setSpotifyLoading(true)
-    setSpotifyPreview(null)
+    setAppleMusicLoading(true)
+    setAppleMusicPreview(null)
 
     try {
-      const response = await fetch(`${API_URL}/api/spotify/artist?url=${encodeURIComponent(spotifyUrlInput)}`)
+      const response = await fetch(`${API_URL}/api/music/artist?url=${encodeURIComponent(appleMusicUrlInput)}`)
       const data = await response.json()
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch artist')
       }
 
-      setSpotifyPreview(data)
+      setAppleMusicPreview(data)
     } catch (error) {
       toast.error('Could not find artist', {
         description: error.message || 'Please check the URL and try again',
       })
     } finally {
-      setSpotifyLoading(false)
+      setAppleMusicLoading(false)
     }
   }
 
-  // Link Spotify artist to profile
-  const handleSpotifyLink = async () => {
-    if (!spotifyPreview) return
+  // Link Apple Music artist to profile
+  const handleAppleMusicLink = async () => {
+    if (!appleMusicPreview) return
 
-    setSpotifyLoading(true)
+    setAppleMusicLoading(true)
     try {
-      const response = await fetch(`${API_URL}/api/spotify/link`, {
+      const response = await fetch(`${API_URL}/api/music/link`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ spotifyUrl: spotifyUrlInput }),
+        body: JSON.stringify({ appleMusicUrl: appleMusicUrlInput }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to link Spotify')
+        throw new Error(data.error || 'Failed to link Apple Music')
       }
 
       // Update local user state
       updateUser(data.user)
-      setSpotifyData(data.spotifyData)
-      setSpotifyPreview(null)
-      setSpotifyUrlInput('')
+      setAppleMusicData(data.artistData)
+      setAppleMusicPreview(null)
+      setAppleMusicUrlInput('')
 
-      toast.success('Spotify linked!', {
-        description: `Connected as ${data.spotifyData.name}`,
+      toast.success('Apple Music linked!', {
+        description: `Connected as ${data.artistData.name}`,
       })
     } catch (error) {
-      toast.error('Failed to link Spotify', {
+      toast.error('Failed to link Apple Music', {
         description: error.message,
       })
     } finally {
-      setSpotifyLoading(false)
+      setAppleMusicLoading(false)
     }
   }
 
-  // Unlink Spotify from profile
-  const handleSpotifyUnlink = async () => {
-    setSpotifyLoading(true)
+  // Unlink Apple Music from profile
+  const handleAppleMusicUnlink = async () => {
+    setAppleMusicLoading(true)
     try {
-      const response = await fetch(`${API_URL}/api/spotify/link`, {
+      const response = await fetch(`${API_URL}/api/music/link`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -197,19 +197,19 @@ export function UserSettings() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to unlink Spotify')
+        throw new Error(data.error || 'Failed to unlink Apple Music')
       }
 
       updateUser(data.user)
-      setSpotifyData(null)
+      setAppleMusicData(null)
 
-      toast.success('Spotify unlinked')
+      toast.success('Apple Music unlinked')
     } catch (error) {
-      toast.error('Failed to unlink Spotify', {
+      toast.error('Failed to unlink Apple Music', {
         description: error.message,
       })
     } finally {
-      setSpotifyLoading(false)
+      setAppleMusicLoading(false)
     }
   }
 
@@ -640,42 +640,40 @@ export function UserSettings() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Plug className="w-5 h-5 text-primary" />
-                  Spotify Artist Profile
+                  Apple Music Artist Profile
                 </CardTitle>
                 <CardDescription>
-                  Link your Spotify artist profile to display your music, stats, and top tracks.
+                  Link your Apple Music artist profile to display your music, stats, and top tracks.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Currently linked Spotify */}
-                {user?.spotifyId ? (
-                  <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5">
+                {/* Currently linked Apple Music */}
+                {user?.appleMusicId ? (
+                  <div className="p-4 rounded-lg border border-primary/30 bg-primary/5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-[#1DB954]/20 flex items-center justify-center">
-                          <svg viewBox="0 0 24 24" fill="#1DB954" className="w-7 h-7">
-                            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                          </svg>
+                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#FA233B] to-[#FB5C74] flex items-center justify-center">
+                          <Music className="w-6 h-6 text-white" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="font-semibold">Spotify Connected</h4>
-                            <Badge variant="outline" className="gap-1 text-green-400 border-green-400/30">
+                            <h4 className="font-semibold">Apple Music Connected</h4>
+                            <Badge variant="outline" className="gap-1 text-primary border-primary/30">
                               <CheckCircle2 className="w-3 h-3" />
                               Linked
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            Artist ID: {user.spotifyId}
+                            Artist ID: {user.appleMusicId}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {user.spotifyUrl && (
+                        {user.appleMusicUrl && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => window.open(user.spotifyUrl, '_blank')}
+                            onClick={() => window.open(user.appleMusicUrl, '_blank')}
                             className="gap-1"
                           >
                             <ExternalLink className="w-3 h-3" />
@@ -685,11 +683,11 @@ export function UserSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={handleSpotifyUnlink}
-                          disabled={spotifyLoading}
+                          onClick={handleAppleMusicUnlink}
+                          disabled={appleMusicLoading}
                           className="text-red-400 hover:text-red-300"
                         >
-                          {spotifyLoading ? (
+                          {appleMusicLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <Unplug className="w-4 h-4" />
@@ -700,23 +698,23 @@ export function UserSettings() {
                   </div>
                 ) : (
                   <>
-                    {/* Spotify URL Input */}
+                    {/* Apple Music URL Input */}
                     <div className="space-y-3">
-                      <Label htmlFor="spotifyUrl">Spotify Artist URL</Label>
+                      <Label htmlFor="appleMusicUrl">Apple Music Artist URL</Label>
                       <div className="flex gap-2">
                         <Input
-                          id="spotifyUrl"
-                          value={spotifyUrlInput}
-                          onChange={(e) => setSpotifyUrlInput(e.target.value)}
-                          placeholder="https://open.spotify.com/artist/..."
+                          id="appleMusicUrl"
+                          value={appleMusicUrlInput}
+                          onChange={(e) => setAppleMusicUrlInput(e.target.value)}
+                          placeholder="https://music.apple.com/artist/..."
                           className="flex-1"
                         />
                         <Button
-                          onClick={handleSpotifyPreview}
-                          disabled={spotifyLoading || !spotifyUrlInput.trim()}
+                          onClick={handleAppleMusicPreview}
+                          disabled={appleMusicLoading || !appleMusicUrlInput.trim()}
                           className="gap-2"
                         >
-                          {spotifyLoading ? (
+                          {appleMusicLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <Search className="w-4 h-4" />
@@ -725,22 +723,22 @@ export function UserSettings() {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Paste your Spotify artist profile URL to link your music
+                        Paste your Apple Music artist profile URL to link your music
                       </p>
                     </div>
 
-                    {/* Spotify Preview */}
-                    {spotifyPreview && (
+                    {/* Apple Music Preview */}
+                    {appleMusicPreview && (
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="p-4 rounded-lg border border-border bg-secondary/30"
                       >
                         <div className="flex items-center gap-4">
-                          {spotifyPreview.image ? (
+                          {appleMusicPreview.image ? (
                             <img
-                              src={spotifyPreview.image}
-                              alt={spotifyPreview.name}
+                              src={appleMusicPreview.image}
+                              alt={appleMusicPreview.name}
                               className="w-16 h-16 rounded-lg object-cover"
                             />
                           ) : (
@@ -749,12 +747,12 @@ export function UserSettings() {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold truncate">{spotifyPreview.name}</h4>
+                            <h4 className="font-semibold truncate">{appleMusicPreview.name}</h4>
                             <p className="text-sm text-muted-foreground">
-                              {spotifyPreview.followers?.toLocaleString()} followers
+                              {appleMusicPreview.followers?.toLocaleString()} followers
                             </p>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {spotifyPreview.genres?.slice(0, 3).map((genre) => (
+                              {appleMusicPreview.genres?.slice(0, 3).map((genre) => (
                                 <Badge key={genre} variant="secondary" className="text-xs">
                                   {genre}
                                 </Badge>
@@ -762,11 +760,11 @@ export function UserSettings() {
                             </div>
                           </div>
                           <Button
-                            onClick={handleSpotifyLink}
-                            disabled={spotifyLoading}
-                            className="gap-2 bg-[#1DB954] hover:bg-[#1ed760]"
+                            onClick={handleAppleMusicLink}
+                            disabled={appleMusicLoading}
+                            className="gap-2"
                           >
-                            {spotifyLoading ? (
+                            {appleMusicLoading ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
                               <Plug className="w-4 h-4" />
@@ -783,16 +781,18 @@ export function UserSettings() {
                 <div className="pt-4 border-t border-border space-y-4">
                   <h4 className="text-sm font-medium text-muted-foreground">More platforms coming soon</h4>
 
-                  {/* Apple Music - Coming Soon */}
+                  {/* Spotify - Coming Soon */}
                   <div className="flex items-center justify-between p-4 rounded-lg border border-border opacity-60">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#FA233B] to-[#FB5C74] flex items-center justify-center">
-                        <Music className="w-6 h-6 text-white" />
+                      <div className="w-12 h-12 rounded-lg bg-[#1DB954]/20 flex items-center justify-center">
+                        <svg viewBox="0 0 24 24" fill="#1DB954" className="w-6 h-6">
+                          <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                        </svg>
                       </div>
                       <div>
-                        <h4 className="font-semibold">Apple Music</h4>
+                        <h4 className="font-semibold">Spotify</h4>
                         <p className="text-sm text-muted-foreground">
-                          Link your Apple Music artist profile
+                          Link your Spotify artist profile
                         </p>
                       </div>
                     </div>

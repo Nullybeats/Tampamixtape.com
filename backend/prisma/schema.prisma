@@ -21,10 +21,12 @@ model User {
   region        String   @default("Tampa Bay")
   genres        String?  // Comma-separated genres
   genresLocked  Boolean  @default(false) // Prevents auto-sync from overwriting manually set genres
-  popularity    Int      @default(0) // Cached Spotify popularity score (0-100)
-  followers     Int      @default(0) // Cached Spotify follower count
-  spotifyId     String?
-  spotifyUrl    String?
+  popularity    Int      @default(0) // Cached popularity score (0-100)
+  followers     Int      @default(0) // Cached follower count
+  spotifyId     String?             // Legacy — kept for data preservation
+  spotifyUrl    String?             // Legacy — kept for data preservation
+  appleMusicId  String?             // Apple Music artist ID (numeric string)
+  appleMusicUrl String?             // Apple Music artist URL
   syncEnabled   Boolean  @default(true)  // False = quarantined from sync (bad ID, repeated failures)
   syncFailCount Int      @default(0)     // Consecutive sync failures (circuit breaker at 3)
   lastSyncedAt  DateTime?               // When this artist was last successfully synced
@@ -53,17 +55,18 @@ enum Status {
 }
 
 model Release {
-  id           String   @id // Spotify album ID
-  name         String
-  type         String   // Album, Single, EP
-  image        String?
-  releaseDate  String?
-  spotifyUrl   String?
-  artistId     String   // Reference to User.id
-  artistName   String
-  artistSlug   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id // Music platform album ID (Apple Music or legacy Spotify)
+  name          String
+  type          String   // Album, Single, EP
+  image         String?
+  releaseDate   String?
+  spotifyUrl    String?  // Legacy — kept for existing data
+  appleMusicUrl String?  // Apple Music album URL
+  artistId      String   // Reference to User.id
+  artistName    String
+  artistSlug    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([artistId])
   @@index([releaseDate])

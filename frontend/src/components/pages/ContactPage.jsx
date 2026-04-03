@@ -196,7 +196,7 @@ export function ContactPage() {
                     </li>
                     <li className="flex items-start gap-3">
                       <span className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                      Streaming links (Spotify in particular)
+                      Streaming links (Apple Music in particular)
                     </li>
                   </ul>
                   <p className="text-muted-foreground mt-4">

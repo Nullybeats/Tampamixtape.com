@@ -1,5 +1,5 @@
 const prisma = require('./db');
-const spotify = require('./spotify');
+const appleMusic = require('./applemusic');
 const lastfm = require('./lastfm');
 const cache = require('./cache');
 
@@ -7,18 +7,17 @@ let syncTimer = null;
 let syncInProgress = false; // Module-level lock for ALL sync entry points
 let cycleCount = 0; // Track cycles for metadata refresh cadence
 
-const CHUNK_SIZE = 3; // Artists per sync cycle (conservative for Dev Mode rate limits)
+const CHUNK_SIZE = 10; // Artists per sync cycle (Apple Music has generous rate limits)
 const CIRCUIT_BREAKER_THRESHOLD = 3; // Consecutive failures to quarantine
 const METADATA_REFRESH_INTERVAL = 12; // Every 12th cycle (~6 hours at 30min interval)
-const API_DELAY_MS = 5000; // 5 seconds between every Spotify API call
+const API_DELAY_MS = 1000; // 1 second between API calls (Apple Music is lenient)
 
 // ==============================
 // Helpers
 // ==============================
 
 function isRateLimitError(err) {
-  return err.response?.status === 429 ||
-         (err.message && err.message.includes('429'));
+  return err.response?.status === 429 || err.isRateLimitCooldown;
 }
 
 function isBadRequestError(err) {
@@ -42,13 +41,13 @@ function formatGenres(genres) {
     .join(', ');
 }
 
-function releaseType(albumType) {
-  if (albumType === 'album') return 'Album';
-  if (albumType === 'single') return 'Single';
+function releaseType(type) {
+  if (type === 'album') return 'Album';
+  if (type === 'single') return 'Single';
   return 'EP';
 }
 
-// Upsert releases from Spotify album data
+// Upsert releases from Apple Music album data
 async function upsertReleases(albums, artist) {
   let added = 0;
   for (const album of albums) {
@@ -57,20 +56,20 @@ async function upsertReleases(albums, artist) {
       create: {
         id: album.id,
         name: album.name,
-        type: releaseType(album.album_type),
-        image: album.images?.[0]?.url || null,
-        releaseDate: album.release_date || null,
-        spotifyUrl: album.external_urls?.spotify || null,
+        type: releaseType(album.type),
+        image: album.image || null,
+        releaseDate: album.releaseDate || null,
+        appleMusicUrl: album.url || null,
         artistId: artist.id,
         artistName: artist.artistName,
         artistSlug: artist.profileSlug,
       },
       update: {
         name: album.name,
-        type: releaseType(album.album_type),
-        image: album.images?.[0]?.url || null,
-        releaseDate: album.release_date || null,
-        spotifyUrl: album.external_urls?.spotify || null,
+        type: releaseType(album.type),
+        image: album.image || null,
+        releaseDate: album.releaseDate || null,
+        appleMusicUrl: album.url || null,
         artistName: artist.artistName,
         artistSlug: artist.profileSlug,
       },
@@ -105,7 +104,7 @@ async function writeSyncLog({ type, status, message, artistsSynced, artistsFaile
 // ==============================
 
 async function syncSingleArtist(artist) {
-  if (!artist.spotifyId) return { added: 0 };
+  if (!artist.appleMusicId) return { added: 0 };
 
   // Check module-level lock
   if (syncInProgress) {
@@ -113,21 +112,14 @@ async function syncSingleArtist(artist) {
     return { added: 0, deferred: true };
   }
 
-  // Don't sync if Spotify is in cooldown
-  if (spotify.isRateLimited()) {
-    const cooldown = spotify.isInCooldown();
-    console.log(`[Scheduler] Spotify in cooldown (${cooldown.remainingSec}s), deferring sync for ${artist.artistName}`);
-    return { added: 0, deferred: true };
-  }
-
   // Validate ID format
-  if (!spotify.isValidSpotifyId(artist.spotifyId)) {
-    console.log(`[Scheduler] Invalid Spotify ID for ${artist.artistName}: ${artist.spotifyId}`);
+  if (!appleMusic.isValidAppleMusicId(artist.appleMusicId)) {
+    console.log(`[Scheduler] Invalid Apple Music ID for ${artist.artistName}: ${artist.appleMusicId}`);
     await prisma.user.update({
       where: { id: artist.id },
-      data: { syncEnabled: false, lastSyncError: 'Invalid Spotify ID format' },
+      data: { syncEnabled: false, lastSyncError: 'Invalid Apple Music ID format' },
     });
-    return { added: 0, error: 'Invalid Spotify ID format' };
+    return { added: 0, error: 'Invalid Apple Music ID format' };
   }
 
   syncInProgress = true;
@@ -135,7 +127,7 @@ async function syncSingleArtist(artist) {
   const startTime = Date.now();
 
   try {
-    const albums = await spotify.getArtistAlbums(artist.spotifyId);
+    const albums = await appleMusic.getArtistAlbums(artist.appleMusicId);
     const added = albums && albums.length > 0 ? await upsertReleases(albums, artist) : 0;
 
     // Mark as successfully synced, reset fail count
@@ -202,13 +194,6 @@ async function runSync() {
     return;
   }
 
-  // Check global Spotify cooldown before doing anything
-  if (spotify.isRateLimited()) {
-    const cooldown = spotify.isInCooldown();
-    console.log(`[Scheduler] Spotify API in cooldown (${cooldown.remainingSec}s remaining), skipping cycle`);
-    return;
-  }
-
   syncInProgress = true;
   cycleCount++;
   const isMetadataRefresh = (cycleCount % METADATA_REFRESH_INTERVAL === 0);
@@ -227,7 +212,7 @@ async function runSync() {
       where: {
         status: 'APPROVED',
         role: 'ARTIST',
-        spotifyId: { not: null },
+        appleMusicId: { not: null },
         syncEnabled: true,
       },
       orderBy: [
@@ -238,7 +223,7 @@ async function runSync() {
         id: true,
         artistName: true,
         profileSlug: true,
-        spotifyId: true,
+        appleMusicId: true,
         genresLocked: true,
         syncFailCount: true,
       },
@@ -250,17 +235,17 @@ async function runSync() {
       return;
     }
 
-    // Filter out invalid Spotify IDs and quarantine them
+    // Filter out invalid Apple Music IDs and quarantine them
     const validArtists = [];
     for (const artist of artists) {
-      if (!spotify.isValidSpotifyId(artist.spotifyId)) {
-        console.log(`[Scheduler] Quarantining ${artist.artistName} - invalid Spotify ID: ${artist.spotifyId}`);
+      if (!appleMusic.isValidAppleMusicId(artist.appleMusicId)) {
+        console.log(`[Scheduler] Quarantining ${artist.artistName} - invalid Apple Music ID: ${artist.appleMusicId}`);
         await prisma.user.update({
           where: { id: artist.id },
-          data: { syncEnabled: false, lastSyncError: 'Invalid Spotify ID format' },
+          data: { syncEnabled: false, lastSyncError: 'Invalid Apple Music ID format' },
         });
         totalSkipped++;
-        errorList.push({ artistName: artist.artistName, error: 'Invalid Spotify ID format' });
+        errorList.push({ artistName: artist.artistName, error: 'Invalid Apple Music ID format' });
         continue;
       }
       validArtists.push(artist);
@@ -270,47 +255,30 @@ async function runSync() {
 
     // Step 2: Process each artist
     for (const artist of validArtists) {
-      // Check rate limit before EVERY artist — abort entire cycle if limited
-      if (spotify.isRateLimited()) {
-        console.log(`[Scheduler] Rate limited — aborting cycle. Will retry next scheduled interval.`);
-        totalSkipped += validArtists.length - validArtists.indexOf(artist);
-        break;
-      }
-
       try {
         // --- Release sync (every cycle) ---
-        const albums = await spotify.getArtistAlbums(artist.spotifyId);
+        const albums = await appleMusic.getArtistAlbums(artist.appleMusicId);
         if (albums && albums.length > 0) {
           totalAdded += await upsertReleases(albums, artist);
         }
 
-        // 3-second delay between API calls
+        // Delay between API calls
         await new Promise(r => setTimeout(r, API_DELAY_MS));
 
         // --- Metadata refresh (every 12th cycle) ---
         if (isMetadataRefresh) {
-          // Check rate limit again before metadata call
-          if (spotify.isRateLimited()) {
-            console.log(`[Scheduler] Rate limited during metadata phase — aborting cycle.`);
-            totalSkipped += validArtists.length - validArtists.indexOf(artist);
-            break;
-          }
+          const artistData = await appleMusic.getArtistSafe(artist.appleMusicId);
 
-          const spotifyData = await spotify.getArtistSafe(artist.spotifyId);
-
-          if (spotifyData) {
+          if (artistData) {
             const updateData = {};
 
-            if (spotifyData.followers?.total !== undefined) {
-              updateData.followers = spotifyData.followers.total;
-            }
-            if (spotifyData.images?.length > 0) {
-              updateData.avatar = spotifyData.images[0].url;
+            if (artistData.artwork) {
+              updateData.avatar = artistData.artwork;
             }
 
-            // Genre update (Spotify -> Last.fm fallback)
+            // Genre update (Apple Music -> Last.fm fallback)
             if (!artist.genresLocked) {
-              let genres = spotifyData.genres || [];
+              let genres = artistData.genres || [];
               if (genres.length === 0 && artist.artistName) {
                 try {
                   const lastfmData = await lastfm.getArtistStats(artist.artistName);
@@ -341,14 +309,14 @@ async function runSync() {
               });
             }
           } else {
-            // getArtistSafe returned null (403/404) — still mark release sync as done
+            // getArtistSafe returned null (404) — still mark release sync as done
             await prisma.user.update({
               where: { id: artist.id },
               data: { lastSyncedAt: new Date(), syncFailCount: 0, lastSyncError: null },
             });
           }
 
-          // 3-second delay after metadata call
+          // Delay after metadata call
           await new Promise(r => setTimeout(r, API_DELAY_MS));
         } else {
           // Release-only cycle — just mark as synced
@@ -360,8 +328,8 @@ async function runSync() {
 
         totalSynced++;
       } catch (err) {
-        // Rate limit or cooldown — abort entire cycle immediately
-        if (isRateLimitError(err) || err.isRateLimitCooldown) {
+        // Rate limit — abort entire cycle immediately
+        if (isRateLimitError(err)) {
           console.log(`[Scheduler] Rate limited — aborting cycle. Will retry next scheduled interval.`);
           totalSkipped += validArtists.length - validArtists.indexOf(artist);
           break;
@@ -380,7 +348,7 @@ async function runSync() {
             },
           });
           if (shouldQuarantine) {
-            console.log(`[Scheduler] Quarantined ${artist.artistName} after ${newFailCount} consecutive 400s`);
+            console.log(`[Scheduler] Quarantined ${artist.artistName} after ${newFailCount} consecutive failures`);
           } else {
             console.log(`[Scheduler] ${artist.artistName} failed (${newFailCount}/${CIRCUIT_BREAKER_THRESHOLD}) - API returned ${err.response?.status}`);
           }
@@ -404,7 +372,7 @@ async function runSync() {
         totalFailed++;
       }
 
-      // 3-second delay between artists (unless we already delayed after metadata)
+      // Delay between artists (unless we already delayed after metadata)
       if (!isMetadataRefresh) {
         await new Promise(r => setTimeout(r, API_DELAY_MS));
       }

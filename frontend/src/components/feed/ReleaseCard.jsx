@@ -119,7 +119,7 @@ export function ReleaseCard({ release, index, compact = false }) {
                   >
                     <a href={release.url} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="w-3 h-3 mr-1" />
-                      Spotify
+                      Apple Music
                     </a>
                   </Button>
                 )}

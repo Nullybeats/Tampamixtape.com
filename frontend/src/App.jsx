@@ -575,7 +575,7 @@ function AppRoutes() {
           element={<DashboardPage onAuthClick={handleAuthClick} />}
         />
 
-        {/* Spotify OAuth Callback - redirects to home after token is captured */}
+        {/* Legacy callback route - redirects to home */}
         <Route path="/callback" element={<Navigate to="/" replace />} />
 
         {/* Public Profile Route - MUST be last to avoid catching other routes */}

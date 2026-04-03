@@ -6,7 +6,7 @@ const artistsRouter = require('./routes/artists');
 const releasesRouter = require('./routes/releases');
 const authRouter = require('./routes/auth');
 const adminRouter = require('./routes/admin');
-const spotifyRouter = require('./routes/spotify');
+const musicRouter = require('./routes/music');
 const profileRouter = require('./routes/profile');
 const followRouter = require('./routes/follow');
 const feedRouter = require('./routes/feed');
@@ -44,28 +44,27 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Health check route (no proactive Spotify API calls — just checks cached token)
+// Health check route
 app.get('/api/health', async (req, res) => {
   const prisma = require('./services/db');
-  const spotify = require('./services/spotify');
+  const appleMusic = require('./services/applemusic');
 
   const checks = {
     database: false,
-    spotify: false,
+    appleMusic: false,
   };
 
   try { await prisma.$queryRaw`SELECT 1`; checks.database = true; } catch {}
-  // Don't call getAccessToken() proactively — just check if token is already cached
-  checks.spotify = spotify.hasValidToken();
+  checks.appleMusic = appleMusic.hasValidToken();
 
   const healthy = checks.database;
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'ok' : 'degraded',
     message: 'TampaCharts API is running',
-    version: '1.0.0',
+    version: '2.0.0',
     checks,
     apis: {
-      spotify: !!process.env.SPOTIFY_CLIENT_ID,
+      appleMusic: !!(process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID),
       youtube: !!process.env.YOUTUBE_API_KEY,
       lastfm: !!process.env.LASTFM_API_KEY,
       genius: !!process.env.GENIUS_ACCESS_TOKEN,
@@ -81,7 +80,7 @@ app.use('/api/artists', artistsRouter);
 app.use('/api/releases', releasesRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
-app.use('/api/spotify', spotifyRouter);
+app.use('/api/music', musicRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/follow', followRouter);
 app.use('/api/feed', feedRouter);
@@ -103,7 +102,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, async () => {
   console.log(`🎵 TampaCharts API running on port ${PORT}`);
   console.log(`   Database: ${process.env.DATABASE_URL ? '✓' : '✗'}`);
-  console.log(`   Spotify API: ${process.env.SPOTIFY_CLIENT_ID ? '✓' : '✗'}`);
+  console.log(`   Apple Music API: ${process.env.APPLE_TEAM_ID ? '✓' : '✗'}`);
   console.log(`   Ticketmaster API: ${process.env.TICKETMASTER_API_KEY ? '✓' : '✗'}`);
   console.log(`   Admin configured: ${process.env.ADMIN_EMAIL ? '✓' : '✗'}`);
 

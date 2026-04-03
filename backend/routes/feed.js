@@ -75,7 +75,7 @@ router.get('/personal', authenticateToken, async (req, res) => {
         releaseData: {
           name: release.name,
           type: release.type,
-          spotifyUrl: release.spotifyUrl
+          appleMusicUrl: release.appleMusicUrl
         },
         isOwnActivity: release.artistId === userId
       }
@@ -115,7 +115,7 @@ router.get('/my-activity', authenticateToken, async (req, res) => {
       releaseType: release.type,
       image: release.image,
       timestamp: release.releaseDate || release.createdAt,
-      spotifyUrl: release.spotifyUrl
+      appleMusicUrl: release.appleMusicUrl
     }))
 
     res.json({ items })
@@ -183,7 +183,7 @@ router.get('/following-activity', authenticateToken, async (req, res) => {
         releaseData: {
           name: release.name,
           type: release.type,
-          spotifyUrl: release.spotifyUrl
+          appleMusicUrl: release.appleMusicUrl
         }
       }
     })

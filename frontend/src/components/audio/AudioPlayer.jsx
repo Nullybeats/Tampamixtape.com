@@ -97,7 +97,7 @@ export function AudioPlayerProvider({ children }) {
 
   const playTrack = (track, trackQueue = [], startIndex = 0) => {
     if (!track.previewUrl) {
-      // No preview available, open Spotify instead
+      // No preview available, open externally instead
       if (track.url) {
         window.open(track.url, '_blank')
       }

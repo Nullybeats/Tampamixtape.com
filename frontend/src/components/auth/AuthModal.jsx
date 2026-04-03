@@ -68,7 +68,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { signUp, signIn, loginWithSpotify, spotifyUser, spotifyArtist, getSpotifyAvatar, clearSpotifyConnection } = useAuth()
+  const { signUp, signIn } = useAuth()
 
   const signUpForm = useForm({
     resolver: zodResolver(signUpSchema),
@@ -101,30 +101,13 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
     setIsLoading(true)
     setError('')
     try {
-      // Include Spotify data if connected during signup
       const signUpData = {
         ...data,
         state: 'Florida',
         region: selectedCityData?.region || 'Tampa Bay',
       }
 
-      // Add Spotify data if user connected their account
-      if (spotifyArtist) {
-        signUpData.spotifyId = spotifyArtist.id
-        signUpData.spotifyUrl = spotifyArtist.url
-        signUpData.avatar = spotifyArtist.image
-      } else if (spotifyUser) {
-        // Use Spotify user profile image if no artist match
-        const avatar = getSpotifyAvatar()
-        if (avatar) {
-          signUpData.avatar = avatar
-        }
-      }
-
       await signUp(signUpData)
-
-      // Clear Spotify connection state after successful signup
-      clearSpotifyConnection()
 
       toast.success('Application submitted!', {
         description: 'Your application is pending review. We\'ll notify you once approved.',
@@ -159,16 +142,11 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
     }
   }
 
-  const handleSpotifyConnect = () => {
-    loginWithSpotify()
-  }
-
   const resetForms = () => {
     signUpForm.reset()
     signInForm.reset()
     setStep(1)
     setError('')
-    clearSpotifyConnection()
   }
 
   const switchTab = (newTab) => {
@@ -234,56 +212,6 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                     animate={{ opacity: 1 }}
                     className="space-y-4"
                   >
-                    {/* Spotify Connect */}
-                    <div className="p-4 bg-[#1db954]/10 border border-[#1db954]/20 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Connect Spotify</span>
-                        {spotifyUser || spotifyArtist ? (
-                          <Badge variant="success" className="gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Connected
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Optional</Badge>
-                        )}
-                      </div>
-                      {spotifyUser || spotifyArtist ? (
-                        <div className="flex items-center gap-3">
-                          {getSpotifyAvatar() && (
-                            <img
-                              src={getSpotifyAvatar()}
-                              alt={spotifyArtist?.name || spotifyUser?.displayName}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                          )}
-                          <div>
-                            <p className="text-sm font-medium">
-                              {spotifyArtist?.name || spotifyUser?.displayName}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {spotifyArtist
-                                ? `${spotifyArtist.followers?.toLocaleString() || 0} followers`
-                                : spotifyUser?.email
-                              }
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleSpotifyConnect}
-                          className="w-full gap-2 border-[#1db954]/30 hover:bg-[#1db954]/10"
-                        >
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                          </svg>
-                          Connect Spotify
-                        </Button>
-                      )}
-                    </div>
-
                     {/* Artist Name */}
                     <div className="space-y-2">
                       <Label htmlFor="artistName">Artist / Stage Name</Label>
@@ -538,26 +466,6 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                   )}
                 </Button>
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">Or</span>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={handleSpotifyConnect}
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                  </svg>
-                  Continue with Spotify
-                </Button>
               </form>
             </motion.div>
           )}

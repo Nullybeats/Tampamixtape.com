@@ -161,7 +161,7 @@ export function ArtistPage({ artistId, artistName, onBack }) {
       : 'Tampa Mixtape — Tampa Bay\'s Music Radar',
     description: artist?.name
       ? `Discover ${artist.name} on Tampa Mixtape — Tampa Bay's Music Radar`
-      : 'Discover Tampa Bay\'s hottest artists. Artist rankings, new releases, and music discovery powered by Spotify.',
+      : 'Discover Tampa Bay\'s hottest artists. Artist rankings, new releases, and music discovery powered by Apple Music.',
     image: artist?.image || 'https://tampamixtape.com/og-image.png',
     url: artistId
       ? `https://tampamixtape.com/artist/${artistId}`
@@ -200,7 +200,7 @@ export function ArtistPage({ artistId, artistName, onBack }) {
     setError(null)
 
     try {
-      const res = await fetch(`${API_URL}/api/artists/spotify/${artistId}/full`)
+      const res = await fetch(`${API_URL}/api/artists/apple-music/${artistId}/full`)
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}))
@@ -227,7 +227,7 @@ export function ArtistPage({ artistId, artistName, onBack }) {
     setError(null)
 
     try {
-      // First search for the artist to get their Spotify ID
+      // First search for the artist to get their Apple Music ID
       const searchRes = await fetch(`${API_URL}/api/artists/search?q=${encodeURIComponent(artistName)}`)
 
       if (!searchRes.ok) {
@@ -237,10 +237,10 @@ export function ArtistPage({ artistId, artistName, onBack }) {
       const searchData = await searchRes.json()
 
       if (searchData.results?.length > 0) {
-        const spotifyArtist = searchData.results.find(a => a.spotifyId)
-        if (spotifyArtist) {
-          // Fetch full data with the Spotify ID
-          const res = await fetch(`${API_URL}/api/artists/spotify/${spotifyArtist.spotifyId}/full`)
+        const appleMusicArtist = searchData.results.find(a => a.appleMusicId)
+        if (appleMusicArtist) {
+          // Fetch full data with the Apple Music ID
+          const res = await fetch(`${API_URL}/api/artists/apple-music/${appleMusicArtist.appleMusicId}/full`)
 
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}))
@@ -389,7 +389,7 @@ export function ArtistPage({ artistId, artistName, onBack }) {
                 <div className="flex flex-wrap gap-3">
                   <Button size="lg" className="gap-2" onClick={() => window.open(artist.url, '_blank')}>
                     <Play className="w-5 h-5" />
-                    Play on Spotify
+                    Play on Apple Music
                   </Button>
                   <Button variant="outline" size="lg" className="gap-2">
                     <Heart className="w-5 h-5" />

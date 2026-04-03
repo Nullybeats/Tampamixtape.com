@@ -129,9 +129,9 @@ export function DiscoverySection({ releases: propReleases }) {
                     <Disc3 className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h4 className="font-semibold mb-1">Powered by Spotify</h4>
+                    <h4 className="font-semibold mb-1">Powered by Apple Music</h4>
                     <p className="text-sm text-muted-foreground">
-                      Direct integration with Spotify for accurate release data and streaming links.
+                      Direct integration with Apple Music for accurate release data and streaming links.
                     </p>
                   </div>
                 </div>

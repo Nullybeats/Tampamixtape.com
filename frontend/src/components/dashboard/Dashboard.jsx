@@ -52,8 +52,7 @@ const mockAnalyticsData = [
 ]
 
 const mockPlatformData = [
-  { platform: 'Spotify', streams: 45000, color: '#1db954' },
-  { platform: 'Apple', streams: 28000, color: '#fa243c' },
+  { platform: 'Apple Music', streams: 45000, color: '#fa243c' },
   { platform: 'YouTube', streams: 35000, color: '#ff0000' },
   { platform: 'SoundCloud', streams: 12000, color: '#ff5500' },
 ]
@@ -275,81 +274,30 @@ function SocialLinksTab() {
 }
 
 function PlaylistsTab() {
-  const { playlists, featuredPlaylist, setFeaturedPlaylistById, spotifyUser, loginWithSpotify } = useAuth()
-
-  if (!spotifyUser) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <div className="w-16 h-16 rounded-full bg-[#1db954]/20 flex items-center justify-center mx-auto mb-4">
-            <Music className="w-8 h-8 text-[#1db954]" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">Connect Spotify</h3>
-          <p className="text-muted-foreground mb-4">
-            Connect your Spotify account to select a featured playlist
-          </p>
-          <Button onClick={loginWithSpotify} className="gap-2 bg-[#1db954] hover:bg-[#1db954]/90">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-            </svg>
-            Connect Spotify
-          </Button>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
     <div className="space-y-6">
-      {/* Featured Playlist */}
-      {featuredPlaylist && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" />
-              <CardTitle>Featured Playlist</CardTitle>
-            </div>
-            <CardDescription>This playlist is displayed on your artist profile</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              {featuredPlaylist.images?.[0] && (
-                <img
-                  src={featuredPlaylist.images[0].url}
-                  alt={featuredPlaylist.name}
-                  className="w-20 h-20 rounded-lg"
-                />
-              )}
-              <div className="flex-1">
-                <h4 className="font-semibold">{featuredPlaylist.name}</h4>
-                <p className="text-sm text-muted-foreground">
-                  {featuredPlaylist.tracks?.total || 0} tracks
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(featuredPlaylist.external_urls?.spotify, '_blank')}
-                className="gap-1"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Open
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Playlist Selection */}
       <Card>
+        <CardContent className="py-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
+            <Music className="w-8 h-8 text-primary" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">Playlists Coming Soon</h3>
+          <p className="text-muted-foreground mb-4">
+            Playlist features are being rebuilt with Apple Music integration.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Placeholder for future playlist selection */}
+      <Card className="hidden">
         <CardHeader>
           <CardTitle>Your Playlists</CardTitle>
           <CardDescription>Select a playlist to feature on your profile</CardDescription>
         </CardHeader>
         <CardContent>
-          {playlists.length === 0 ? (
+          {false ? (
             <p className="text-muted-foreground text-center py-8">
-              No playlists found. Create a playlist on Spotify to feature it here.
+              No playlists found.
             </p>
           ) : (
             <div className="grid gap-3 max-h-96 overflow-y-auto pr-2">
