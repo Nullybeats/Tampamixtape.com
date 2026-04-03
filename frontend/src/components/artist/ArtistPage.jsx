@@ -383,6 +383,13 @@ export function ArtistPage({ artistId, artistName, onBack }) {
                       <span className="text-muted-foreground">singles</span>
                     </div>
                   )}
+                  {artist.totalTracks > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Music className="w-5 h-5 text-primary" />
+                      <span className="text-2xl font-bold">{artist.totalTracks}</span>
+                      <span className="text-muted-foreground">tracks</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}

@@ -672,7 +672,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -685,21 +685,25 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                         <Trophy className="w-6 h-6 text-primary" />
                       </div>
                       <div>
-                        {rankingData.rank ? (
-                          <>
-                            <div className="font-display text-3xl font-bold text-primary">
-                              #{rankingData.rank}
-                            </div>
-                            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                              of {rankingData.total}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="font-display text-3xl font-bold text-muted-foreground">—</div>
-                            <div className="text-xs uppercase tracking-wider text-muted-foreground">Ranking</div>
-                          </>
-                        )}
+                        <div className="font-mono text-3xl font-bold text-primary">
+                          {profileData.demandScore || 0}
+                        </div>
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                          {profileData.demandScoreTier ? (
+                            <span className={
+                              profileData.demandScoreTier === 'breakout' ? 'text-red-400' :
+                              profileData.demandScoreTier === 'trending' ? 'text-orange-400' :
+                              profileData.demandScoreTier === 'radar' ? 'text-yellow-400' :
+                              profileData.demandScoreTier === 'building' ? 'text-blue-400' :
+                              'text-muted-foreground'
+                            }>
+                              {profileData.demandScoreTier === 'breakout' ? '🔥 Breakout' :
+                               profileData.demandScoreTier === 'trending' ? '📈 Trending' :
+                               profileData.demandScoreTier === 'radar' ? '👀 On the Radar' :
+                               profileData.demandScoreTier === 'building' ? '🧱 Building' : '🌱 Emerging'}
+                            </span>
+                          ) : 'Demand Score'}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -754,6 +758,28 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
+              >
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Music className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-mono text-3xl font-bold">
+                          {appleMusicData?.totalTracks || 0}
+                        </div>
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground">Tracks</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
               >
                 <Card>
                   <CardContent className="pt-6">

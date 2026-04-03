@@ -326,6 +326,7 @@ async function getFullArtistData(artistId) {
       },
       totalAlbums: sortedAlbums.filter(a => a.type === 'album').length,
       totalSingles: sortedAlbums.filter(a => a.type === 'single').length,
+      totalTracks: sortedAlbums.reduce((sum, a) => sum + (a.trackCount || 0), 0),
     };
   } catch (error) {
     console.error('Apple Music getFullArtistData error:', error.message);
@@ -482,6 +483,7 @@ async function getFullEnrichedData(artistId) {
     latestReleases: sortedAlbums.slice(0, 6),
     totalAlbums: sortedAlbums.filter(a => a.type === 'album').length,
     totalSingles: sortedAlbums.filter(a => a.type === 'single').length,
+    totalTracks: sortedAlbums.reduce((sum, a) => sum + (a.trackCount || 0), 0),
     lastEnrichedAt: new Date().toISOString(),
   };
 }
