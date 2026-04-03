@@ -187,7 +187,7 @@ async function syncSingleArtist(artist) {
 // Chunked sync (main sync job)
 // ==============================
 
-async function runSync() {
+async function runSync(options = {}) {
   // Check module-level lock (shared with syncSingleArtist and admin triggers)
   if (syncInProgress) {
     console.log('[Scheduler] Sync already in progress, skipping...');
@@ -196,7 +196,7 @@ async function runSync() {
 
   syncInProgress = true;
   cycleCount++;
-  const isMetadataRefresh = (cycleCount % METADATA_REFRESH_INTERVAL === 0);
+  const isMetadataRefresh = options?.forceMetadata || (cycleCount % METADATA_REFRESH_INTERVAL === 0);
   const startTime = Date.now();
   console.log(`[Scheduler] Starting sync cycle #${cycleCount} (${isMetadataRefresh ? 'release + metadata' : 'release only'})...`);
 

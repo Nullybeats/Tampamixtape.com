@@ -161,50 +161,34 @@ router.get('/hot100', async (req, res) => {
   }
 });
 
-// Refresh Hot 100 — returns fresh data from DB (no API calls).
+// Refresh all artist data — triggers a full metadata sync from Apple Music
 router.post('/hot100/refresh', async (req, res) => {
   try {
-    // Flush hot100 cache so next GET returns fresh DB data
+    const { isSyncInProgress, runSync } = require('../services/scheduler');
+
+    if (isSyncInProgress()) {
+      return res.status(409).json({ error: 'Sync already in progress. Please wait.' });
+    }
+
+    // Trigger metadata-inclusive sync in background
+    runSync({ forceMetadata: true });
+
+    // Flush cache immediately
     cache.keys().filter(k => k.startsWith('hot100:') || k === 'landing').forEach(k => cache.del(k));
 
-    // Return current Hot 100 from DB
-    const artists = await prisma.user.findMany({
-      where: {
-        status: 'APPROVED',
-        role: 'ARTIST',
-        appleMusicId: { not: null },
-      },
-      orderBy: [
-        { followers: 'desc' },
-      ],
-      take: 100,
-      select: {
-        id: true,
-        artistName: true,
-        profileSlug: true,
-        avatar: true,
-        appleMusicId: true,
-        appleMusicUrl: true,
-        followers: true,
-        genres: true,
-        region: true,
-      },
+    // Count artists to give feedback
+    const total = await prisma.user.count({
+      where: { status: 'APPROVED', role: 'ARTIST', appleMusicId: { not: null } },
     });
-
-    const rankedArtists = artists.map((artist, index) => ({
-      ...artist,
-      rank: index + 1,
-    }));
 
     res.json({
-      message: 'Hot 100 cache refreshed from database',
-      updated: rankedArtists.length,
+      message: `Refreshing genres, artwork & releases for ${total} artists from Apple Music. This runs in the background.`,
+      updated: total,
       failed: 0,
-      total: rankedArtists.length,
-      results: rankedArtists,
+      total,
     });
   } catch (error) {
-    console.error('Refresh Hot 100 error:', error);
+    console.error('Refresh artist data error:', error);
     res.status(500).json({ error: 'Failed to refresh artist data', details: error.message });
   }
 });

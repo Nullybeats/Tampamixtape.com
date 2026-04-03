@@ -1882,9 +1882,9 @@ export function AdminDashboard() {
                   <div className="pt-4 border-t border-border">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium">Refresh Artist Data</p>
+                        <p className="font-medium">Refresh Artist Profiles</p>
                         <p className="text-sm text-muted-foreground">
-                          Update popularity, followers, genres & avatars from Apple Music for all artists
+                          Pull genres, artwork & releases from Apple Music for all artists
                         </p>
                       </div>
                       <Button
