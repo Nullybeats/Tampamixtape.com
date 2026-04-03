@@ -144,7 +144,7 @@ export function Footer({ adSettings: propAdSettings }) {
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                Tampa Bay's Music Radar. Discover the hottest artists, latest releases, and rankings powered by Spotify.
+                Tampa Bay's Music Radar. Discover the hottest artists, latest releases, and rankings powered by Apple Music.
               </p>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                 <MapPin className="w-4 h-4" />
@@ -202,7 +202,7 @@ export function Footer({ adSettings: propAdSettings }) {
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <p>&copy; 2025 Tampa Mixtape. All rights reserved.</p>
+            <p>&copy; 2026 Tampa Mixtape. All rights reserved.</p>
             <div className="flex items-center gap-4">
               <Badge variant="secondary" className="gap-1">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
