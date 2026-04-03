@@ -30,8 +30,8 @@ function TrendingArtistCard({ artist, rank, index }) {
       className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group"
       onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
     >
-      <span className={`w-6 text-center font-bold ${
-        rank <= 3 ? 'text-yellow-500' : 'text-muted-foreground'
+      <span className={`font-display w-8 text-center text-xl font-bold ${
+        rank <= 3 ? 'text-hot' : 'text-muted-foreground'
       }`}>
         {rank}
       </span>
@@ -58,11 +58,11 @@ function TrendingArtistCard({ artist, rank, index }) {
       </div>
 
       <div className="text-right hidden sm:block">
-        <div className="flex items-center gap-1 text-sm font-medium text-primary">
+        <div className="flex items-center gap-1 text-sm font-mono font-medium text-primary">
           <TrendingUp className="w-4 h-4" />
           {artist.popularity}
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs font-mono text-muted-foreground">
           {formatNumber(artist.followers)} followers
         </p>
       </div>
@@ -161,7 +161,7 @@ export function TrendingSection({ artists: propArtists, releases: propReleases }
             <Flame className="w-4 h-4 mr-1 text-orange-500" />
             What's Hot
           </Badge>
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+          <h2 className="font-display text-4xl sm:text-5xl font-bold mb-4 uppercase tracking-tight">
             Trending <span className="text-gradient">Right Now</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">

@@ -139,7 +139,7 @@ export function Footer({ adSettings: propAdSettings }) {
                   alt="Tampa Mixtape"
                   className="w-10 h-10 rounded-xl"
                 />
-                <span className="text-xl font-bold">
+                <span className="font-display text-xl font-bold uppercase tracking-wide">
                   Tampa<span className="text-primary">Mixtape</span>
                 </span>
               </div>
@@ -169,7 +169,7 @@ export function Footer({ adSettings: propAdSettings }) {
             {/* Link Columns */}
             {Object.entries(footerLinks).map(([title, links]) => (
               <div key={title}>
-                <h4 className="font-semibold mb-4">{title}</h4>
+                <h4 className="font-display text-sm font-bold uppercase tracking-wider mb-4">{title}</h4>
                 <ul className="space-y-2">
                   {links.map((link) => (
                     <li key={link.name}>

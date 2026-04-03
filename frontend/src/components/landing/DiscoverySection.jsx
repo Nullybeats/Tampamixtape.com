@@ -61,7 +61,7 @@ export function DiscoverySection({ releases: propReleases }) {
             <Disc3 className="w-4 h-4 mr-1" />
             Discovery Feed
           </Badge>
-          <h2 className="text-4xl sm:text-5xl font-bold mb-4">
+          <h2 className="font-display text-5xl sm:text-6xl font-bold mb-4 uppercase tracking-tight">
             Discover <span className="text-gradient">New Releases</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">

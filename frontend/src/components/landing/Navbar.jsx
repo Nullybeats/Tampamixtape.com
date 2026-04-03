@@ -255,7 +255,7 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
               alt="TampaMixtape"
               className="w-10 h-10 rounded-xl"
             />
-            <span className="text-xl font-bold">
+            <span className="font-display text-xl font-bold uppercase tracking-wide">
               Tampa<span className="text-primary">Mixtape</span>
             </span>
           </button>

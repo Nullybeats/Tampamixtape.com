@@ -31,11 +31,11 @@ function formatNumber(num) {
 function getRankIcon(rank) {
   switch (rank) {
     case 1:
-      return <Crown className="w-5 h-5 text-yellow-400" />
+      return <Crown className="w-5 h-5 text-hot" />
     case 2:
       return <Medal className="w-5 h-5 text-gray-400" />
     case 3:
-      return <Award className="w-5 h-5 text-amber-600" />
+      return <Award className="w-5 h-5 text-hot/70" />
     default:
       return null
   }
@@ -56,17 +56,17 @@ function ArtistRow({ artist, index }) {
       }`}
     >
       {/* Rank */}
-      <div className="w-12 text-center">
+      <div className="w-14 text-center">
         <div className="flex items-center justify-center gap-1">
           {getRankIcon(artist.rank)}
-          <span className={`text-2xl font-bold ${artist.rank <= 3 ? 'text-gradient-gold' : ''}`}>
+          <span className={`font-display text-3xl font-bold ${artist.rank <= 3 ? 'text-gradient-hot' : 'text-muted-foreground'}`}>
             {artist.rank}
           </span>
         </div>
       </div>
 
       {/* Artist Image */}
-      <div className="relative w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-secondary">
+      <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-secondary">
         {artist.avatar ? (
           <img
             src={artist.avatar}
@@ -102,18 +102,18 @@ function ArtistRow({ artist, index }) {
       {/* Stats */}
       <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
         <div className="text-center">
-          <div className="font-semibold text-foreground flex items-center gap-1 justify-center">
+          <div className="font-mono font-medium text-foreground flex items-center gap-1 justify-center">
             <TrendingUp className="w-3 h-3 text-primary" />
             {artist.popularity}
           </div>
-          <div className="text-xs">popularity</div>
+          <div className="text-xs uppercase tracking-wider">popularity</div>
         </div>
         <div className="text-center">
-          <div className="font-semibold text-foreground flex items-center gap-1 justify-center">
+          <div className="font-mono font-medium text-foreground flex items-center gap-1 justify-center">
             <Users className="w-3 h-3" />
             {formatNumber(artist.followers)}
           </div>
-          <div className="text-xs">followers</div>
+          <div className="text-xs uppercase tracking-wider">followers</div>
         </div>
       </div>
 
@@ -196,8 +196,8 @@ export function Hot100Section({ artists: propArtists }) {
             <Trophy className="w-4 h-4 mr-1" />
             Artist Rankings
           </Badge>
-          <h2 className="text-4xl sm:text-5xl font-bold mb-4">
-            Tampa <span className="text-gradient-gold">Hot 100</span>
+          <h2 className="font-display text-5xl sm:text-6xl font-bold mb-4 uppercase tracking-tight">
+            Tampa <span className="text-gradient-hot">Hot 100</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             The definitive ranking of Tampa Bay's top artists, ranked by Spotify popularity and follower count.
@@ -222,7 +222,7 @@ export function Hot100Section({ artists: propArtists }) {
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="p-4 space-y-2">
+            <CardContent className="p-4 divide-y divide-border/50">
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -266,15 +266,15 @@ export function Hot100Section({ artists: propArtists }) {
           {[
             {
               title: 'Most Popular',
-              description: 'Artists with the highest Spotify popularity scores.',
+              description: 'Artists with the highest popularity scores.',
               icon: TrendingUp,
-              color: 'text-green-400',
+              color: 'text-primary',
             },
             {
               title: 'Rising Stars',
               description: 'New artists making waves in Tampa Bay.',
               icon: Award,
-              color: 'text-primary',
+              color: 'text-amber-400',
             },
             {
               title: 'Tampa Legends',

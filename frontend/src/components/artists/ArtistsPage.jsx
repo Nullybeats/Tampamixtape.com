@@ -80,7 +80,7 @@ function ArtistListItem({ artist, index }) {
         <CardContent className="p-0">
           <div className="flex items-center gap-4 p-4">
             {/* Avatar */}
-            <div className="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 bg-secondary">
+            <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-secondary">
               {artist.avatar ? (
                 <img
                   src={artist.avatar}
@@ -118,20 +118,20 @@ function ArtistListItem({ artist, index }) {
             <div className="hidden sm:flex items-center gap-6 text-sm text-muted-foreground">
               {artist.popularity > 0 && (
                 <div className="text-center">
-                  <div className="font-semibold text-foreground flex items-center gap-1">
+                  <div className="font-mono font-medium text-foreground flex items-center gap-1">
                     <TrendingUp className="w-3 h-3 text-primary" />
                     {artist.popularity}
                   </div>
-                  <div className="text-xs">popularity</div>
+                  <div className="text-xs uppercase tracking-wider">popularity</div>
                 </div>
               )}
               {artist.followers > 0 && (
                 <div className="text-center">
-                  <div className="font-semibold text-foreground flex items-center gap-1">
+                  <div className="font-mono font-medium text-foreground flex items-center gap-1">
                     <Users className="w-3 h-3" />
                     {formatNumber(artist.followers)}
                   </div>
-                  <div className="text-xs">followers</div>
+                  <div className="text-xs uppercase tracking-wider">followers</div>
                 </div>
               )}
             </div>
@@ -182,7 +182,7 @@ function ArtistGridItem({ artist, index }) {
             </div>
             {/* Popularity badge */}
             {artist.popularity > 0 && (
-              <Badge className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm">
+              <Badge className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm font-mono">
                 <TrendingUp className="w-3 h-3 mr-1" />
                 {artist.popularity}
               </Badge>
@@ -281,7 +281,7 @@ export function ArtistsPage() {
             <Users className="w-3 h-3" />
             Artist Directory
           </Badge>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <h1 className="font-display text-5xl md:text-6xl font-bold mb-4 uppercase tracking-tight">
             Tampa Bay <span className="text-primary">Artists</span>
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
@@ -391,7 +391,7 @@ export function ArtistsPage() {
         {/* Results Count */}
         {!loading && !error && (
           <p className="text-sm text-muted-foreground mb-6">
-            {pagination.total} artist{pagination.total !== 1 ? 's' : ''} found
+            <span className="font-mono">{pagination.total}</span> artist{pagination.total !== 1 ? 's' : ''} found
             {genre !== 'all' && ` in ${genre}`}
             {region !== 'all' && ` from ${region}`}
             {searchQuery && ` matching "${searchQuery}"`}
@@ -413,7 +413,7 @@ export function ArtistsPage() {
         ) : artists.length === 0 ? (
           <div className="text-center py-24">
             <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No Artists Found</h3>
+            <h3 className="font-display text-2xl font-bold uppercase mb-2">No Artists Found</h3>
             <p className="text-muted-foreground mb-4">
               {searchQuery ? `No artists match "${searchQuery}"` : 'No artists available with these filters.'}
             </p>
@@ -448,7 +448,7 @@ export function ArtistsPage() {
                   <ChevronLeft className="w-4 h-4" />
                   Previous
                 </Button>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm font-mono text-muted-foreground">
                   Page {pagination.page} of {pagination.pages}
                 </span>
                 <Button
@@ -483,7 +483,7 @@ export function ArtistsPage() {
                   <ChevronLeft className="w-4 h-4" />
                   Previous
                 </Button>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm font-mono text-muted-foreground">
                   Page {pagination.page} of {pagination.pages}
                 </span>
                 <Button

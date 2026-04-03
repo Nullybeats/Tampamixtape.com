@@ -134,7 +134,7 @@ export function ReleasesPage() {
             <Disc3 className="w-3 h-3" />
             New Music
           </Badge>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <h1 className="font-display text-5xl md:text-6xl font-bold mb-4 uppercase tracking-tight">
             Latest <span className="text-primary">Releases</span>
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
@@ -187,7 +187,7 @@ export function ReleasesPage() {
         ) : releases.length === 0 ? (
           <div className="text-center py-24">
             <Disc3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No Releases Found</h3>
+            <h3 className="font-display text-2xl font-bold uppercase mb-2">No Releases Found</h3>
             <p className="text-muted-foreground">
               {searchQuery ? `No releases match "${searchQuery}"` : 'No releases available yet.'}
             </p>
@@ -240,7 +240,7 @@ export function ReleasesPage() {
                           {release.artistName}
                         </button>
                         {release.releaseDate && (
-                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          <p className="text-xs font-mono text-muted-foreground mt-1 flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
                             {formatDate(release.releaseDate)}
                           </p>
