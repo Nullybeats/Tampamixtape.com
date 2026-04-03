@@ -600,9 +600,9 @@ function App() {
   return (
     <BrowserRouter>
       <Cursor
-        isGelly={true}
-        animationDuration={0.8}
-        cursorSize={24}
+        isGelly={false}
+        animationDuration={0.1}
+        cursorSize={20}
         cursorBackgrounColor="#ff656c"
         cursorInnerColor="#ffffff"
       />
