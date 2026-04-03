@@ -12,7 +12,7 @@ export function formatNumber(num) {
 
 export function formatTimeAgo(dateString) {
   if (!dateString) return ''
-  const date = new Date(dateString)
+  const date = new Date(dateString + 'T00:00:00')
   const now = new Date()
   const diffMs = now - date
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
@@ -27,7 +27,7 @@ export function formatTimeAgo(dateString) {
 export function formatRelativeDate(dateString) {
   if (!dateString) return ''
 
-  const date = new Date(dateString)
+  const date = new Date(dateString + 'T00:00:00')
   const now = new Date()
   const diffMs = now - date
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
