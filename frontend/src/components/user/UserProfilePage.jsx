@@ -474,7 +474,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   )}
                 </div>
 
-                <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                <h1 className="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2">
                   {profileData.artistName}
                 </h1>
 
@@ -656,182 +656,106 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             {/* Stats Cards */}
-            {appleMusicData && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0 }}
-                >
-                  <Card className="glow-green-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
-                          <Users className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold text-primary">
-                            {appleMusicData.followers?.toLocaleString() || '0'}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Followers</div>
-                        </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0 }}
+              >
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Trophy className="w-6 h-6 text-primary" />
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <Card className="glow-green-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                          <Trophy className="w-6 h-6 text-yellow-500" />
-                        </div>
-                        <div>
-                          {rankingData.rank ? (
-                            <>
-                              <div className="text-2xl font-bold text-yellow-500">
-                                #{rankingData.rank}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                of {rankingData.total} artists
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="text-2xl font-bold text-muted-foreground">
-                                —
-                              </div>
-                              <div className="text-sm text-muted-foreground">Tampa Ranking</div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <Card className="glow-green-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
-                          <Album className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold text-primary">
-                            {appleMusicData.totalAlbums || 0}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Albums</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <Card className="glow-green-sm">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
-                          <Mic2 className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold text-primary">
-                            {appleMusicData.totalSingles || 0}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Singles</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </div>
-            )}
-
-            {/* Popularity Chart */}
-            {appleMusicData && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                    Artist Analytics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {/* Popularity Gauge */}
-                    <div className="flex flex-col items-center">
-                      <h4 className="text-sm font-medium text-muted-foreground mb-4">Popularity Score</h4>
-                      <div className="h-48 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RadialBarChart
-                            cx="50%"
-                            cy="50%"
-                            innerRadius="60%"
-                            outerRadius="90%"
-                            barSize={20}
-                            data={[{ name: 'Popularity', value: appleMusicData.popularity, fill: '#22c55e' }]}
-                            startAngle={180}
-                            endAngle={0}
-                          >
-                            <RadialBar
-                              background={{ fill: '#27272a' }}
-                              dataKey="value"
-                              cornerRadius={10}
-                            />
-                          </RadialBarChart>
-                        </ResponsiveContainer>
-                        <div className="text-center -mt-20">
-                          <div className="text-4xl font-bold text-primary">{appleMusicData.popularity}</div>
-                          <div className="text-sm text-muted-foreground">out of 100</div>
-                        </div>
+                      <div>
+                        {rankingData.rank ? (
+                          <>
+                            <div className="font-display text-3xl font-bold text-primary">
+                              #{rankingData.rank}
+                            </div>
+                            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                              of {rankingData.total}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="font-display text-3xl font-bold text-muted-foreground">—</div>
+                            <div className="text-xs uppercase tracking-wider text-muted-foreground">Ranking</div>
+                          </>
+                        )}
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
 
-                    {/* Top Tracks Popularity */}
-                    {appleMusicData.topTracks?.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-4">Top Tracks Popularity</h4>
-                        <div className="h-48">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart
-                              data={appleMusicData.topTracks.slice(0, 5).map(t => ({
-                                name: t.name.length > 15 ? t.name.substring(0, 15) + '...' : t.name,
-                                popularity: t.popularity
-                              }))}
-                              layout="vertical"
-                              margin={{ left: 0, right: 20 }}
-                            >
-                              <XAxis type="number" domain={[0, 100]} stroke="#71717a" fontSize={12} />
-                              <YAxis type="category" dataKey="name" width={100} stroke="#71717a" fontSize={11} />
-                              <Tooltip content={<CustomTooltip />} />
-                              <Bar dataKey="popularity" radius={[0, 4, 4, 0]}>
-                                {appleMusicData.topTracks.slice(0, 5).map((_, index) => (
-                                  <Cell key={index} fill={index === 0 ? '#22c55e' : '#22c55e80'} />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Album className="w-6 h-6 text-primary" />
                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                      <div>
+                        <div className="font-mono text-3xl font-bold">
+                          {appleMusicData?.totalAlbums || 0}
+                        </div>
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground">Albums</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Mic2 className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-mono text-3xl font-bold">
+                          {appleMusicData?.totalSingles || 0}
+                        </div>
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground">Singles</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Users className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-mono text-3xl font-bold">
+                          {platformFollowers || 0}
+                        </div>
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground">Followers</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
 
             {/* Latest Release Highlight */}
             {appleMusicData?.latestReleases?.[0] && (
