@@ -84,10 +84,6 @@ export function Footer({ adSettings: propAdSettings }) {
             viewport={{ once: true }}
           >
             <div className="relative">
-              <div className="flex items-center justify-center gap-2 mb-3 text-muted-foreground">
-                <Megaphone className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase tracking-wider">Advertisement</span>
-              </div>
               <div className="relative group">
                 <a
                   href={adSettings.link}
