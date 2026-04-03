@@ -42,7 +42,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Health check route
 app.get('/api/health', async (req, res) => {
@@ -110,6 +110,56 @@ app.listen(PORT, async () => {
   setInterval(() => {
     fetch(`http://localhost:${PORT}/api/health`).catch(() => {});
   }, 14 * 60 * 1000);
+
+  // Run one-time Apple Music migration (maps Spotify IDs → Apple Music IDs)
+  try {
+    const prisma = require('./services/db');
+    const appleMusic = require('./services/applemusic');
+
+    const unmigrated = await prisma.user.count({
+      where: { role: 'ARTIST', status: 'APPROVED', spotifyId: { not: null }, appleMusicId: null },
+    });
+
+    if (unmigrated > 0 && process.env.APPLE_TEAM_ID) {
+      console.log(`[Migration] Found ${unmigrated} artists to migrate to Apple Music...`);
+      const artists = await prisma.user.findMany({
+        where: { role: 'ARTIST', status: 'APPROVED', spotifyId: { not: null }, appleMusicId: null },
+        select: { id: true, artistName: true },
+        orderBy: { artistName: 'asc' },
+      });
+
+      let matched = 0, failed = 0;
+      for (const artist of artists) {
+        if (!artist.artistName) continue;
+        try {
+          const results = await appleMusic.searchArtist(artist.artistName);
+          await new Promise(r => setTimeout(r, 200));
+          if (!results || results.length === 0) { failed++; continue; }
+
+          const normalizedName = artist.artistName.toLowerCase().trim();
+          const exactMatch = results.find(r => r.name.toLowerCase().trim() === normalizedName);
+          const best = exactMatch || results[0];
+
+          await prisma.user.update({
+            where: { id: artist.id },
+            data: { appleMusicId: best.id, appleMusicUrl: best.url, syncEnabled: true, syncFailCount: 0, lastSyncError: null },
+          });
+          console.log(`[Migration] ✅ ${artist.artistName} → ${best.name} (ID: ${best.id})`);
+          matched++;
+        } catch (err) {
+          if (err.response?.status === 429) {
+            const wait = parseInt(err.response?.headers?.['retry-after']) || 30;
+            console.log(`[Migration] Rate limited, waiting ${wait}s...`);
+            await new Promise(r => setTimeout(r, wait * 1000));
+          }
+          failed++;
+        }
+      }
+      console.log(`[Migration] Complete: ${matched} matched, ${failed} failed`);
+    }
+  } catch (error) {
+    console.error('[Migration] Error:', error.message);
+  }
 
   // Start the auto-sync scheduler
   try {
