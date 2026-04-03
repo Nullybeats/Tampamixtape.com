@@ -103,7 +103,7 @@ app.listen(PORT, async () => {
   console.log(`🎵 TampaCharts API running on port ${PORT}`);
   console.log(`   Database: ${process.env.DATABASE_URL ? '✓' : '✗'}`);
   console.log(`   Apple Music API: ${process.env.APPLE_TEAM_ID ? '✓' : '✗'}`);
-  console.log(`   Ticketmaster API: ${process.env.TICKETMASTER_API_KEY ? '✓' : '✗'}`);
+  console.log(`   Ticketmaster: ${process.env.TICKETMASTER_API_KEY ? '✓' : '✗ (events disabled)'}`);
   console.log(`   Admin configured: ${process.env.ADMIN_EMAIL ? '✓' : '✗'}`);
 
   // Keep alive - ping every 14 min to prevent Render cold starts

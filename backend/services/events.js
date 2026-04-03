@@ -14,33 +14,27 @@ async function getArtistEvents(artistName) {
 
   // If no API key configured, return empty (graceful degradation)
   if (!TICKETMASTER_API_KEY) {
-    console.log('Ticketmaster API key not configured - skipping events fetch');
     return [];
   }
 
   try {
-    // Search for events by artist/attraction name
     const response = await axios.get(
       'https://app.ticketmaster.com/discovery/v2/events.json',
       {
         params: {
           apikey: TICKETMASTER_API_KEY,
           keyword: artistName,
-          classificationName: 'music', // Filter to music events
-          size: 20, // Max events to return
-          sort: 'date,asc', // Sort by date ascending
+          classificationName: 'music',
+          size: 20,
+          sort: 'date,asc',
         },
         timeout: 10000,
       }
     );
 
-    // Ticketmaster returns _embedded.events array
     const events = response.data?._embedded?.events;
-    if (!Array.isArray(events)) {
-      return [];
-    }
+    if (!Array.isArray(events)) return [];
 
-    // Transform to our format
     return events.map(event => ({
       id: event.id,
       title: event.name || `${artistName} Live`,
@@ -70,9 +64,6 @@ async function getArtistEvents(artistName) {
   }
 }
 
-/**
- * Format venue location string
- */
 function formatLocation(venue) {
   if (!venue) return 'Location TBA';
   const parts = [
@@ -83,9 +74,6 @@ function formatLocation(venue) {
   return parts.join(', ') || 'Location TBA';
 }
 
-/**
- * Format time string from 24h to 12h format
- */
 function formatTime(time) {
   if (!time) return null;
   try {
@@ -99,41 +87,24 @@ function formatTime(time) {
   }
 }
 
-/**
- * Format price range string
- */
 function formatPriceRange(priceRanges) {
   if (!priceRanges || priceRanges.length === 0) return null;
   const range = priceRanges[0];
-  if (range.min === range.max) {
-    return `$${range.min}`;
-  }
+  if (range.min === range.max) return `$${range.min}`;
   return `$${range.min} - $${range.max}`;
 }
 
-/**
- * Get best quality image from Ticketmaster images array
- */
 function getBestImage(images) {
   if (!images || images.length === 0) return null;
-  // Prefer larger images
   const sorted = [...images].sort((a, b) => (b.width || 0) - (a.width || 0));
   return sorted[0]?.url || null;
 }
 
-/**
- * Get attraction names (lineup)
- */
 function getAttractions(attractions, defaultArtist) {
-  if (!attractions || attractions.length === 0) {
-    return [defaultArtist];
-  }
+  if (!attractions || attractions.length === 0) return [defaultArtist];
   return attractions.map(a => a.name);
 }
 
-/**
- * Search for an artist/attraction on Ticketmaster
- */
 async function searchArtist(artistName) {
   if (!artistName || !TICKETMASTER_API_KEY) return null;
 
@@ -152,11 +123,8 @@ async function searchArtist(artistName) {
     );
 
     const attractions = response.data?._embedded?.attractions;
-    if (!attractions || attractions.length === 0) {
-      return null;
-    }
+    if (!attractions || attractions.length === 0) return null;
 
-    // Return the first (most relevant) match
     const artist = attractions[0];
     return {
       id: artist.id,
@@ -164,7 +132,6 @@ async function searchArtist(artistName) {
       image: getBestImage(artist.images),
       upcomingEvents: artist.upcomingEvents?._total || 0,
       url: artist.url,
-      externalLinks: artist.externalLinks,
     };
   } catch (error) {
     console.error('Ticketmaster search error:', error.message);
