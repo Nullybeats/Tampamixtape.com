@@ -10,6 +10,9 @@ build/
 .env.local
 .env.*.local
 
+# Apple Music private keys
+*.p8
+
 # IDE
 .vscode/
 .idea/

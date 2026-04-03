@@ -24,6 +24,8 @@ import { AboutPage } from '@/components/pages/AboutPage'
 import { ContactPage } from '@/components/pages/ContactPage'
 import { PrivacyPage } from '@/components/pages/PrivacyPage'
 import { TermsPage } from '@/components/pages/TermsPage'
+import { Cursor } from 'react-creative-cursor'
+import 'react-creative-cursor/dist/styles.css'
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -597,6 +599,13 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
+      <Cursor
+        isGelly={true}
+        animationDuration={0.8}
+        cursorSize={24}
+        cursorBackgrounColor="#ff656c"
+        cursorInnerColor="#ffffff"
+      />
       <AuthProvider>
         <AudioPlayerProvider>
           <ScrollToTop />
