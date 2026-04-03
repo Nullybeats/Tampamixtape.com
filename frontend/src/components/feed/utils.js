@@ -18,6 +18,7 @@ export function formatTimeAgo(dateString) {
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
   const diffDays = Math.floor(diffHours / 24)
 
+  if (diffMs < 0) return 'Upcoming'
   if (diffHours < 1) return 'Just now'
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
@@ -31,6 +32,15 @@ export function formatRelativeDate(dateString) {
   const now = new Date()
   const diffMs = now - date
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  // Future releases
+  if (diffDays < 0) {
+    const daysUntil = Math.abs(diffDays)
+    if (daysUntil === 1) return 'Tomorrow'
+    if (daysUntil < 7) return `In ${daysUntil} days`
+    if (daysUntil < 30) return `In ${Math.floor(daysUntil / 7)} weeks`
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
 
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
