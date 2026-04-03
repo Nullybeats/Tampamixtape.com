@@ -7,10 +7,10 @@ let syncTimer = null;
 let syncInProgress = false; // Module-level lock for ALL sync entry points
 let cycleCount = 0; // Track cycles for metadata refresh cadence
 
-const CHUNK_SIZE = 50; // Artists per sync cycle (Apple Music is generous)
+const CHUNK_SIZE = 400; // All artists in one cycle (~300 req/min is safe with Apple Music)
 const CIRCUIT_BREAKER_THRESHOLD = 5; // Consecutive failures before quarantine
-const METADATA_REFRESH_INTERVAL = 6; // Every 6th cycle (~3 hours at 30min interval)
-const API_DELAY_MS = 150; // 150ms between API calls (~7 req/s)
+const METADATA_REFRESH_INTERVAL = 4; // Every 4th cycle — metadata refresh
+const API_DELAY_MS = 200; // 200ms = 5 req/s, safely under Apple's ~300/min limit
 
 // ==============================
 // Helpers
