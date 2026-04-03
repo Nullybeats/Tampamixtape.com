@@ -4,9 +4,7 @@ import { motion } from 'framer-motion'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import {
-  Twitter,
   Instagram,
-  Youtube,
   MapPin,
   Megaphone,
   Pencil
