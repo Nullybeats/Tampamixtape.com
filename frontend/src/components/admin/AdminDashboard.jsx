@@ -341,7 +341,7 @@ export function AdminDashboard() {
       // Build description based on results
       let description = `${data.totalReleases} total releases in database.`
       if (data.skipped > 0) {
-        description += ` ${data.skipped} artists skipped (rate limited).`
+        description += ` ${data.skipped} artists skipped.`
       }
       if (data.failed > 0) {
         description += ` ${data.failed} artists failed.`
@@ -350,7 +350,7 @@ export function AdminDashboard() {
       // Show appropriate toast based on results
       if (data.skipped > 0 || data.failed > 0) {
         toast.warning(`Synced ${data.processed} releases`, {
-          description: data.rateLimitMessage || description,
+          description,
           duration: 8000,
         })
       } else {

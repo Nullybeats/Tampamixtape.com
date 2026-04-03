@@ -571,11 +571,11 @@ router.patch('/settings/auto-sync', requireAdmin, async (req, res) => {
   try {
     const { enabled, intervalMins } = req.body;
 
-    // Validate interval (must be 30 minute increments, min 30, max 720 = 12 hours)
+    // Validate interval (min 10 min, max 720 = 12 hours, 10-min increments)
     if (intervalMins !== undefined) {
-      if (intervalMins < 30 || intervalMins > 720 || intervalMins % 30 !== 0) {
+      if (intervalMins < 10 || intervalMins > 720 || intervalMins % 10 !== 0) {
         return res.status(400).json({
-          error: 'Interval must be in 30-minute increments (30, 60, 90, etc.) up to 720 minutes (12 hours)',
+          error: 'Interval must be in 10-minute increments (10, 20, 30, etc.) up to 720 minutes (12 hours)',
         });
       }
     }
