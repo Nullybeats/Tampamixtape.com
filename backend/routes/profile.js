@@ -22,6 +22,8 @@ router.get('/:slug', async (req, res) => {
         status: true,
         appleMusicId: true,
         appleMusicUrl: true,
+        appleMusicCache: true,
+        appleMusicCachedAt: true,
         region: true,
         genres: true,
         instagramUrl: true,
@@ -42,27 +44,32 @@ router.get('/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Fetch Apple Music data and events in parallel for performance
+    // Use cached enriched data if available, otherwise fetch live (lightweight)
+    let artistData = user.appleMusicCache || null;
+    if (!artistData && user.appleMusicId) {
+      try {
+        artistData = await appleMusic.getFullArtistData(user.appleMusicId);
+      } catch (err) {
+        console.error('Failed to fetch Apple Music data:', err.message);
+      }
+    }
+
+    // Fetch events in parallel (always live — events change frequently)
     const artistName = user.artistName;
-    const [artistData, eventsData] = await Promise.all([
-      // Apple Music data
-      user.appleMusicId
-        ? appleMusic.getFullArtistData(user.appleMusicId).catch(err => {
-            console.error('Failed to fetch Apple Music data:', err.message);
-            return null;
-          })
-        : Promise.resolve(null),
-      // Events data from Bandsintown
-      artistName
-        ? events.getArtistEvents(artistName).catch(err => {
-            console.error('Failed to fetch events:', err.message);
-            return [];
-          })
-        : Promise.resolve([]),
-    ]);
+    let eventsData = [];
+    try {
+      if (artistName) {
+        eventsData = await events.getArtistEvents(artistName);
+      }
+    } catch (err) {
+      console.error('Failed to fetch events:', err.message);
+    }
+
+    // Strip cache fields from profile response
+    const { appleMusicCache, appleMusicCachedAt, ...profile } = user;
 
     res.json({
-      profile: user,
+      profile,
       artistData,
       events: eventsData,
     });

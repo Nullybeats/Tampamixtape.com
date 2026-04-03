@@ -407,12 +407,22 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const activeSocialLinks = Object.entries(socialLinks)
     .filter(([, value]) => value && value.trim())
 
+  // Dynamic artwork colors from Apple Music
+  const artworkColors = appleMusicData?.artwork
+  const heroBg = artworkColors?.bgColor ? `#${artworkColors.bgColor}` : null
+  const heroAccent = artworkColors?.textColor3 ? `#${artworkColors.textColor3}` : null
+
   return (
     <div className="min-h-screen bg-background pt-16">
       {/* Hero Section */}
       <div className="relative">
-        {/* Header Image / Gradient - Use album art or profile image as blurred banner */}
-        <div className="h-48 md:h-64 relative overflow-hidden">
+        {/* Header Image / Gradient - Dynamic colors from artwork */}
+        <div
+          className="h-48 md:h-64 relative overflow-hidden"
+          style={heroBg ? {
+            background: `linear-gradient(135deg, ${heroBg}40 0%, ${heroAccent || heroBg}20 50%, transparent 100%)`,
+          } : undefined}
+        >
           {profileData.headerImage ? (
             <img
               src={profileData.headerImage}
@@ -478,10 +488,16 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                   {profileData.artistName}
                 </h1>
 
-                {profileData.bio && (
-                  <p className="text-muted-foreground max-w-xl mb-4">
-                    {profileData.bio}
-                  </p>
+                {(profileData.bio || appleMusicData?.editorialNotes?.standard) && (
+                  <div className="max-w-xl mb-4">
+                    <p className="text-muted-foreground">
+                      {profileData.bio || appleMusicData.editorialNotes.standard.replace(/<[^>]*>/g, '').slice(0, 300)}
+                      {!profileData.bio && appleMusicData.editorialNotes.standard.length > 300 && '...'}
+                    </p>
+                    {!profileData.bio && (
+                      <span className="text-xs text-muted-foreground/50 mt-1 inline-block">via Apple Music</span>
+                    )}
+                  </div>
                 )}
 
                 {/* Genres - from Apple Music data */}
@@ -803,48 +819,59 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               </Card>
             )}
 
-            {/* Similar Artists Section */}
-            {similarArtists.length > 0 && (
+            {/* Similar Artists — prefer Apple Music data, fallback to genre matching */}
+            {(appleMusicData?.similarArtists?.length > 0 || similarArtists.length > 0) && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
+                  <CardTitle className="font-display text-lg uppercase tracking-tight flex items-center gap-2">
                     <Users className="w-5 h-5 text-primary" />
                     Fans Also Like
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    {similarArtists.map((artist, index) => (
-                      <motion.div
-                        key={artist.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="group cursor-pointer text-center"
-                        onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
-                      >
-                        <div className="relative w-20 h-20 md:w-24 md:h-24 mx-auto mb-2">
-                          {artist.avatar ? (
-                            <img
-                              src={artist.avatar}
-                              alt={artist.artistName}
-                              className="w-full h-full rounded-full object-cover group-hover:ring-2 ring-primary ring-offset-2 ring-offset-background transition-all"
-                            />
-                          ) : (
-                            <div className="w-full h-full rounded-full bg-secondary flex items-center justify-center group-hover:ring-2 ring-primary ring-offset-2 ring-offset-background transition-all">
-                              <Music className="w-8 h-8 text-muted-foreground" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Play className="w-8 h-8 text-white" />
+                    {(appleMusicData?.similarArtists?.length > 0
+                      ? appleMusicData.similarArtists.slice(0, 6)
+                      : similarArtists
+                    ).map((artist, index) => {
+                      // Apple Music similar artists have different field names
+                      const name = artist.artistName || artist.name
+                      const image = artist.avatar || artist.artwork
+                      const genreText = artist.genres
+                        ? (Array.isArray(artist.genres) ? artist.genres[0] : artist.genres.split(',')[0])
+                        : 'Artist'
+                      const linkUrl = artist.profileSlug ? `/${artist.profileSlug}` : artist.url
+
+                      return (
+                        <motion.div
+                          key={artist.id}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="group cursor-pointer text-center"
+                          onClick={() => {
+                            if (artist.profileSlug) navigate(`/${artist.profileSlug}`)
+                            else if (artist.url) window.open(artist.url, '_blank')
+                          }}
+                        >
+                          <div className="relative w-20 h-20 md:w-24 md:h-24 mx-auto mb-2">
+                            {image ? (
+                              <img
+                                src={image}
+                                alt={name}
+                                className="w-full h-full rounded-lg object-cover group-hover:ring-2 ring-primary ring-offset-2 ring-offset-background transition-all"
+                              />
+                            ) : (
+                              <div className="w-full h-full rounded-lg bg-secondary flex items-center justify-center group-hover:ring-2 ring-primary ring-offset-2 ring-offset-background transition-all">
+                                <Music className="w-8 h-8 text-muted-foreground" />
+                              </div>
+                            )}
                           </div>
-                        </div>
-                        <h4 className="font-medium text-sm truncate">{artist.artistName}</h4>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {artist.genres?.split(',')[0] || 'Artist'}
-                        </p>
-                      </motion.div>
-                    ))}
+                          <h4 className="font-medium text-sm truncate">{name}</h4>
+                          <p className="text-xs text-muted-foreground truncate">{genreText}</p>
+                        </motion.div>
+                      )
+                    })}
                   </div>
                 </CardContent>
               </Card>
@@ -881,12 +908,102 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
               </Card>
             )}
 
+            {/* Featured Playlists */}
+            {appleMusicData?.featuredPlaylists?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg uppercase tracking-tight flex items-center gap-2">
+                    <Music className="w-5 h-5 text-primary" />
+                    Featured On
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-4 overflow-x-auto pb-2 -mx-2 px-2">
+                    {appleMusicData.featuredPlaylists.map((playlist) => (
+                      <motion.div
+                        key={playlist.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex-shrink-0 w-40 cursor-pointer group"
+                        onClick={() => window.open(playlist.url, '_blank')}
+                      >
+                        {playlist.artwork ? (
+                          <img
+                            src={playlist.artwork}
+                            alt={playlist.name}
+                            className="w-40 h-40 rounded-lg object-cover group-hover:ring-2 ring-primary transition-all"
+                          />
+                        ) : (
+                          <div className="w-40 h-40 rounded-lg bg-secondary flex items-center justify-center">
+                            <Music className="w-8 h-8 text-muted-foreground" />
+                          </div>
+                        )}
+                        <p className="text-sm font-medium mt-2 truncate">{playlist.name}</p>
+                        <p className="text-xs text-muted-foreground">Apple Music Playlist</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Music Videos */}
+            {appleMusicData?.musicVideos?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg uppercase tracking-tight flex items-center gap-2">
+                    <Play className="w-5 h-5 text-primary" />
+                    Music Videos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {appleMusicData.musicVideos.map((video) => (
+                      <motion.div
+                        key={video.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="group cursor-pointer"
+                        onClick={() => window.open(video.url, '_blank')}
+                      >
+                        <div className="relative aspect-video rounded-lg overflow-hidden bg-secondary">
+                          {video.artwork ? (
+                            <img
+                              src={video.artwork}
+                              alt={video.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Play className="w-8 h-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Play className="w-10 h-10 text-white" />
+                          </div>
+                          {video.contentRating === 'explicit' && (
+                            <Badge className="absolute top-2 left-2 bg-red-500/80 text-white text-[10px] px-1.5">E</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium mt-2 truncate">{video.name}</p>
+                        {video.durationMs && (
+                          <p className="text-xs font-mono text-muted-foreground">
+                            {Math.floor(video.durationMs / 60000)}:{String(Math.floor((video.durationMs % 60000) / 1000)).padStart(2, '0')}
+                          </p>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* No Music Data Message */}
             {!appleMusicData && (
               <Card>
                 <CardContent className="py-12 text-center">
                   <Music className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Music Data</h3>
+                  <h3 className="font-display text-lg font-bold uppercase mb-2">No Music Data</h3>
                   <p className="text-muted-foreground">
                     This artist hasn't linked their Apple Music profile yet.
                   </p>
@@ -966,7 +1083,12 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className={`font-medium truncate ${isCurrentTrack ? 'text-primary' : ''}`}>{track.name}</div>
+                                <div className={`font-medium truncate ${isCurrentTrack ? 'text-primary' : ''}`}>
+                                  {track.name}
+                                  {track.contentRating === 'explicit' && (
+                                    <span className="inline-flex items-center justify-center w-4 h-4 ml-1.5 text-[9px] font-bold bg-muted-foreground/20 text-muted-foreground rounded align-middle">E</span>
+                                  )}
+                                </div>
                                 <div className="text-sm text-muted-foreground truncate">{track.albumName}</div>
                               </div>
                               <div className="hidden md:flex items-center gap-4">
@@ -979,7 +1101,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                                   </div>
                                 </div>
                                 <span className="text-sm text-muted-foreground w-12">
-                                  {formatDuration(track.duration)}
+                                  {formatDuration(track.durationMs || track.duration)}
                                 </span>
                               </div>
                               {!track.previewUrl && (
@@ -1024,11 +1146,20 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <Play className="w-12 h-12 text-white" />
                               </div>
+                              {album.contentRating === 'explicit' && (
+                                <Badge className="absolute top-2 left-2 bg-red-500/80 text-white text-[10px] px-1.5">E</Badge>
+                              )}
+                              {album.audioVariants?.includes('dolby-atmos') && (
+                                <Badge className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-1.5">Atmos</Badge>
+                              )}
                             </div>
                             <h4 className="font-medium truncate">{album.name}</h4>
                             <p className="text-sm text-muted-foreground">
-                              {new Date(album.releaseDate).getFullYear()} · {album.totalTracks} tracks
+                              {new Date(album.releaseDate + 'T00:00:00').getFullYear()} · {album.totalTracks} tracks
                             </p>
+                            {album.recordLabel && (
+                              <p className="text-xs text-muted-foreground/60 truncate">{album.recordLabel}</p>
+                            )}
                           </motion.div>
                         ))}
                       </div>

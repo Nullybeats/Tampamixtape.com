@@ -31,6 +31,8 @@ model User {
   syncFailCount Int      @default(0)     // Consecutive sync failures (circuit breaker at 3)
   lastSyncedAt  DateTime?               // When this artist was last successfully synced
   lastSyncError String?                 // Last sync error message for debugging
+  appleMusicCache    Json?              // Full enriched Apple Music data (top songs, similar artists, videos, etc.)
+  appleMusicCachedAt DateTime?          // When the cache was last refreshed
   instagramUrl  String?
   twitterUrl    String?
   youtubeUrl    String?

@@ -227,6 +227,9 @@ async function getArtistAlbums(artistId) {
     url: album.attributes.url,
     genres: album.attributes.genreNames || [],
     recordLabel: album.attributes.recordLabel || null,
+    contentRating: album.attributes.contentRating || null,
+    audioVariants: album.attributes.audioTraits || [],
+    editorialNotes: album.attributes.editorialNotes?.short || null,
   }));
 }
 
@@ -354,6 +357,136 @@ async function findArtistByName(name) {
 }
 
 // ==============================
+// Enriched data (for profile caching)
+// ==============================
+
+/**
+ * Fetch artist with views (top songs, similar artists, playlists) in one call.
+ */
+async function getArtistWithViews(artistId) {
+  const data = await apiGet(`${BASE_URL}/artists/${artistId}`, {
+    views: 'top-songs,similar-artists,featured-playlists',
+    extend: 'editorialNotes',
+  });
+  const artist = data.data?.[0];
+  if (!artist) return null;
+
+  const attrs = artist.attributes;
+  const views = artist.views || {};
+
+  // Parse top songs
+  const topSongs = (views['top-songs']?.data || []).slice(0, 20).map((song, i) => ({
+    id: song.id,
+    name: song.attributes.name,
+    albumName: song.attributes.albumName || '',
+    albumImage: formatArtworkUrl(song.attributes.artwork, 300),
+    durationMs: song.attributes.durationInMillis,
+    previewUrl: song.attributes.previews?.[0]?.url || null,
+    url: song.attributes.url,
+    contentRating: song.attributes.contentRating || null,
+    isrc: song.attributes.isrc || null,
+    popularity: 100 - (i * 5), // Position-based proxy score
+  }));
+
+  // Parse similar artists
+  const similarArtists = (views['similar-artists']?.data || []).slice(0, 12).map(a => ({
+    id: a.id,
+    name: a.attributes.name,
+    artwork: formatArtworkUrl(a.attributes.artwork, 300),
+    url: a.attributes.url,
+    genres: a.attributes.genreNames || [],
+  }));
+
+  // Parse featured playlists
+  const featuredPlaylists = (views['featured-playlists']?.data || []).slice(0, 8).map(p => ({
+    id: p.id,
+    name: p.attributes.name,
+    artwork: formatArtworkUrl(p.attributes.artwork, 300),
+    url: p.attributes.url,
+    description: p.attributes.description?.standard || p.attributes.editorialNotes?.short || null,
+  }));
+
+  return {
+    id: artist.id,
+    name: attrs.name,
+    url: attrs.url,
+    genres: attrs.genreNames || [],
+    artwork: {
+      url: formatArtworkUrl(attrs.artwork, 640),
+      bgColor: attrs.artwork?.bgColor || null,
+      textColor1: attrs.artwork?.textColor1 || null,
+      textColor2: attrs.artwork?.textColor2 || null,
+      textColor3: attrs.artwork?.textColor3 || null,
+      textColor4: attrs.artwork?.textColor4 || null,
+    },
+    editorialNotes: {
+      standard: attrs.editorialNotes?.standard || null,
+      short: attrs.editorialNotes?.short || null,
+    },
+    topSongs,
+    similarArtists,
+    featuredPlaylists,
+  };
+}
+
+/**
+ * Fetch music videos for an artist.
+ */
+async function getArtistMusicVideos(artistId) {
+  try {
+    const data = await apiGet(`${BASE_URL}/artists/${artistId}/music-videos`, {
+      limit: 10,
+    });
+    return (data.data || []).map(mv => ({
+      id: mv.id,
+      name: mv.attributes.name,
+      artwork: formatArtworkUrl(mv.attributes.artwork, 640),
+      url: mv.attributes.url,
+      durationMs: mv.attributes.durationInMillis,
+      previewUrl: mv.attributes.previews?.[0]?.url || null,
+      releaseDate: mv.attributes.releaseDate || null,
+      contentRating: mv.attributes.contentRating || null,
+    }));
+  } catch (err) {
+    // Some artists have no music videos — return empty
+    if (err.response?.status === 404) return [];
+    throw err;
+  }
+}
+
+/**
+ * Full enriched data for caching — combines views, albums, and music videos.
+ * Makes 3 API calls in parallel.
+ */
+async function getFullEnrichedData(artistId) {
+  const [artistViews, albums, musicVideos] = await Promise.all([
+    getArtistWithViews(artistId),
+    getArtistAlbums(artistId),
+    getArtistMusicVideos(artistId).catch(() => []),
+  ]);
+
+  if (!artistViews) return null;
+
+  const sortedAlbums = albums.sort((a, b) =>
+    new Date(b.releaseDate) - new Date(a.releaseDate)
+  );
+
+  return {
+    ...artistViews,
+    topTracks: artistViews.topSongs, // Alias for frontend compatibility
+    musicVideos,
+    discography: {
+      albums: sortedAlbums.filter(a => a.type === 'album'),
+      singles: sortedAlbums.filter(a => a.type === 'single'),
+    },
+    latestReleases: sortedAlbums.slice(0, 6),
+    totalAlbums: sortedAlbums.filter(a => a.type === 'album').length,
+    totalSingles: sortedAlbums.filter(a => a.type === 'single').length,
+    lastEnrichedAt: new Date().toISOString(),
+  };
+}
+
+// ==============================
 // Helpers
 // ==============================
 
@@ -382,6 +515,9 @@ module.exports = {
   getAlbumTracks,
   getArtistStats,
   getFullArtistData,
+  getFullEnrichedData,
+  getArtistWithViews,
+  getArtistMusicVideos,
   findArtistByName,
   formatArtworkUrl,
 };

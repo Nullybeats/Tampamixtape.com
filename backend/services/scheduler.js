@@ -265,59 +265,54 @@ async function runSync(options = {}) {
         // Delay between API calls
         await new Promise(r => setTimeout(r, API_DELAY_MS));
 
-        // --- Metadata refresh (every 12th cycle) ---
+        // --- Metadata refresh (enriched Apple Music data) ---
         if (isMetadataRefresh) {
-          const artistData = await appleMusic.getArtistSafe(artist.appleMusicId);
+          let enrichedData = null;
+          try {
+            enrichedData = await appleMusic.getFullEnrichedData(artist.appleMusicId);
+          } catch (enrichErr) {
+            // Fallback to basic artist data if enriched fetch fails
+            console.log(`[Scheduler] Enriched fetch failed for ${artist.artistName}, falling back to basic`);
+            try {
+              enrichedData = await appleMusic.getArtistSafe(artist.appleMusicId);
+            } catch { /* skip */ }
+          }
 
-          if (artistData) {
-            const updateData = {};
+          const updateData = {
+            lastSyncedAt: new Date(),
+            syncFailCount: 0,
+            lastSyncError: null,
+          };
 
-            if (artistData.artwork) {
-              updateData.avatar = artistData.artwork;
-            }
+          if (enrichedData) {
+            // Store full enriched cache
+            updateData.appleMusicCache = enrichedData;
+            updateData.appleMusicCachedAt = new Date();
+
+            // Extract avatar from enriched data
+            const artworkUrl = enrichedData.artwork?.url || enrichedData.artwork;
+            if (artworkUrl) updateData.avatar = artworkUrl;
 
             // Genre update (Apple Music -> Last.fm fallback)
             if (!artist.genresLocked) {
-              let genres = artistData.genres || [];
+              let genres = enrichedData.genres || [];
               if (genres.length === 0 && artist.artistName) {
                 try {
                   const lastfmData = await lastfm.getArtistStats(artist.artistName);
-                  if (lastfmData?.tags?.length > 0) {
-                    genres = lastfmData.tags;
-                  }
+                  if (lastfmData?.tags?.length > 0) genres = lastfmData.tags;
                 } catch { /* skip */ }
               }
-              if (genres.length > 0) {
-                updateData.genres = formatGenres(genres);
-              }
+              if (genres.length > 0) updateData.genres = formatGenres(genres);
             }
-
-            if (Object.keys(updateData).length > 0) {
-              await prisma.user.update({
-                where: { id: artist.id },
-                data: {
-                  ...updateData,
-                  lastSyncedAt: new Date(),
-                  syncFailCount: 0,
-                  lastSyncError: null,
-                },
-              });
-            } else {
-              await prisma.user.update({
-                where: { id: artist.id },
-                data: { lastSyncedAt: new Date(), syncFailCount: 0, lastSyncError: null },
-              });
-            }
-          } else {
-            // getArtistSafe returned null (404) — still mark release sync as done
-            await prisma.user.update({
-              where: { id: artist.id },
-              data: { lastSyncedAt: new Date(), syncFailCount: 0, lastSyncError: null },
-            });
           }
 
-          // Delay after metadata call
-          await new Promise(r => setTimeout(r, API_DELAY_MS));
+          await prisma.user.update({
+            where: { id: artist.id },
+            data: updateData,
+          });
+
+          // Delay after metadata calls (enriched = 3 API calls)
+          await new Promise(r => setTimeout(r, API_DELAY_MS * 2));
         } else {
           // Release-only cycle — just mark as synced
           await prisma.user.update({
