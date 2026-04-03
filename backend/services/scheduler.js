@@ -2,6 +2,7 @@ const prisma = require('./db');
 const appleMusic = require('./applemusic');
 const lastfm = require('./lastfm');
 const cache = require('./cache');
+const { recalculateAllScores } = require('./demandScore');
 
 let syncTimer = null;
 let syncInProgress = false; // Module-level lock for ALL sync entry points
@@ -418,6 +419,13 @@ async function runSync(options = {}) {
 
     flushLandingCache();
     console.log(`[Scheduler] ${message}`);
+
+    // Recalculate Demand Scores after every sync
+    try {
+      await recalculateAllScores();
+    } catch (err) {
+      console.error('[Scheduler] Demand score recalculation failed:', err.message);
+    }
   } catch (error) {
     console.error('[Scheduler] Sync error:', error);
 

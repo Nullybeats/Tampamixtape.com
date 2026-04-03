@@ -115,7 +115,7 @@ router.get('/hot100', async (req, res) => {
       return res.json(cached);
     }
 
-    // Get all approved artists with Apple Music IDs
+    // Get all approved artists ranked by Demand Score
     const artists = await prisma.user.findMany({
       where: {
         status: 'APPROVED',
@@ -123,6 +123,7 @@ router.get('/hot100', async (req, res) => {
         appleMusicId: { not: null },
       },
       orderBy: [
+        { demandScore: 'desc' },
         { followers: 'desc' },
       ],
       take: parseInt(limit),
@@ -133,6 +134,8 @@ router.get('/hot100', async (req, res) => {
         avatar: true,
         appleMusicId: true,
         appleMusicUrl: true,
+        demandScore: true,
+        demandScoreTier: true,
         popularity: true,
         followers: true,
         genres: true,

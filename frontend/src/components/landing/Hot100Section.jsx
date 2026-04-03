@@ -99,21 +99,28 @@ function ArtistRow({ artist, index }) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
+      {/* Demand Score */}
+      <div className="hidden md:flex items-center gap-4 text-sm">
+        {artist.demandScoreTier && (
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+            artist.demandScoreTier === 'breakout' ? 'bg-red-500/20 text-red-400' :
+            artist.demandScoreTier === 'trending' ? 'bg-orange-500/20 text-orange-400' :
+            artist.demandScoreTier === 'radar' ? 'bg-yellow-500/20 text-yellow-400' :
+            artist.demandScoreTier === 'building' ? 'bg-blue-500/20 text-blue-400' :
+            'bg-muted text-muted-foreground'
+          }`}>
+            {artist.demandScoreTier === 'breakout' ? '🔥' :
+             artist.demandScoreTier === 'trending' ? '📈' :
+             artist.demandScoreTier === 'radar' ? '👀' :
+             artist.demandScoreTier === 'building' ? '🧱' : '🌱'}{' '}
+            {artist.demandScoreTier.charAt(0).toUpperCase() + artist.demandScoreTier.slice(1)}
+          </span>
+        )}
         <div className="text-center">
-          <div className="font-mono font-medium text-foreground flex items-center gap-1 justify-center">
-            <TrendingUp className="w-3 h-3 text-primary" />
-            {artist.popularity}
+          <div className="font-mono font-bold text-foreground text-lg">
+            {artist.demandScore || 0}
           </div>
-          <div className="text-xs uppercase tracking-wider">popularity</div>
-        </div>
-        <div className="text-center">
-          <div className="font-mono font-medium text-foreground flex items-center gap-1 justify-center">
-            <Users className="w-3 h-3" />
-            {formatNumber(artist.followers)}
-          </div>
-          <div className="text-xs uppercase tracking-wider">followers</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">score</div>
         </div>
       </div>
 
@@ -194,13 +201,13 @@ export function Hot100Section({ artists: propArtists }) {
         >
           <Badge variant="outline" className="mb-4">
             <Trophy className="w-4 h-4 mr-1" />
-            Artist Rankings
+            Demand Score
           </Badge>
           <h2 className="font-display text-5xl sm:text-6xl font-bold mb-4 uppercase tracking-tight">
             Tampa <span className="text-gradient-hot">Hot 100</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            The definitive ranking of Tampa Bay's top artists, ranked by popularity and follower count.
+            Ranked by the TampaMixtape Demand Score — release activity, community engagement, chart presence, and live shows.
           </p>
         </motion.div>
 

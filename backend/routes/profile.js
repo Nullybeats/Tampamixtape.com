@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const prisma = require('../services/db');
 const appleMusic = require('../services/applemusic');
 const events = require('../services/events');
@@ -24,6 +25,8 @@ router.get('/:slug', async (req, res) => {
         appleMusicUrl: true,
         appleMusicCache: true,
         appleMusicCachedAt: true,
+        demandScore: true,
+        demandScoreTier: true,
         region: true,
         genres: true,
         instagramUrl: true,
@@ -73,6 +76,24 @@ router.get('/:slug', async (req, res) => {
       artistData,
       events: eventsData,
     });
+
+    // Fire-and-forget: track profile view (don't block response)
+    if (user.role === 'ARTIST') {
+      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip;
+      const hashedIp = crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+      // Deduplicate: 1 view per IP per artist per hour
+      prisma.profileView.findFirst({
+        where: { artistId: user.id, viewerIp: hashedIp, createdAt: { gte: oneHourAgo } },
+      }).then(existing => {
+        if (!existing) {
+          return prisma.profileView.create({
+            data: { artistId: user.id, viewerIp: hashedIp },
+          });
+        }
+      }).catch(() => {}); // Silent fail — view tracking is non-critical
+    }
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ error: 'Failed to get profile' });

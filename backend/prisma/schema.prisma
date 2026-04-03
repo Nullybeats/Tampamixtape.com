@@ -33,6 +33,9 @@ model User {
   lastSyncError String?                 // Last sync error message for debugging
   appleMusicCache    Json?              // Full enriched Apple Music data (top songs, similar artists, videos, etc.)
   appleMusicCachedAt DateTime?          // When the cache was last refreshed
+  demandScore        Int       @default(0)  // TampaMixtape Demand Score (0-100)
+  demandScoreTier    String?               // "breakout", "trending", "radar", "building", "emerging"
+  demandScoreAt      DateTime?             // When score was last calculated
   instagramUrl  String?
   twitterUrl    String?
   youtubeUrl    String?
@@ -120,6 +123,17 @@ model SyncLog {
   createdAt       DateTime @default(now())
 
   @@map("sync_logs")
+}
+
+model ProfileView {
+  id        String   @id @default(cuid())
+  artistId  String
+  viewerIp  String?  // Hashed IP for dedup
+  createdAt DateTime @default(now())
+
+  @@index([artistId])
+  @@index([artistId, createdAt])
+  @@map("profile_views")
 }
 
 model ProfileClaim {
