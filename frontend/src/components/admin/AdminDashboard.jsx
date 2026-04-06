@@ -138,6 +138,11 @@ export function AdminDashboard() {
   const [syncLogs, setSyncLogs] = useState([])
   const [isLoadingSyncHealth, setIsLoadingSyncHealth] = useState(false)
 
+  // Demand score state
+  const [demandScores, setDemandScores] = useState(null)
+  const [isLoadingDemandScores, setIsLoadingDemandScores] = useState(false)
+  const [isRecalculating, setIsRecalculating] = useState(false)
+
   // Pending users state (independent of Users tab filters) - fixes pending tab bug
   const [pendingUsersList, setPendingUsersList] = useState([])
   const [isLoadingPending, setIsLoadingPending] = useState(true)
@@ -558,6 +563,48 @@ export function AdminDashboard() {
     }
   }
 
+  // Fetch demand scores
+  const fetchDemandScores = async () => {
+    setIsLoadingDemandScores(true)
+    try {
+      const res = await fetch(`${API_URL}/api/admin/demand-scores`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setDemandScores(data)
+      }
+    } catch (err) {
+      console.error('Error fetching demand scores:', err)
+    } finally {
+      setIsLoadingDemandScores(false)
+    }
+  }
+
+  // Trigger demand score recalculation
+  const handleRecalculateDemandScores = async () => {
+    setIsRecalculating(true)
+    try {
+      const res = await fetch(`${API_URL}/api/admin/demand-scores/recalculate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        toast.success('Demand score recalculation started', {
+          description: 'Scores will update in the background. Refresh in a minute to see results.',
+        })
+        // Auto-refresh after 30 seconds
+        setTimeout(fetchDemandScores, 30000)
+      } else {
+        toast.error('Failed to start recalculation')
+      }
+    } catch (err) {
+      toast.error('Failed to start recalculation')
+    } finally {
+      setIsRecalculating(false)
+    }
+  }
+
   // Reset sync for a quarantined artist
   const handleResetArtistSync = async (artistId, artistName) => {
     try {
@@ -738,6 +785,7 @@ export function AdminDashboard() {
     fetchUsers()
     fetchAutoSyncSettings()
     fetchSyncHealth()
+    fetchDemandScores()
     fetchPendingUsers()
     fetchClaims()
     fetchClaimStats()
@@ -1712,6 +1760,141 @@ export function AdminDashboard() {
                         <span className="text-muted-foreground">this period</span>
                       </div>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Demand Scores */}
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" />
+                    Demand Scores
+                  </CardTitle>
+                  <CardDescription>
+                    Artist demand score distribution and status
+                    {demandScores?.summary?.lastCalculated && (
+                      <span className="ml-2 text-xs">
+                        — Last updated: {new Date(demandScores.summary.lastCalculated).toLocaleString()}
+                      </span>
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {isLoadingDemandScores ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : demandScores ? (
+                    <>
+                      {/* Summary stats */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="p-3 bg-primary/10 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-primary">{demandScores.summary.scored}</p>
+                          <p className="text-xs text-muted-foreground">Scored</p>
+                        </div>
+                        <div className="p-3 bg-muted rounded-lg text-center">
+                          <p className="text-2xl font-bold">{demandScores.summary.unscored}</p>
+                          <p className="text-xs text-muted-foreground">Unscored</p>
+                        </div>
+                        <div className="p-3 bg-primary/10 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-primary">{demandScores.summary.averageScore}</p>
+                          <p className="text-xs text-muted-foreground">Avg Score</p>
+                        </div>
+                        <div className="p-3 bg-muted rounded-lg text-center">
+                          <p className="text-2xl font-bold">{demandScores.summary.totalArtists}</p>
+                          <p className="text-xs text-muted-foreground">Total Artists</p>
+                        </div>
+                      </div>
+
+                      {/* Tier distribution */}
+                      <div>
+                        <p className="text-sm font-medium mb-2">Tier Distribution</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                          <div className="p-2 bg-red-500/10 rounded-lg text-center">
+                            <p className="text-lg font-bold text-red-500">{demandScores.summary.tiers.breakout}</p>
+                            <p className="text-xs text-muted-foreground">Breakout (85+)</p>
+                          </div>
+                          <div className="p-2 bg-orange-500/10 rounded-lg text-center">
+                            <p className="text-lg font-bold text-orange-500">{demandScores.summary.tiers.trending}</p>
+                            <p className="text-xs text-muted-foreground">Trending (70+)</p>
+                          </div>
+                          <div className="p-2 bg-yellow-500/10 rounded-lg text-center">
+                            <p className="text-lg font-bold text-yellow-500">{demandScores.summary.tiers.radar}</p>
+                            <p className="text-xs text-muted-foreground">Radar (55+)</p>
+                          </div>
+                          <div className="p-2 bg-blue-500/10 rounded-lg text-center">
+                            <p className="text-lg font-bold text-blue-500">{demandScores.summary.tiers.building}</p>
+                            <p className="text-xs text-muted-foreground">Building (40+)</p>
+                          </div>
+                          <div className="p-2 bg-gray-500/10 rounded-lg text-center">
+                            <p className="text-lg font-bold text-gray-500">{demandScores.summary.tiers.emerging}</p>
+                            <p className="text-xs text-muted-foreground">Emerging</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top artists list */}
+                      {demandScores.artists?.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Top Artists by Demand</p>
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {demandScores.artists.slice(0, 10).map((artist, i) => (
+                              <div key={i} className="flex items-center justify-between text-sm p-2 bg-secondary/30 rounded">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground w-5">#{i + 1}</span>
+                                  <span className="font-medium">{artist.artistName || 'Unknown'}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className={
+                                    artist.tier === 'breakout' ? 'border-red-500/50 text-red-500' :
+                                    artist.tier === 'trending' ? 'border-orange-500/50 text-orange-500' :
+                                    artist.tier === 'radar' ? 'border-yellow-500/50 text-yellow-500' :
+                                    artist.tier === 'building' ? 'border-blue-500/50 text-blue-500' :
+                                    'border-gray-500/50 text-gray-500'
+                                  }>
+                                    {artist.tier}
+                                  </Badge>
+                                  <span className="font-bold text-sm w-8 text-right">{artist.score}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No demand score data available</p>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchDemandScores}
+                      disabled={isLoadingDemandScores}
+                    >
+                      Refresh
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRecalculateDemandScores}
+                      disabled={isRecalculating}
+                      className="gap-2"
+                    >
+                      {isRecalculating ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Recalculating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3 h-3" />
+                          Recalculate All
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

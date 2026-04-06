@@ -672,7 +672,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -758,28 +758,6 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-              >
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Music className="w-6 h-6 text-primary" />
-                      </div>
-                      <div>
-                        <div className="font-mono text-3xl font-bold">
-                          {appleMusicData?.totalTracks || 0}
-                        </div>
-                        <div className="text-xs uppercase tracking-wider text-muted-foreground">Tracks</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
               >
                 <Card>
                   <CardContent className="pt-6">

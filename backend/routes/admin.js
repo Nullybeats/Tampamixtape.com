@@ -1038,4 +1038,80 @@ router.post('/artists/:id/reset-sync', requireAdmin, async (req, res) => {
   }
 });
 
+// ==============================
+// Demand Score monitoring
+// ==============================
+
+// GET /api/admin/demand-scores - Full demand score report
+router.get('/demand-scores', requireAdmin, async (req, res) => {
+  try {
+    const artists = await prisma.user.findMany({
+      where: { role: 'ARTIST', status: 'APPROVED' },
+      select: {
+        id: true,
+        artistName: true,
+        demandScore: true,
+        demandScoreTier: true,
+        demandScoreAt: true,
+      },
+      orderBy: { demandScore: 'desc' },
+    });
+
+    // Tier distribution
+    const tiers = { breakout: 0, trending: 0, radar: 0, building: 0, emerging: 0, unscored: 0 };
+    let scoredCount = 0;
+    let totalScore = 0;
+    let lastCalculated = null;
+
+    for (const a of artists) {
+      if (a.demandScoreAt) {
+        scoredCount++;
+        totalScore += a.demandScore;
+        if (!lastCalculated || a.demandScoreAt > lastCalculated) {
+          lastCalculated = a.demandScoreAt;
+        }
+      }
+      if (a.demandScoreTier && tiers[a.demandScoreTier] !== undefined) {
+        tiers[a.demandScoreTier]++;
+      } else {
+        tiers.unscored++;
+      }
+    }
+
+    res.json({
+      summary: {
+        totalArtists: artists.length,
+        scored: scoredCount,
+        unscored: artists.length - scoredCount,
+        averageScore: scoredCount > 0 ? Math.round(totalScore / scoredCount) : 0,
+        lastCalculated,
+        tiers,
+      },
+      artists: artists.map(a => ({
+        artistName: a.artistName,
+        score: a.demandScore,
+        tier: a.demandScoreTier || 'unscored',
+        lastUpdated: a.demandScoreAt,
+      })),
+    });
+  } catch (error) {
+    console.error('Get demand scores error:', error);
+    res.status(500).json({ error: 'Failed to get demand scores' });
+  }
+});
+
+// POST /api/admin/demand-scores/recalculate - Trigger manual recalculation
+router.post('/demand-scores/recalculate', requireAdmin, async (req, res) => {
+  try {
+    const { recalculateAllScores } = require('../services/demandScore');
+    recalculateAllScores().catch(err =>
+      console.error('[Admin] Manual demand score recalculation failed:', err.message)
+    );
+    res.json({ message: 'Demand score recalculation started in background' });
+  } catch (error) {
+    console.error('Recalculate demand scores error:', error);
+    res.status(500).json({ error: 'Failed to start recalculation' });
+  }
+});
+
 module.exports = router;
