@@ -82,7 +82,7 @@ function TrackRow({ track, index, isLiked, onLikeToggle, isAuthenticated }) {
         )}
       </div>
 
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-2">
         <Button
           variant="ghost"
           size="sm"
@@ -90,21 +90,23 @@ function TrackRow({ track, index, isLiked, onLikeToggle, isAuthenticated }) {
           onClick={() => onLikeToggle(track)}
           title={isAuthenticated ? (isLiked ? 'Unlike' : 'Like') : 'Sign up to like tracks'}
         >
-          <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+          <Heart className={`w-4 h-4 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : 'text-muted-foreground hover:text-red-400'}`} />
         </Button>
-        {track.previewUrl && (
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <Play className="w-4 h-4" />
+        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          {track.previewUrl && (
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Play className="w-4 h-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => window.open(track.url, '_blank')}
+          >
+            <ExternalLink className="w-4 h-4" />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={() => window.open(track.url, '_blank')}
-        >
-          <ExternalLink className="w-4 h-4" />
-        </Button>
+        </div>
       </div>
     </motion.div>
   )
