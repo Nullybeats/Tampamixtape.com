@@ -48,6 +48,7 @@ import {
   TrendingUp,
   Image,
   Headphones,
+  Heart,
   Album,
   Mic2,
   Trophy,
@@ -115,7 +116,7 @@ function formatDuration(ms) {
 
 export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const navigate = useNavigate()
-  const { user, featuredPlaylist, isApproved, isAuthenticated, followArtist, unfollowArtist, checkFollowStatus } = useAuth()
+  const { user, featuredPlaylist, isApproved, isAuthenticated, followArtist, unfollowArtist, checkFollowStatus, likeTrack, unlikeTrack, checkTrackLikeStatus } = useAuth()
   const { playTrack, currentTrack, isPlaying } = useAudioPlayer()
   const [copied, setCopied] = useState(false)
   const [fetchedProfile, setFetchedProfile] = useState(null)
@@ -129,6 +130,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [isFollowing, setIsFollowing] = useState(false)
   const [platformFollowers, setPlatformFollowers] = useState(0)
   const [followLoading, setFollowLoading] = useState(false)
+  const [likedTrackIds, setLikedTrackIds] = useState(new Set())
   const [showClaimModal, setShowClaimModal] = useState(false)
   const [isClaimableProfile, setIsClaimableProfile] = useState(false)
 
@@ -303,6 +305,49 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
 
     checkFollow()
   }, [isOwnProfile, fetchedProfile?.id, isAuthenticated, checkFollowStatus])
+
+  // Check like status for tracks when Apple Music data loads
+  useEffect(() => {
+    if (!isAuthenticated || !appleMusicData?.topTracks?.length) return
+    const checkLikes = async () => {
+      const liked = new Set()
+      await Promise.all(
+        appleMusicData.topTracks.map(async (track) => {
+          if (!track.id) return
+          const data = await checkTrackLikeStatus(track.id)
+          if (data.isLiked) liked.add(track.id)
+        })
+      )
+      setLikedTrackIds(liked)
+    }
+    checkLikes()
+  }, [appleMusicData, isAuthenticated])
+
+  // Handle track like/unlike
+  const handleTrackLike = async (e, track) => {
+    e.stopPropagation()
+    if (!isAuthenticated || !track.id) return
+    try {
+      if (likedTrackIds.has(track.id)) {
+        await unlikeTrack(track.id)
+        setLikedTrackIds(prev => {
+          const next = new Set(prev)
+          next.delete(track.id)
+          return next
+        })
+      } else {
+        await likeTrack(track.id, {
+          trackName: track.name,
+          artistName: fetchedProfile?.artistName || '',
+          albumImage: track.albumImage || null,
+          trackUrl: track.url || null,
+        })
+        setLikedTrackIds(prev => new Set(prev).add(track.id))
+      }
+    } catch (err) {
+      console.error('Track like error:', err)
+    }
+  }
 
   // Handle follow/unfollow
   const handleFollowClick = async () => {
@@ -1108,6 +1153,15 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                                   {formatDuration(track.durationMs || track.duration)}
                                 </span>
                               </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 flex-shrink-0"
+                                onClick={(e) => handleTrackLike(e, track)}
+                                title={isAuthenticated ? (likedTrackIds.has(track.id) ? 'Unlike' : 'Like') : 'Sign in to like tracks'}
+                              >
+                                <Heart className={`w-5 h-5 transition-colors ${likedTrackIds.has(track.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground/60 hover:text-red-400'}`} />
+                              </Button>
                               {!track.previewUrl && (
                                 <Badge variant="outline" className="text-[10px] opacity-0 group-hover:opacity-100">
                                   Open Apple Music
