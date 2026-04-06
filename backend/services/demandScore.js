@@ -65,19 +65,21 @@ async function calcReleaseScore(artistId) {
 // Bucket 2: Platform Signal (0–100)
 // ==============================
 
-async function calcPlatformScore(artistId) {
+async function calcPlatformScore(artistId, artistName) {
   const thirtyDaysAgo = dateAgo(30);
 
-  const [followers, recentFollows, views] = await Promise.all([
+  const [followers, recentFollows, views, trackLikes] = await Promise.all([
     prisma.follow.count({ where: { artistId } }),
     prisma.follow.count({ where: { artistId, createdAt: { gte: thirtyDaysAgo } } }),
     prisma.profileView.count({ where: { artistId, createdAt: { gte: thirtyDaysAgo } } }),
+    artistName ? prisma.like.count({ where: { artistName } }) : 0,
   ]);
 
   let score = 0;
-  score += Math.min(views * 0.7, 35);          // Views (capped 35)
-  score += Math.min(followers * 5, 35);         // Total followers (capped 35)
-  score += Math.min(recentFollows * 10, 30);    // Follower velocity (capped 30)
+  score += Math.min(views * 0.7, 30);          // Views (capped 30)
+  score += Math.min(followers * 5, 30);         // Total followers (capped 30)
+  score += Math.min(recentFollows * 10, 25);    // Follower velocity (capped 25)
+  score += Math.min(trackLikes * 3, 15);        // Track likes (capped 15)
 
   return Math.min(score, 100);
 }
@@ -173,7 +175,7 @@ async function calcLiveScore(artistName) {
 async function calculateDemandScore(artist) {
   const [releaseScore, platformScore, liveScore] = await Promise.all([
     calcReleaseScore(artist.id),
-    calcPlatformScore(artist.id),
+    calcPlatformScore(artist.id, artist.artistName),
     calcLiveScore(artist.artistName),
   ]);
 

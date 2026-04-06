@@ -93,7 +93,14 @@ function TrackRow({ track, index, isLiked, onLikeToggle, isAuthenticated }) {
           }}
           title={isAuthenticated ? (isLiked ? 'Unlike' : 'Like') : 'Sign up to like tracks'}
         >
-          <Heart className={`w-5 h-5 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : 'text-muted-foreground/60 hover:text-red-400'}`} />
+          <motion.div
+            whileTap={{ scale: 0.75 }}
+            animate={isLiked ? { scale: [1, 1.3, 1] } : { scale: 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+            className="inline-flex"
+          >
+            <Heart className={`w-5 h-5 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : 'text-muted-foreground/60 hover:text-red-400'}`} />
+          </motion.div>
         </Button>
         {track.previewUrl && (
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">

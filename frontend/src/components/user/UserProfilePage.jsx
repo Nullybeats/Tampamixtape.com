@@ -1160,7 +1160,14 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                                 onClick={(e) => handleTrackLike(e, track)}
                                 title={isAuthenticated ? (likedTrackIds.has(track.id) ? 'Unlike' : 'Like') : 'Sign in to like tracks'}
                               >
-                                <Heart className={`w-5 h-5 transition-colors ${likedTrackIds.has(track.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground/60 hover:text-red-400'}`} />
+                                <motion.div
+                                  whileTap={{ scale: 0.75 }}
+                                  animate={likedTrackIds.has(track.id) ? { scale: [1, 1.3, 1] } : { scale: 1 }}
+                                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                                  className="inline-flex"
+                                >
+                                  <Heart className={`w-5 h-5 transition-colors ${likedTrackIds.has(track.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground/60 hover:text-red-400'}`} />
+                                </motion.div>
                               </Button>
                               {!track.previewUrl && (
                                 <Badge variant="outline" className="text-[10px] opacity-0 group-hover:opacity-100">

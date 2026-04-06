@@ -117,6 +117,7 @@ model Like {
   @@unique([userId, trackId])
   @@index([userId])
   @@index([trackId])
+  @@index([artistName])
   @@map("likes")
 }
 
