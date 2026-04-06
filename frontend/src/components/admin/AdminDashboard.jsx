@@ -1046,7 +1046,7 @@ export function AdminDashboard() {
       case 'ARTIST':
         return <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 gap-1"><Music className="w-3 h-3" />Artist</Badge>
       default:
-        return <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30 gap-1"><Users className="w-3 h-3" />User</Badge>
+        return <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30 gap-1"><Users className="w-3 h-3" />Fan</Badge>
     }
   }
 
@@ -2042,7 +2042,7 @@ export function AdminDashboard() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USER">User</SelectItem>
+                        <SelectItem value="USER">Fan</SelectItem>
                         <SelectItem value="ARTIST">Artist</SelectItem>
                       </SelectContent>
                     </Select>
@@ -2403,7 +2403,7 @@ export function AdminDashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="USER">User</SelectItem>
+                      <SelectItem value="USER">Fan</SelectItem>
                       <SelectItem value="ARTIST">Artist</SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
                     </SelectContent>
