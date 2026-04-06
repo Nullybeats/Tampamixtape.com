@@ -35,6 +35,8 @@ import {
   ArrowRight,
   ArrowLeft,
   Clock,
+  Headphones,
+  Mic2,
 } from 'lucide-react'
 
 // Florida cities - Tampa is active, others coming soon
@@ -51,12 +53,23 @@ const FLORIDA_CITIES = [
   { name: 'Gainesville', active: false, region: 'North Florida' },
 ]
 
-const signUpSchema = z.object({
+const fanSignUpSchema = z.object({
+  accountType: z.literal('fan'),
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  city: z.string().min(1, 'Please select your city'),
+})
+
+const artistSignUpSchema = z.object({
+  accountType: z.literal('artist'),
   artistName: z.string().min(2, 'Artist name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   city: z.string().min(1, 'Please select your city'),
 })
+
+const signUpSchema = z.discriminatedUnion('accountType', [fanSignUpSchema, artistSignUpSchema])
 
 const signInSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -65,7 +78,8 @@ const signInSchema = z.object({
 
 export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
   const [tab, setTab] = useState(defaultTab)
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(0) // 0 = role chooser, 1 = details, 2 = city
+  const [accountType, setAccountType] = useState(null) // 'fan' or 'artist'
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const { signUp, signIn } = useAuth()
@@ -73,6 +87,8 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
   const signUpForm = useForm({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
+      accountType: 'fan',
+      name: '',
       artistName: '',
       email: '',
       password: '',
@@ -103,15 +119,22 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
     try {
       const signUpData = {
         ...data,
+        accountType,
         state: 'Florida',
         region: selectedCityData?.region || 'Tampa Bay',
       }
 
       await signUp(signUpData)
 
-      toast.success('Application submitted!', {
-        description: 'Your application is pending review. We\'ll notify you once approved.',
-      })
+      if (accountType === 'fan') {
+        toast.success('Welcome to TampaMixtape!', {
+          description: 'Your account is ready. Start discovering Tampa artists!',
+        })
+      } else {
+        toast.success('Application submitted!', {
+          description: 'Your application is pending review. We\'ll notify you once approved.',
+        })
+      }
       onClose()
     } catch (err) {
       setError(err.message || 'Failed to create account')
@@ -145,7 +168,8 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
   const resetForms = () => {
     signUpForm.reset()
     signInForm.reset()
-    setStep(1)
+    setStep(0)
+    setAccountType(null)
     setError('')
   }
 
@@ -164,7 +188,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
           </DialogTitle>
           <DialogDescription>
             {tab === 'signup'
-              ? 'Create your artist account to track your stats'
+              ? (step === 0 ? 'How do you want to use TampaMixtape?' : accountType === 'fan' ? 'Create your fan account' : 'Create your artist account to track your stats')
               : 'Sign in to access your dashboard'
             }
           </DialogDescription>
@@ -206,28 +230,100 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
               exit={{ opacity: 0, x: -20 }}
             >
               <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
+                {/* Step 0: Role Chooser */}
+                {step === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="space-y-4"
+                  >
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountType('fan')
+                          signUpForm.setValue('accountType', 'fan')
+                          setStep(1)
+                        }}
+                        className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-muted hover:border-primary hover:bg-primary/5 transition-all cursor-pointer"
+                      >
+                        <Headphones className="w-10 h-10 text-primary" />
+                        <div className="text-center">
+                          <p className="font-semibold">I'm a Fan</p>
+                          <p className="text-xs text-muted-foreground mt-1">Discover & support Tampa artists</p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountType('artist')
+                          signUpForm.setValue('accountType', 'artist')
+                          setStep(1)
+                        }}
+                        className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-muted hover:border-primary hover:bg-primary/5 transition-all cursor-pointer"
+                      >
+                        <Mic2 className="w-10 h-10 text-primary" />
+                        <div className="text-center">
+                          <p className="font-semibold">I'm an Artist</p>
+                          <p className="text-xs text-muted-foreground mt-1">Track your stats & grow your reach</p>
+                        </div>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Step 1: Account Details */}
                 {step === 1 && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="space-y-4"
                   >
-                    {/* Artist Name */}
-                    <div className="space-y-2">
-                      <Label htmlFor="artistName">Artist / Stage Name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="artistName"
-                          placeholder="Your artist name"
-                          className="pl-10"
-                          {...signUpForm.register('artistName')}
-                        />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setStep(0); setAccountType(null) }}
+                      className="gap-1 -ml-2"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Back
+                    </Button>
+
+                    {/* Name (fans) or Artist Name (artists) */}
+                    {accountType === 'fan' ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Your Name</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="name"
+                            placeholder="Your name"
+                            className="pl-10"
+                            {...signUpForm.register('name')}
+                          />
+                        </div>
+                        {signUpForm.formState.errors.name && (
+                          <p className="text-xs text-red-400">{signUpForm.formState.errors.name.message}</p>
+                        )}
                       </div>
-                      {signUpForm.formState.errors.artistName && (
-                        <p className="text-xs text-red-400">{signUpForm.formState.errors.artistName.message}</p>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="artistName">Artist / Stage Name</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="artistName"
+                            placeholder="Your artist name"
+                            className="pl-10"
+                            {...signUpForm.register('artistName')}
+                          />
+                        </div>
+                        {signUpForm.formState.errors.artistName && (
+                          <p className="text-xs text-red-400">{signUpForm.formState.errors.artistName.message}</p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Email */}
                     <div className="space-y-2">
@@ -350,7 +446,9 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                             <div>
                               <p className="text-sm font-medium text-green-400">Tampa Resident Verified</p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                Welcome to Tampa Bay's music scene! You'll have full access to analytics, social link management, and all artist features.
+                                {accountType === 'fan'
+                                  ? "Welcome to Tampa Bay's music scene! Discover, follow, and support local artists."
+                                  : "Welcome to Tampa Bay's music scene! You'll have full access to analytics, social link management, and all artist features."}
                               </p>
                             </div>
                           </div>

@@ -90,6 +90,7 @@ export function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [accountTypeFilter, setAccountTypeFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 })
 
@@ -501,6 +502,7 @@ export function AdminDashboard() {
       })
       if (statusFilter !== 'all') params.append('status', statusFilter)
       if (roleFilter !== 'all') params.append('role', roleFilter)
+      if (accountTypeFilter !== 'all') params.append('accountType', accountTypeFilter)
       if (searchQuery.trim()) params.append('search', searchQuery.trim())
 
       const response = await fetch(`${API_URL}/api/admin/users?${params}`, {
@@ -799,7 +801,7 @@ export function AdminDashboard() {
   // Refetch when filters change
   useEffect(() => {
     fetchUsers(1)
-  }, [statusFilter, roleFilter, sortBy])
+  }, [statusFilter, roleFilter, accountTypeFilter, sortBy])
 
   // Debounced search
   useEffect(() => {
@@ -1251,9 +1253,20 @@ export function AdminDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Roles</SelectItem>
-                      <SelectItem value="USER">User</SelectItem>
+                      <SelectItem value="USER">Fan</SelectItem>
                       <SelectItem value="ARTIST">Artist</SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={accountTypeFilter} onValueChange={setAccountTypeFilter}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Account Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Accounts</SelectItem>
+                      <SelectItem value="registered">Registered</SelectItem>
+                      <SelectItem value="generated">Generated</SelectItem>
+                      <SelectItem value="claimed">Claimed</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={sortBy} onValueChange={setSortBy}>
@@ -1298,6 +1311,11 @@ export function AdminDashboard() {
                               <h4 className="font-semibold truncate">{u.artistName || u.name || 'No name'}</h4>
                               {getStatusBadge(u.status)}
                               {getRoleBadge(u.role)}
+                              {u.accountType && (
+                                <Badge variant="outline" className="text-xs capitalize">
+                                  {u.accountType}
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
                               <span className="flex items-center gap-1 truncate">

@@ -258,6 +258,7 @@ export function AuthProvider({ children }) {
           password: userData.password,
           name: userData.name,
           artistName: userData.artistName,
+          accountType: userData.accountType || 'fan',
           // Include Apple Music data if provided
           ...(userData.appleMusicId && { appleMusicId: userData.appleMusicId }),
           ...(userData.appleMusicUrl && { appleMusicUrl: userData.appleMusicUrl }),
@@ -598,6 +599,88 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // ===========================================
+  // Like/Unlike Methods
+  // ===========================================
+
+  const likeArtist = async (artistId) => {
+    if (!token) throw new Error('Must be logged in to like artists')
+    try {
+      const response = await fetch(`${API_URL}/api/like/${artistId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to like artist')
+      }
+      return data
+    } catch (error) {
+      console.error('Like artist error:', error)
+      throw error
+    }
+  }
+
+  const unlikeArtist = async (artistId) => {
+    if (!token) throw new Error('Must be logged in to unlike artists')
+    try {
+      const response = await fetch(`${API_URL}/api/like/${artistId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to unlike artist')
+      }
+      return data
+    } catch (error) {
+      console.error('Unlike artist error:', error)
+      throw error
+    }
+  }
+
+  const checkLikeStatus = async (artistId) => {
+    if (!token) return { isLiked: false, likeCount: 0 }
+    try {
+      const response = await fetch(`${API_URL}/api/like/status/${artistId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return { isLiked: false, likeCount: 0 }
+      }
+      return data
+    } catch (error) {
+      console.error('Check like status error:', error)
+      return { isLiked: false, likeCount: 0 }
+    }
+  }
+
+  const getLikedArtists = async () => {
+    if (!token) return []
+    try {
+      const response = await fetch(`${API_URL}/api/like/liked`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return []
+      }
+      return data.artists || []
+    } catch (error) {
+      console.error('Get liked artists error:', error)
+      return []
+    }
+  }
+
   const value = {
     user,
     token,
@@ -610,6 +693,7 @@ export function AuthProvider({ children }) {
     isRejected: user?.status === APPROVAL_STATUS.REJECTED || user?.approvalStatus === APPROVAL_STATUS.REJECTED,
     isAdmin: user?.role === USER_ROLES.ADMIN,
     isCreator: user?.role === USER_ROLES.CREATOR || user?.role === USER_ROLES.ARTIST,
+    isFan: user?.role === 'USER',
     creators,
     signUp,
     signIn,
@@ -627,6 +711,10 @@ export function AuthProvider({ children }) {
     unfollowArtist,
     checkFollowStatus,
     getFollowingArtists,
+    likeArtist,
+    unlikeArtist,
+    checkLikeStatus,
+    getLikedArtists,
     // Admin functions
     searchArtists,
     isArtistRegistered,

@@ -68,16 +68,20 @@ async function calcReleaseScore(artistId) {
 async function calcPlatformScore(artistId) {
   const thirtyDaysAgo = dateAgo(30);
 
-  const [followers, recentFollows, views] = await Promise.all([
+  const [followers, recentFollows, views, likes, recentLikes] = await Promise.all([
     prisma.follow.count({ where: { artistId } }),
     prisma.follow.count({ where: { artistId, createdAt: { gte: thirtyDaysAgo } } }),
     prisma.profileView.count({ where: { artistId, createdAt: { gte: thirtyDaysAgo } } }),
+    prisma.like.count({ where: { artistId } }),
+    prisma.like.count({ where: { artistId, createdAt: { gte: thirtyDaysAgo } } }),
   ]);
 
   let score = 0;
-  score += Math.min(views * 0.5, 40);          // Views (capped 40)
-  score += Math.min(followers * 5, 30);         // Total followers (capped 30)
-  score += Math.min(recentFollows * 10, 30);    // Follower velocity (capped 30)
+  score += Math.min(views * 0.5, 30);          // Views (capped 30)
+  score += Math.min(followers * 4, 25);         // Total followers (capped 25)
+  score += Math.min(recentFollows * 8, 20);     // Follower velocity (capped 20)
+  score += Math.min(likes * 3, 15);             // Total likes (capped 15)
+  score += Math.min(recentLikes * 5, 10);       // Like velocity (capped 10)
 
   return Math.min(score, 100);
 }

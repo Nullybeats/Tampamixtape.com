@@ -15,6 +15,7 @@ import { Dashboard } from '@/components/dashboard/Dashboard'
 import { ArtistPage } from '@/components/artist/ArtistPage'
 import { PendingApproval } from '@/components/user/PendingApproval'
 import { UserProfilePage } from '@/components/user/UserProfilePage'
+import { FanProfilePage } from '@/components/user/FanProfilePage'
 import { UserSettings } from '@/components/user/UserSettings'
 import { EventsPage } from '@/components/events/EventsPage'
 import { ArtistsPage } from '@/components/artists/ArtistsPage'
@@ -99,6 +100,7 @@ function ArtistPageWrapper({ onAuthClick }) {
       <ArtistPage
         artistId={artistId}
         onBack={handleBack}
+        onAuthClick={onAuthClick}
       />
     </div>
   )
@@ -165,7 +167,7 @@ function PendingApprovalPage({ onAuthClick }) {
 
 function UserProfilePageWrapper({ onAuthClick }) {
   const navigate = useNavigate()
-  const { isAuthenticated, isPending, isLoading, user } = useAuth()
+  const { isAuthenticated, isPending, isLoading, user, isFan } = useAuth()
 
   // Wait for auth to load
   if (isLoading) {
@@ -181,7 +183,7 @@ function UserProfilePageWrapper({ onAuthClick }) {
     return <Navigate to="/" replace />
   }
 
-  // Redirect to pending if not approved
+  // Redirect to pending if not approved (only artists can be pending)
   if (isPending) {
     return <Navigate to="/pending" replace />
   }
@@ -201,7 +203,11 @@ function UserProfilePageWrapper({ onAuthClick }) {
         onDashboardClick={handleDashboardClick}
         onLogoClick={handleLogoClick}
       />
-      <UserProfilePage isOwnProfile={true} profileSlug={user?.profileSlug} />
+      {isFan ? (
+        <FanProfilePage onAuthClick={onAuthClick} />
+      ) : (
+        <UserProfilePage isOwnProfile={true} profileSlug={user?.profileSlug} />
+      )}
     </div>
   )
 }

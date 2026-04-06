@@ -41,6 +41,19 @@ router.get('/users', requireAdmin, async (req, res) => {
     if (status) where.status = status;
     if (role) where.role = role;
 
+    // Account type filter
+    const { accountType } = req.query;
+    if (accountType === 'generated') {
+      where.email = { endsWith: '@managed.tampamixtape.local' };
+    } else if (accountType === 'registered') {
+      where.password = { not: null };
+      where.NOT = { email: { endsWith: '@managed.tampamixtape.local' } };
+    } else if (accountType === 'claimed') {
+      where.password = { not: null };
+      where.appleMusicId = { not: null };
+      where.email = { not: { endsWith: '@managed.tampamixtape.local' } };
+    }
+
     // Add search filter (searches artistName, name, and email)
     if (search) {
       where.OR = [
@@ -97,13 +110,22 @@ router.get('/users', requireAdmin, async (req, res) => {
           tiktokUrl: true,
           websiteUrl: true,
           createdAt: true,
+          password: true, // Needed for accountType computation, stripped before response
         },
       }),
       prisma.user.count({ where }),
     ]);
 
+    // Add computed accountType field and strip password
+    const usersWithType = users.map(({ password, ...u }) => ({
+      ...u,
+      accountType: u.email.endsWith('@managed.tampamixtape.local')
+        ? 'generated'
+        : (u.appleMusicId && password ? 'claimed' : 'registered'),
+    }));
+
     res.json({
-      users,
+      users: usersWithType,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -1111,6 +1133,33 @@ router.post('/demand-scores/recalculate', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Recalculate demand scores error:', error);
     res.status(500).json({ error: 'Failed to start recalculation' });
+  }
+});
+
+// POST /api/admin/migrate-roles - One-time migration for existing users
+// Converts USER+PENDING with artistName to ARTIST role, approves fans without artistName
+router.post('/migrate-roles', requireAdmin, async (req, res) => {
+  try {
+    // Users who signed up as artists (have artistName) should be ARTIST role
+    const artistsUpdated = await prisma.user.updateMany({
+      where: { role: 'USER', status: 'PENDING', artistName: { not: null } },
+      data: { role: 'ARTIST' },
+    });
+
+    // Users without artistName were fans — auto-approve them
+    const fansApproved = await prisma.user.updateMany({
+      where: { role: 'USER', status: 'PENDING', artistName: null },
+      data: { status: 'APPROVED' },
+    });
+
+    res.json({
+      message: 'Role migration complete',
+      artistsUpdated: artistsUpdated.count,
+      fansApproved: fansApproved.count,
+    });
+  } catch (error) {
+    console.error('Migrate roles error:', error);
+    res.status(500).json({ error: 'Failed to migrate roles' });
   }
 });
 

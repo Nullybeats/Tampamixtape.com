@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useDocumentMeta } from '@/hooks/useDocumentMeta'
+import { useAuth } from '@/context/AuthContext'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +23,8 @@ import {
   Album,
   Check,
   Link,
+  UserPlus,
+  UserCheck,
 } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
@@ -148,11 +151,15 @@ function AlbumCard({ album, index }) {
   )
 }
 
-export function ArtistPage({ artistId, artistName, onBack }) {
+export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
   const [artist, setArtist] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [isLiked, setIsLiked] = useState(false)
+  const [likeCount, setLikeCount] = useState(0)
+  const { isAuthenticated, followArtist, unfollowArtist, checkFollowStatus, likeArtist, unlikeArtist, checkLikeStatus } = useAuth()
 
   // Set dynamic meta tags for SEO (for JS-executing search engines)
   useDocumentMeta({
@@ -167,6 +174,73 @@ export function ArtistPage({ artistId, artistName, onBack }) {
       ? `https://tampamixtape.com/artist/${artistId}`
       : 'https://tampamixtape.com/',
   })
+
+  // Look up the DB user ID for follow/like functionality
+  const [dbUserId, setDbUserId] = useState(null)
+
+  useEffect(() => {
+    if (!artistId) return
+    // Find the DB user by Apple Music ID
+    fetch(`${API_URL}/api/artists/hot100?limit=1000`)
+      .then(res => res.json())
+      .then(data => {
+        const match = data.artists?.find(a => a.appleMusicId === artistId)
+        if (match) {
+          setDbUserId(match.id)
+        }
+      })
+      .catch(() => {})
+  }, [artistId])
+
+  // Check follow/like status when we have the DB user ID
+  useEffect(() => {
+    if (!dbUserId || !isAuthenticated) return
+    checkFollowStatus(dbUserId).then(data => setIsFollowing(data.isFollowing))
+    checkLikeStatus(dbUserId).then(data => {
+      setIsLiked(data.isLiked)
+      setLikeCount(data.likeCount)
+    })
+  }, [dbUserId, isAuthenticated])
+
+  const handleFollow = async () => {
+    if (!isAuthenticated) {
+      onAuthClick?.('signup')
+      return
+    }
+    if (!dbUserId) return
+    try {
+      if (isFollowing) {
+        await unfollowArtist(dbUserId)
+        setIsFollowing(false)
+      } else {
+        await followArtist(dbUserId)
+        setIsFollowing(true)
+      }
+    } catch (err) {
+      console.error('Follow toggle error:', err)
+    }
+  }
+
+  const handleLike = async () => {
+    if (!isAuthenticated) {
+      onAuthClick?.('signup')
+      return
+    }
+    if (!dbUserId) return
+    try {
+      if (isLiked) {
+        const result = await unlikeArtist(dbUserId)
+        setIsLiked(false)
+        setLikeCount(result.likeCount)
+      } else {
+        const result = await likeArtist(dbUserId)
+        setIsLiked(true)
+        setLikeCount(result.likeCount)
+      }
+    } catch (err) {
+      console.error('Like toggle error:', err)
+    }
+  }
 
   const handleShare = async () => {
     const url = `${window.location.origin}/artist/${artistId}`
@@ -391,9 +465,26 @@ export function ArtistPage({ artistId, artistName, onBack }) {
                     <Play className="w-5 h-5" />
                     Play on Apple Music
                   </Button>
-                  <Button variant="outline" size="lg" className="gap-2">
-                    <Heart className="w-5 h-5" />
-                    Follow
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="gap-2"
+                    onClick={handleFollow}
+                  >
+                    {isFollowing ? (
+                      <><UserCheck className="w-5 h-5 text-primary" /> Following</>
+                    ) : (
+                      <><UserPlus className="w-5 h-5" /> Follow</>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="gap-2"
+                    onClick={handleLike}
+                  >
+                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+                    {likeCount > 0 ? formatNumber(likeCount) : 'Like'}
                   </Button>
                   <Button
                     variant="outline"

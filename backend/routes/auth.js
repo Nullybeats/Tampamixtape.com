@@ -33,10 +33,19 @@ const sanitizeString = (str, maxLength = 500) => {
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, artistName, appleMusicId, appleMusicUrl, avatar } = req.body;
+    const { email, password, name, artistName, appleMusicId, appleMusicUrl, avatar, accountType } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Validate accountType
+    const validAccountTypes = ['fan', 'artist'];
+    const resolvedAccountType = validAccountTypes.includes(accountType) ? accountType : 'fan';
+
+    // Artists must provide an artist name
+    if (resolvedAccountType === 'artist' && !artistName) {
+      return res.status(400).json({ error: 'Artist name is required for artist accounts' });
     }
 
     // Validate email format
@@ -71,6 +80,10 @@ router.post('/register', async (req, res) => {
       ? sanitizedArtistName.toLowerCase().replace(/[^a-z0-9]/g, '')
       : null;
 
+    // Fan: role USER, approved immediately. Artist: role ARTIST, pending review.
+    const role = resolvedAccountType === 'artist' ? 'ARTIST' : 'USER';
+    const status = resolvedAccountType === 'artist' ? 'PENDING' : 'APPROVED';
+
     const user = await prisma.user.create({
       data: {
         email: email.toLowerCase().trim(),
@@ -78,8 +91,8 @@ router.post('/register', async (req, res) => {
         name: sanitizedName,
         artistName: sanitizedArtistName,
         profileSlug,
-        role: 'USER',
-        status: 'PENDING',
+        role,
+        status,
         // Include Apple Music data if provided during signup (already validated)
         ...(appleMusicId && { appleMusicId }),
         ...(appleMusicUrl && { appleMusicUrl }),
