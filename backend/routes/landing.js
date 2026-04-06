@@ -23,6 +23,7 @@ router.get('/landing', async (req, res) => {
           appleMusicId: { not: null },
         },
         orderBy: [
+          { demandScore: 'desc' },
           { followers: 'desc' },
         ],
         take: 50,
@@ -37,6 +38,8 @@ router.get('/landing', async (req, res) => {
           followers: true,
           genres: true,
           region: true,
+          demandScore: true,
+          demandScoreTier: true,
         },
       }),
       // 10 recent releases - covers TrendingSection + DiscoverySection
