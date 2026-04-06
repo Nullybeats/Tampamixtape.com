@@ -902,8 +902,10 @@ export function AdminDashboard() {
       })
       if (response.ok) {
         setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u))
-        toast.success('Role updated', {
-          description: `User role has been changed to ${newRole}.`,
+        const roleLabel = { USER: 'Fan', ARTIST: 'Artist', ADMIN: 'Admin' }[newRole] || newRole
+        const userName = users.find(u => u.id === userId)?.artistName || users.find(u => u.id === userId)?.name || 'User'
+        toast.success(`${userName} is now ${roleLabel}`, {
+          description: `Role updated successfully.`,
         })
         setShowEditUser(false)
       } else {
@@ -968,8 +970,9 @@ export function AdminDashboard() {
         }
 
         // Build success message
+        const roleLabels = { USER: 'Fan', ARTIST: 'Artist', ADMIN: 'Admin' }
         const changes = []
-        if (originalUser.role !== selectedUser.role) changes.push(`role → ${selectedUser.role}`)
+        if (originalUser.role !== selectedUser.role) changes.push(`role → ${roleLabels[selectedUser.role] || selectedUser.role}`)
         if (originalUser.status !== selectedUser.status) changes.push(`status → ${selectedUser.status}`)
         if (originalUser.appleMusicId !== selectedUser.appleMusicId) {
           changes.push(selectedUser.appleMusicId ? 'Apple Music linked' : 'Apple Music unlinked')
@@ -982,7 +985,8 @@ export function AdminDashboard() {
         if (originalUser.tiktokUrl !== selectedUser.tiktokUrl) changes.push('TikTok updated')
         if (originalUser.websiteUrl !== selectedUser.websiteUrl) changes.push('Website updated')
 
-        toast.success('User updated', {
+        const updatedName = selectedUser.artistName || selectedUser.name || 'User'
+        toast.success(`${updatedName} updated`, {
           description: changes.length > 0 ? changes.join(', ') : 'Changes saved successfully.',
         })
         handleEditDialogChange(false)
