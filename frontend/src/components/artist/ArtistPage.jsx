@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { useAuth } from '@/context/AuthContext'
+import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -42,7 +43,7 @@ function formatDuration(ms) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-function TrackRow({ track, index, isLiked, onLikeToggle, isAuthenticated }) {
+function TrackRow({ track, index, isLiked, likeCount, onLikeToggle, isAuthenticated }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -102,6 +103,9 @@ function TrackRow({ track, index, isLiked, onLikeToggle, isAuthenticated }) {
             <Heart className={`w-5 h-5 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : 'text-muted-foreground/60 hover:text-red-400'}`} />
           </motion.div>
         </Button>
+        {likeCount > 0 && (
+          <span className="text-xs text-muted-foreground min-w-[1ch]">{likeCount}</span>
+        )}
         {track.previewUrl && (
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
             <Play className="w-4 h-4" />
@@ -174,6 +178,7 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
   const [copied, setCopied] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
   const [likedTrackIds, setLikedTrackIds] = useState(new Set())
+  const [trackLikeCounts, setTrackLikeCounts] = useState({})
   const { isAuthenticated, followArtist, unfollowArtist, checkFollowStatus, likeTrack, unlikeTrack, checkTrackLikeStatus } = useAuth()
 
   // Set dynamic meta tags for SEO (for JS-executing search engines)
@@ -215,17 +220,22 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
 
   // Check like status for all tracks when artist data loads
   useEffect(() => {
-    if (!isAuthenticated || !artist?.topTracks?.length) return
+    if (!artist?.topTracks?.length) return
     const checkLikes = async () => {
       const liked = new Set()
+      const counts = {}
       await Promise.all(
         artist.topTracks.map(async (track) => {
           if (!track.id) return
-          const data = await checkTrackLikeStatus(track.id)
-          if (data.isLiked) liked.add(track.id)
+          if (isAuthenticated) {
+            const data = await checkTrackLikeStatus(track.id)
+            if (data.isLiked) liked.add(track.id)
+            counts[track.id] = data.likeCount || 0
+          }
         })
       )
       setLikedTrackIds(liked)
+      setTrackLikeCounts(counts)
     }
     checkLikes()
   }, [artist, isAuthenticated])
@@ -258,23 +268,28 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
     try {
       const trackId = track.id
       if (likedTrackIds.has(trackId)) {
-        await unlikeTrack(trackId)
+        const result = await unlikeTrack(trackId)
         setLikedTrackIds(prev => {
           const next = new Set(prev)
           next.delete(trackId)
           return next
         })
+        setTrackLikeCounts(prev => ({ ...prev, [trackId]: result.likeCount || 0 }))
+        toast('Removed from liked tracks', { icon: '💔' })
       } else {
-        await likeTrack(trackId, {
+        const result = await likeTrack(trackId, {
           trackName: track.name,
           artistName: artist?.name || '',
           albumImage: track.albumImage || null,
           trackUrl: track.url || null,
         })
         setLikedTrackIds(prev => new Set(prev).add(trackId))
+        setTrackLikeCounts(prev => ({ ...prev, [trackId]: result.likeCount || 0 }))
+        toast(`Liked "${track.name}"`, { icon: '❤️' })
       }
     } catch (err) {
       console.error('Track like toggle error:', err)
+      toast.error('Failed to update like')
     }
   }
 
@@ -574,6 +589,7 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
                         track={track}
                         index={index}
                         isLiked={likedTrackIds.has(track.id)}
+                        likeCount={trackLikeCounts[track.id] || 0}
                         onLikeToggle={handleTrackLike}
                         isAuthenticated={isAuthenticated}
                       />

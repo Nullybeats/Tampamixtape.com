@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -131,6 +132,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [platformFollowers, setPlatformFollowers] = useState(0)
   const [followLoading, setFollowLoading] = useState(false)
   const [likedTrackIds, setLikedTrackIds] = useState(new Set())
+  const [trackLikeCounts, setTrackLikeCounts] = useState({})
   const [showClaimModal, setShowClaimModal] = useState(false)
   const [isClaimableProfile, setIsClaimableProfile] = useState(false)
 
@@ -308,17 +310,22 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
 
   // Check like status for tracks when Apple Music data loads
   useEffect(() => {
-    if (!isAuthenticated || !appleMusicData?.topTracks?.length) return
+    if (!appleMusicData?.topTracks?.length) return
     const checkLikes = async () => {
       const liked = new Set()
+      const counts = {}
       await Promise.all(
         appleMusicData.topTracks.map(async (track) => {
           if (!track.id) return
-          const data = await checkTrackLikeStatus(track.id)
-          if (data.isLiked) liked.add(track.id)
+          if (isAuthenticated) {
+            const data = await checkTrackLikeStatus(track.id)
+            if (data.isLiked) liked.add(track.id)
+            counts[track.id] = data.likeCount || 0
+          }
         })
       )
       setLikedTrackIds(liked)
+      setTrackLikeCounts(counts)
     }
     checkLikes()
   }, [appleMusicData, isAuthenticated])
@@ -329,23 +336,28 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
     if (!isAuthenticated || !track.id) return
     try {
       if (likedTrackIds.has(track.id)) {
-        await unlikeTrack(track.id)
+        const result = await unlikeTrack(track.id)
         setLikedTrackIds(prev => {
           const next = new Set(prev)
           next.delete(track.id)
           return next
         })
+        setTrackLikeCounts(prev => ({ ...prev, [track.id]: result.likeCount || 0 }))
+        toast('Removed from liked tracks', { icon: '💔' })
       } else {
-        await likeTrack(track.id, {
+        const result = await likeTrack(track.id, {
           trackName: track.name,
           artistName: fetchedProfile?.artistName || '',
           albumImage: track.albumImage || null,
           trackUrl: track.url || null,
         })
         setLikedTrackIds(prev => new Set(prev).add(track.id))
+        setTrackLikeCounts(prev => ({ ...prev, [track.id]: result.likeCount || 0 }))
+        toast(`Liked "${track.name}"`, { icon: '❤️' })
       }
     } catch (err) {
       console.error('Track like error:', err)
+      toast.error('Failed to update like')
     }
   }
 
@@ -1169,6 +1181,9 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                                   <Heart className={`w-5 h-5 transition-colors ${likedTrackIds.has(track.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground/60 hover:text-red-400'}`} />
                                 </motion.div>
                               </Button>
+                              {(trackLikeCounts[track.id] || 0) > 0 && (
+                                <span className="text-xs text-muted-foreground min-w-[1ch]">{trackLikeCounts[track.id]}</span>
+                              )}
                               {!track.previewUrl && (
                                 <Badge variant="outline" className="text-[10px] opacity-0 group-hover:opacity-100">
                                   Open Apple Music
