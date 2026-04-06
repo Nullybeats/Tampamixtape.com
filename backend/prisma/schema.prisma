@@ -23,7 +23,6 @@ model User {
   genresLocked  Boolean  @default(false) // Prevents auto-sync from overwriting manually set genres
   popularity    Int      @default(0) // Cached popularity score (0-100)
   followers     Int      @default(0) // Cached follower count
-  likes         Int      @default(0) // Cached like count
   spotifyId     String?             // Legacy — kept for data preservation
   spotifyUrl    String?             // Legacy — kept for data preservation
   appleMusicId  String?             // Apple Music artist ID (numeric string)
@@ -106,14 +105,18 @@ model Follow {
 }
 
 model Like {
-  id        String   @id @default(cuid())
-  userId    String   // The user who liked
-  artistId  String   // The artist being liked
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String   // The user who liked
+  trackId    String   // Apple Music track ID
+  trackName  String   // Denormalized for display
+  artistName String   // Denormalized for display
+  albumImage String?  // Denormalized for display
+  trackUrl   String?  // Apple Music track URL
+  createdAt  DateTime @default(now())
 
-  @@unique([userId, artistId])
+  @@unique([userId, trackId])
   @@index([userId])
-  @@index([artistId])
+  @@index([trackId])
   @@map("likes")
 }
 

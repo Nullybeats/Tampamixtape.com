@@ -5,49 +5,39 @@ const { authenticateToken } = require('../middleware/auth')
 
 const prisma = new PrismaClient()
 
-// Like an artist
-router.post('/:artistId', authenticateToken, async (req, res) => {
+// Like a track
+router.post('/:trackId', authenticateToken, async (req, res) => {
   try {
-    const { artistId } = req.params
+    const { trackId } = req.params
     const userId = req.user.id
+    const { trackName, artistName, albumImage, trackUrl } = req.body
 
-    // Can't like yourself
-    if (artistId === userId) {
-      return res.status(400).json({ error: 'Cannot like yourself' })
-    }
-
-    // Check if artist exists
-    const artist = await prisma.user.findUnique({
-      where: { id: artistId }
-    })
-
-    if (!artist) {
-      return res.status(404).json({ error: 'Artist not found' })
+    if (!trackName || !artistName) {
+      return res.status(400).json({ error: 'trackName and artistName are required' })
     }
 
     // Create like (upsert to handle duplicates)
     await prisma.like.upsert({
       where: {
-        userId_artistId: {
+        userId_trackId: {
           userId,
-          artistId
+          trackId
         }
       },
       update: {},
       create: {
         userId,
-        artistId
+        trackId,
+        trackName,
+        artistName,
+        albumImage: albumImage || null,
+        trackUrl: trackUrl || null
       }
     })
 
-    // Get updated like count and cache it
+    // Get total like count for this track
     const likeCount = await prisma.like.count({
-      where: { artistId }
-    })
-
-    await prisma.user.update({
-      where: { id: artistId },
-      data: { likes: likeCount }
+      where: { trackId }
     })
 
     res.json({
@@ -57,31 +47,25 @@ router.post('/:artistId', authenticateToken, async (req, res) => {
     })
   } catch (error) {
     console.error('Like error:', error)
-    res.status(500).json({ error: 'Failed to like artist' })
+    res.status(500).json({ error: 'Failed to like track' })
   }
 })
 
-// Unlike an artist
-router.delete('/:artistId', authenticateToken, async (req, res) => {
+// Unlike a track
+router.delete('/:trackId', authenticateToken, async (req, res) => {
   try {
-    const { artistId } = req.params
+    const { trackId } = req.params
     const userId = req.user.id
 
     await prisma.like.deleteMany({
       where: {
         userId,
-        artistId
+        trackId
       }
     })
 
-    // Get updated like count and cache it
     const likeCount = await prisma.like.count({
-      where: { artistId }
-    })
-
-    await prisma.user.update({
-      where: { id: artistId },
-      data: { likes: likeCount }
+      where: { trackId }
     })
 
     res.json({
@@ -91,27 +75,27 @@ router.delete('/:artistId', authenticateToken, async (req, res) => {
     })
   } catch (error) {
     console.error('Unlike error:', error)
-    res.status(500).json({ error: 'Failed to unlike artist' })
+    res.status(500).json({ error: 'Failed to unlike track' })
   }
 })
 
-// Check if user liked an artist
-router.get('/status/:artistId', authenticateToken, async (req, res) => {
+// Check if user liked a track
+router.get('/status/:trackId', authenticateToken, async (req, res) => {
   try {
-    const { artistId } = req.params
+    const { trackId } = req.params
     const userId = req.user.id
 
     const like = await prisma.like.findUnique({
       where: {
-        userId_artistId: {
+        userId_trackId: {
           userId,
-          artistId
+          trackId
         }
       }
     })
 
     const likeCount = await prisma.like.count({
-      where: { artistId }
+      where: { trackId }
     })
 
     res.json({
@@ -124,13 +108,13 @@ router.get('/status/:artistId', authenticateToken, async (req, res) => {
   }
 })
 
-// Get like count for an artist (public)
-router.get('/count/:artistId', async (req, res) => {
+// Get like count for a track (public)
+router.get('/count/:trackId', async (req, res) => {
   try {
-    const { artistId } = req.params
+    const { trackId } = req.params
 
     const likeCount = await prisma.like.count({
-      where: { artistId }
+      where: { trackId }
     })
 
     res.json({ likeCount })
@@ -140,36 +124,29 @@ router.get('/count/:artistId', async (req, res) => {
   }
 })
 
-// Get artists liked by current user
+// Get tracks liked by current user
 router.get('/liked', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id
 
     const likes = await prisma.like.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' }
-    })
-
-    // Get artist details
-    const artistIds = likes.map(l => l.artistId)
-    const artists = await prisma.user.findMany({
-      where: { id: { in: artistIds } },
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
+        trackId: true,
+        trackName: true,
         artistName: true,
-        profileSlug: true,
-        avatar: true,
-        genres: true,
-        popularity: true,
-        followers: true,
-        likes: true
+        albumImage: true,
+        trackUrl: true,
+        createdAt: true
       }
     })
 
-    res.json({ artists })
+    res.json({ tracks: likes })
   } catch (error) {
-    console.error('Get liked artists error:', error)
-    res.status(500).json({ error: 'Failed to get liked artists' })
+    console.error('Get liked tracks error:', error)
+    res.status(500).json({ error: 'Failed to get liked tracks' })
   }
 })
 

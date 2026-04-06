@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
-import { Heart, Users, MapPin, Calendar, Music, TrendingUp } from 'lucide-react'
+import { Heart, Users, MapPin, Calendar, Music, Clock } from 'lucide-react'
 import { formatNumber } from '@/components/feed'
 
 function ArtistCard({ artist, index }) {
@@ -53,22 +53,51 @@ function ArtistCard({ artist, index }) {
   )
 }
 
+function TrackCard({ track, index }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer"
+      onClick={() => track.trackUrl && window.open(track.trackUrl, '_blank')}
+    >
+      {track.albumImage ? (
+        <img
+          src={track.albumImage}
+          alt={track.trackName}
+          className="w-12 h-12 rounded flex-shrink-0"
+        />
+      ) : (
+        <div className="w-12 h-12 rounded bg-secondary flex items-center justify-center flex-shrink-0">
+          <Music className="w-6 h-6 text-muted-foreground" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <h4 className="font-medium truncate">{track.trackName}</h4>
+        <p className="text-sm text-muted-foreground truncate">{track.artistName}</p>
+      </div>
+      <Heart className="w-4 h-4 fill-red-500 text-red-500 flex-shrink-0" />
+    </motion.div>
+  )
+}
+
 export function FanProfilePage() {
-  const { user, getFollowingArtists, getLikedArtists } = useAuth()
+  const { user, getFollowingArtists, getLikedTracks } = useAuth()
   const [followedArtists, setFollowedArtists] = useState([])
-  const [likedArtists, setLikedArtists] = useState([])
+  const [likedTracks, setLikedTracks] = useState([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     async function loadData() {
       setIsLoading(true)
       try {
-        const [followed, liked] = await Promise.all([
+        const [followed, tracks] = await Promise.all([
           getFollowingArtists(),
-          getLikedArtists(),
+          getLikedTracks(),
         ])
         setFollowedArtists(followed)
-        setLikedArtists(liked)
+        setLikedTracks(tracks)
       } catch (err) {
         console.error('Error loading fan profile data:', err)
       } finally {
@@ -153,8 +182,8 @@ export function FanProfilePage() {
             <CardContent className="flex items-center gap-4 p-6">
               <Heart className="w-8 h-8 text-red-500" />
               <div>
-                <p className="text-2xl font-bold">{likedArtists.length}</p>
-                <p className="text-sm text-muted-foreground">Artists Liked</p>
+                <p className="text-2xl font-bold">{likedTracks.length}</p>
+                <p className="text-sm text-muted-foreground">Tracks Liked</p>
               </div>
             </CardContent>
           </Card>
@@ -165,7 +194,7 @@ export function FanProfilePage() {
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="liked" className="gap-2">
               <Heart className="w-4 h-4" />
-              Liked Artists
+              Liked Tracks
             </TabsTrigger>
             <TabsTrigger value="following" className="gap-2">
               <Users className="w-4 h-4" />
@@ -174,20 +203,24 @@ export function FanProfilePage() {
           </TabsList>
 
           <TabsContent value="liked">
-            {likedArtists.length === 0 ? (
+            {likedTracks.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                   <Heart className="w-12 h-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No liked artists yet</h3>
-                  <p className="text-muted-foreground">Explore Tampa artists and hit the heart to like them!</p>
+                  <h3 className="text-lg font-semibold mb-2">No liked tracks yet</h3>
+                  <p className="text-muted-foreground">Explore Tampa artists and hit the heart on tracks you love!</p>
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {likedArtists.map((artist, index) => (
-                  <ArtistCard key={artist.id} artist={artist} index={index} />
-                ))}
-              </div>
+              <Card>
+                <CardContent className="p-2">
+                  <div className="space-y-1">
+                    {likedTracks.map((track, index) => (
+                      <TrackCard key={track.id} track={track} index={index} />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 

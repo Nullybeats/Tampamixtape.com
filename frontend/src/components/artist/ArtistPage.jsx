@@ -42,7 +42,7 @@ function formatDuration(ms) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-function TrackRow({ track, index }) {
+function TrackRow({ track, index, isLiked, onLikeToggle, isAuthenticated }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -83,8 +83,14 @@ function TrackRow({ track, index }) {
       </div>
 
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-          <Heart className="w-4 h-4" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0"
+          onClick={() => onLikeToggle(track)}
+          title={isAuthenticated ? (isLiked ? 'Unlike' : 'Like') : 'Sign up to like tracks'}
+        >
+          <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
         </Button>
         {track.previewUrl && (
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -157,9 +163,8 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
-  const [isLiked, setIsLiked] = useState(false)
-  const [likeCount, setLikeCount] = useState(0)
-  const { isAuthenticated, followArtist, unfollowArtist, checkFollowStatus, likeArtist, unlikeArtist, checkLikeStatus } = useAuth()
+  const [likedTrackIds, setLikedTrackIds] = useState(new Set())
+  const { isAuthenticated, followArtist, unfollowArtist, checkFollowStatus, likeTrack, unlikeTrack, checkTrackLikeStatus } = useAuth()
 
   // Set dynamic meta tags for SEO (for JS-executing search engines)
   useDocumentMeta({
@@ -192,15 +197,28 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
       .catch(() => {})
   }, [artistId])
 
-  // Check follow/like status when we have the DB user ID
+  // Check follow status when we have the DB user ID
   useEffect(() => {
     if (!dbUserId || !isAuthenticated) return
     checkFollowStatus(dbUserId).then(data => setIsFollowing(data.isFollowing))
-    checkLikeStatus(dbUserId).then(data => {
-      setIsLiked(data.isLiked)
-      setLikeCount(data.likeCount)
-    })
   }, [dbUserId, isAuthenticated])
+
+  // Check like status for all tracks when artist data loads
+  useEffect(() => {
+    if (!isAuthenticated || !artist?.topTracks?.length) return
+    const checkLikes = async () => {
+      const liked = new Set()
+      await Promise.all(
+        artist.topTracks.map(async (track) => {
+          if (!track.id) return
+          const data = await checkTrackLikeStatus(track.id)
+          if (data.isLiked) liked.add(track.id)
+        })
+      )
+      setLikedTrackIds(liked)
+    }
+    checkLikes()
+  }, [artist, isAuthenticated])
 
   const handleFollow = async () => {
     if (!isAuthenticated) {
@@ -221,24 +239,32 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
     }
   }
 
-  const handleLike = async () => {
+  const handleTrackLike = async (track) => {
     if (!isAuthenticated) {
       onAuthClick?.('signup')
       return
     }
-    if (!dbUserId) return
+    if (!track.id) return
     try {
-      if (isLiked) {
-        const result = await unlikeArtist(dbUserId)
-        setIsLiked(false)
-        setLikeCount(result.likeCount)
+      const trackId = track.id
+      if (likedTrackIds.has(trackId)) {
+        await unlikeTrack(trackId)
+        setLikedTrackIds(prev => {
+          const next = new Set(prev)
+          next.delete(trackId)
+          return next
+        })
       } else {
-        const result = await likeArtist(dbUserId)
-        setIsLiked(true)
-        setLikeCount(result.likeCount)
+        await likeTrack(trackId, {
+          trackName: track.name,
+          artistName: artist?.name || '',
+          albumImage: track.albumImage || null,
+          trackUrl: track.url || null,
+        })
+        setLikedTrackIds(prev => new Set(prev).add(trackId))
       }
     } catch (err) {
-      console.error('Like toggle error:', err)
+      console.error('Track like toggle error:', err)
     }
   }
 
@@ -481,15 +507,6 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
                     variant="outline"
                     size="lg"
                     className="gap-2"
-                    onClick={handleLike}
-                  >
-                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
-                    {likeCount > 0 ? formatNumber(likeCount) : 'Like'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="gap-2"
                     onClick={handleShare}
                   >
                     {copied ? (
@@ -542,7 +559,14 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
                 {artist.topTracks?.length > 0 ? (
                   <div className="space-y-1">
                     {artist.topTracks.map((track, index) => (
-                      <TrackRow key={track.id || index} track={track} index={index} />
+                      <TrackRow
+                        key={track.id || index}
+                        track={track}
+                        index={index}
+                        isLiked={likedTrackIds.has(track.id)}
+                        onLikeToggle={handleTrackLike}
+                        isAuthenticated={isAuthenticated}
+                      />
                     ))}
                   </div>
                 ) : (
