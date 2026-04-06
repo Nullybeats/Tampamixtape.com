@@ -472,15 +472,21 @@ async function getFullEnrichedData(artistId) {
     new Date(b.releaseDate) - new Date(a.releaseDate)
   );
 
+  // Normalize each release so frontend always sees totalTracks
+  const normalizeRelease = (album) => ({
+    ...album,
+    totalTracks: album.trackCount || album.totalTracks || 0,
+  });
+
   return {
     ...artistViews,
     topTracks: artistViews.topSongs, // Alias for frontend compatibility
     musicVideos,
     discography: {
-      albums: sortedAlbums.filter(a => a.type === 'album'),
-      singles: sortedAlbums.filter(a => a.type === 'single'),
+      albums: sortedAlbums.filter(a => a.type === 'album').map(normalizeRelease),
+      singles: sortedAlbums.filter(a => a.type === 'single').map(normalizeRelease),
     },
-    latestReleases: sortedAlbums.slice(0, 6),
+    latestReleases: sortedAlbums.slice(0, 6).map(normalizeRelease),
     totalAlbums: sortedAlbums.filter(a => a.type === 'album').length,
     totalSingles: sortedAlbums.filter(a => a.type === 'single').length,
     totalTracks: sortedAlbums.reduce((sum, a) => sum + (a.trackCount || 0), 0),

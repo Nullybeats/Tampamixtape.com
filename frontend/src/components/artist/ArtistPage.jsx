@@ -140,7 +140,7 @@ function AlbumCard({ album, index }) {
             <Calendar className="w-3 h-3" />
             {album.releaseDate?.split('-')[0] || 'Unknown'}
             <span className="mx-1">•</span>
-            {album.totalTracks} tracks
+            {album.totalTracks || album.trackCount || 0} tracks
           </div>
         </CardContent>
       </Card>
@@ -381,13 +381,6 @@ export function ArtistPage({ artistId, artistName, onBack }) {
                       <Disc3 className="w-5 h-5 text-primary" />
                       <span className="text-2xl font-bold">{artist.totalSingles}</span>
                       <span className="text-muted-foreground">singles</span>
-                    </div>
-                  )}
-                  {artist.totalTracks > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Music className="w-5 h-5 text-primary" />
-                      <span className="text-2xl font-bold">{artist.totalTracks}</span>
-                      <span className="text-muted-foreground">tracks</span>
                     </div>
                   )}
                 </div>

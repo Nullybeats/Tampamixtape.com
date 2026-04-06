@@ -57,6 +57,32 @@ router.get('/:slug', async (req, res) => {
       }
     }
 
+    // Patch stale cached data that may be missing totalTracks fields
+    if (artistData) {
+      // Ensure top-level totalTracks exists
+      if (artistData.totalTracks == null && artistData.discography) {
+        const allReleases = [
+          ...(artistData.discography.albums || []),
+          ...(artistData.discography.singles || []),
+        ];
+        artistData.totalTracks = allReleases.reduce(
+          (sum, r) => sum + (r.totalTracks || r.trackCount || 0), 0
+        );
+      }
+      // Ensure each release has totalTracks
+      const patchReleases = (releases) => {
+        if (!Array.isArray(releases)) return;
+        for (const r of releases) {
+          if (r.totalTracks == null && r.trackCount != null) {
+            r.totalTracks = r.trackCount;
+          }
+        }
+      };
+      patchReleases(artistData.latestReleases);
+      patchReleases(artistData.discography?.albums);
+      patchReleases(artistData.discography?.singles);
+    }
+
     // Fetch events in parallel (always live — events change frequently)
     const artistName = user.artistName;
     let eventsData = [];

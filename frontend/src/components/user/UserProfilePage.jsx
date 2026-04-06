@@ -832,7 +832,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       </p>
                       <div className="flex items-center gap-4 justify-center md:justify-start">
                         <Badge variant="secondary">
-                          {appleMusicData.latestReleases[0].totalTracks} track{appleMusicData.latestReleases[0].totalTracks !== 1 ? 's' : ''}
+                          {appleMusicData.latestReleases[0].totalTracks || appleMusicData.latestReleases[0].trackCount || 0} track{(appleMusicData.latestReleases[0].totalTracks || appleMusicData.latestReleases[0].trackCount || 0) !== 1 ? 's' : ''}
                         </Badge>
                         <Button size="sm" className="gap-2">
                           <Play className="w-4 h-4" />
@@ -1181,7 +1181,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                             </div>
                             <h4 className="font-medium truncate">{album.name}</h4>
                             <p className="text-sm text-muted-foreground">
-                              {new Date(album.releaseDate + 'T00:00:00').getFullYear()} · {album.totalTracks} tracks
+                              {new Date(album.releaseDate + 'T00:00:00').getFullYear()} · {album.totalTracks || album.trackCount || 0} tracks
                             </p>
                             {album.recordLabel && (
                               <p className="text-xs text-muted-foreground/60 truncate">{album.recordLabel}</p>
