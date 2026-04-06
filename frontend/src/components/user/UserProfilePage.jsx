@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
 import { useAudioPlayer } from '@/components/audio/AudioPlayer'
-import { PersonalizedFeed } from '@/components/feed'
+import { PersonalizedFeed, formatNumber } from '@/components/feed'
 import { ClaimProfileModal } from './ClaimProfileModal'
 import { Loader2, Rss, UserCheck } from 'lucide-react'
 import {
