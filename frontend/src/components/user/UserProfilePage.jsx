@@ -501,13 +501,13 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
         </div>
 
-        <div className="relative max-w-4xl mx-auto px-4 -mt-24">
-          <div className="flex flex-col md:flex-row gap-6 items-start md:items-end">
+        <div className="relative max-w-4xl mx-auto px-4 -mt-16">
+          <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-end">
             {/* Profile Image */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="w-32 h-32 md:w-40 md:h-40 rounded-2xl overflow-hidden shadow-2xl border-4 border-background flex-shrink-0 glow-green"
+              className="w-32 h-32 md:w-36 md:h-36 rounded-full overflow-hidden shadow-2xl border-4 border-background flex-shrink-0 ring-2 ring-primary/30"
             >
               {profileImage ? (
                 <img
@@ -517,172 +517,181 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 />
               ) : (
                 <div className="w-full h-full bg-secondary flex items-center justify-center">
-                  <Music className="w-16 h-16 text-muted-foreground" />
+                  <Music className="w-14 h-14 text-muted-foreground" />
                 </div>
               )}
             </motion.div>
 
-            {/* Profile Info */}
-            <div className="flex-1 pb-4">
+            {/* Profile Info + Actions */}
+            <div className="flex-1 pb-4 text-center sm:text-left">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {profileData.region || 'Tampa Bay'}
-                  </Badge>
+                {/* Name Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
+                  <h1 className="font-display text-3xl md:text-4xl font-bold uppercase tracking-tight">
+                    {profileData.artistName}
+                  </h1>
                   {isVerifiedArtist && (
-                    <Badge className="gap-1 bg-primary/20 text-primary border-primary/30">
+                    <Badge className="gap-1 bg-primary/20 text-primary border-primary/30 w-fit mx-auto sm:mx-0">
                       <CheckCircle2 className="w-3 h-3" />
-                      Verified Artist
+                      Verified
                     </Badge>
                   )}
                 </div>
 
-                <h1 className="font-display text-4xl md:text-5xl font-bold uppercase tracking-tight mb-2">
-                  {profileData.artistName}
-                </h1>
+                {/* Stats Row */}
+                <div className="flex items-center justify-center sm:justify-start gap-6 mb-3">
+                  {platformFollowers > 0 && (
+                    <div className="text-center">
+                      <span className="font-bold">{formatNumber(platformFollowers)}</span>
+                      <span className="text-muted-foreground text-sm ml-1">followers</span>
+                    </div>
+                  )}
+                  {appleMusicData?.topTracks?.length > 0 && (
+                    <div className="text-center">
+                      <span className="font-bold">{appleMusicData.topTracks.length}</span>
+                      <span className="text-muted-foreground text-sm ml-1">tracks</span>
+                    </div>
+                  )}
+                  {appleMusicData?.discography && (
+                    <div className="text-center">
+                      <span className="font-bold">{(appleMusicData.discography.albums?.length || 0) + (appleMusicData.discography.singles?.length || 0)}</span>
+                      <span className="text-muted-foreground text-sm ml-1">releases</span>
+                    </div>
+                  )}
+                </div>
 
+                {/* Genres + Location */}
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-4">
+                  <Badge variant="outline" className="gap-1 rounded-full">
+                    <MapPin className="w-3 h-3" />
+                    {profileData.region || 'Tampa Bay'}
+                  </Badge>
+                  {(appleMusicData?.genres || profileData.genres || []).map((genre) => (
+                    <Badge key={genre} variant="secondary" className="capitalize rounded-full">
+                      {genre}
+                    </Badge>
+                  ))}
+                </div>
+
+                {/* Bio */}
                 {(profileData.bio || appleMusicData?.editorialNotes?.standard) && (
                   <div className="max-w-xl mb-4">
-                    <p className="text-muted-foreground">
-                      {profileData.bio || appleMusicData.editorialNotes.standard.replace(/<[^>]*>/g, '').slice(0, 300)}
-                      {!profileData.bio && appleMusicData.editorialNotes.standard.length > 300 && '...'}
+                    <p className="text-sm text-muted-foreground">
+                      {profileData.bio || appleMusicData.editorialNotes.standard.replace(/<[^>]*>/g, '').slice(0, 200)}
+                      {!profileData.bio && appleMusicData.editorialNotes.standard.length > 200 && '...'}
                     </p>
-                    {!profileData.bio && (
-                      <span className="text-xs text-muted-foreground/50 mt-1 inline-block">via Apple Music</span>
-                    )}
                   </div>
                 )}
 
-                {/* Genres - from Apple Music data */}
-                {(appleMusicData?.genres?.length > 0 || profileData.genres?.length > 0) && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {(appleMusicData?.genres || profileData.genres || []).map((genre) => (
-                      <Badge key={genre} variant="secondary" className="capitalize">
-                        {genre}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </motion.div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-wrap gap-2 pb-4">
-              {isOwnProfile && (
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => navigate('/settings')}
-                >
-                  <Edit3 className="w-4 h-4" />
-                  Edit Profile
-                </Button>
-              )}
-              {!isOwnProfile && isAuthenticated && (
-                <Button
-                  variant={isFollowing ? "secondary" : "default"}
-                  className="gap-2"
-                  onClick={handleFollowClick}
-                  disabled={followLoading}
-                >
-                  {followLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : isFollowing ? (
-                    <>
-                      <Users className="w-4 h-4" />
-                      Following
-                    </>
-                  ) : (
-                    <>
-                      <Users className="w-4 h-4" />
-                      Follow
-                    </>
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  {isOwnProfile && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 rounded-lg"
+                      onClick={() => navigate('/settings')}
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      Edit Profile
+                    </Button>
                   )}
-                </Button>
-              )}
-              {/* Claim Profile Button - show for claimable profiles to non-owners */}
-              {isClaimableProfile && !isOwnProfile && (
-                <Button
-                  variant="outline"
-                  className="gap-2 border-primary/50 hover:border-primary hover:bg-primary/10"
-                  onClick={() => setShowClaimModal(true)}
-                >
-                  <UserCheck className="w-4 h-4" />
-                  Claim Profile
-                </Button>
-              )}
-              {/* Share Dropdown */}
-              <div className="relative group">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <Share2 className="w-4 h-4" />
-                  Share
-                </Button>
-                <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <div className="p-1">
-                    <button
-                      onClick={handleCopyLink}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                  {!isOwnProfile && isAuthenticated && (
+                    <Button
+                      variant={isFollowing ? "outline" : "default"}
+                      size="sm"
+                      className="gap-2 rounded-lg min-w-[100px]"
+                      onClick={handleFollowClick}
+                      disabled={followLoading}
                     >
-                      {copied ? (
-                        <>
-                          <Check className="w-4 h-4 text-green-400" />
-                          Copied!
-                        </>
+                      {followLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isFollowing ? (
+                        'Following'
                       ) : (
-                        <>
-                          <Link className="w-4 h-4" />
-                          Copy Link
-                        </>
+                        'Follow'
                       )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        const url = `https://tampamixtape.com/${profileData.profileSlug}`
-                        const text = `Check out ${profileData.artistName} on Tampa Mixtape!`
-                        window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank')
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                    </Button>
+                  )}
+                  {isClaimableProfile && !isOwnProfile && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 rounded-lg border-primary/50 hover:border-primary hover:bg-primary/10"
+                      onClick={() => setShowClaimModal(true)}
                     >
-                      <Twitter className="w-4 h-4" />
-                      Share on X
-                    </button>
-                    <button
-                      onClick={() => {
-                        const url = `https://tampamixtape.com/${profileData.profileSlug}`
-                        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank')
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                      <UserCheck className="w-4 h-4" />
+                      Claim
+                    </Button>
+                  )}
+                  {/* Share Dropdown */}
+                  <div className="relative group">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 rounded-lg"
                     >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                      </svg>
-                      Share on Facebook
-                    </button>
-                    {profileData.instagramUrl && (
-                      <button
-                        onClick={() => window.open(profileData.instagramUrl, '_blank')}
-                        className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
-                      >
-                        <Instagram className="w-4 h-4" />
-                        View on Instagram
-                      </button>
-                    )}
+                      <Share2 className="w-4 h-4" />
+                      Share
+                    </Button>
+                    <div className="absolute right-0 sm:left-0 top-full mt-2 w-48 bg-card border border-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      <div className="p-1">
+                        <button
+                          onClick={handleCopyLink}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                        >
+                          {copied ? (
+                            <>
+                              <Check className="w-4 h-4 text-green-400" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Link className="w-4 h-4" />
+                              Copy Link
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            const url = `https://tampamixtape.com/${profileData.profileSlug}`
+                            const text = `Check out ${profileData.artistName} on Tampa Mixtape!`
+                            window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank')
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                        >
+                          <Twitter className="w-4 h-4" />
+                          Share on X
+                        </button>
+                        <button
+                          onClick={() => {
+                            const url = `https://tampamixtape.com/${profileData.profileSlug}`
+                            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank')
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                          </svg>
+                          Share on Facebook
+                        </button>
+                        {profileData.instagramUrl && (
+                          <button
+                            onClick={() => window.open(profileData.instagramUrl, '_blank')}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+                          >
+                            <Instagram className="w-4 h-4" />
+                            View on Instagram
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              {platformFollowers > 0 && !isOwnProfile && (
-                <Badge variant="outline" className="h-9 px-3 flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  {platformFollowers} {platformFollowers === 1 ? 'follower' : 'followers'}
-                </Badge>
-              )}
+              </motion.div>
             </div>
           </div>
         </div>
