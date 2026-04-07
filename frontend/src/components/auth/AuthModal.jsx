@@ -42,8 +42,8 @@ import {
 // Florida cities - Tampa is active, others coming soon
 const FLORIDA_CITIES = [
   { name: 'Tampa', active: true, region: 'Tampa Bay' },
-  { name: 'St. Petersburg', active: false, region: 'Tampa Bay' },
-  { name: 'Clearwater', active: false, region: 'Tampa Bay' },
+  { name: 'St. Petersburg', active: true, region: 'Tampa Bay' },
+  { name: 'Clearwater', active: true, region: 'Tampa Bay' },
   { name: 'Brandon', active: false, region: 'Tampa Bay' },
   { name: 'Miami', active: false, region: 'South Florida' },
   { name: 'Fort Lauderdale', active: false, region: 'South Florida' },
@@ -106,11 +106,11 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
 
   const selectedCity = signUpForm.watch('city')
   const selectedCityData = FLORIDA_CITIES.find(c => c.name === selectedCity)
-  const isTampaResident = selectedCity === 'Tampa'
+  const isCityActive = !!selectedCityData?.active
 
   const handleSignUp = async (data) => {
-    if (!isTampaResident) {
-      setError('Only Tampa residents can sign up at this time. Other cities coming soon!')
+    if (!isCityActive) {
+      setError('Sign ups are not yet available in your city. Coming soon!')
       return
     }
 
@@ -433,18 +433,18 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                       )}
                     </div>
 
-                    {/* Tampa Verification Notice */}
+                    {/* City Verification Notice */}
                     {selectedCity && (
                       <div className={`p-4 rounded-lg border ${
-                        isTampaResident
+                        isCityActive
                           ? 'bg-green-500/10 border-green-500/20'
                           : 'bg-yellow-500/10 border-yellow-500/20'
                       }`}>
-                        {isTampaResident ? (
+                        {isCityActive ? (
                           <div className="flex items-start gap-3">
                             <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
                             <div>
-                              <p className="text-sm font-medium text-green-400">Tampa Resident Verified</p>
+                              <p className="text-sm font-medium text-green-400">{selectedCity} Resident Verified</p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {accountType === 'fan'
                                   ? "Welcome to Tampa Bay's music scene! Discover, follow, and support local artists."
@@ -467,7 +467,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                     )}
 
                     {/* Region Display */}
-                    {isTampaResident && (
+                    {isCityActive && (
                       <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
                         <div className="flex items-center gap-2">
                           <MapPin className="w-4 h-4 text-primary" />
@@ -481,14 +481,14 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                     <Button
                       type="submit"
                       className="w-full gap-2"
-                      disabled={isLoading || !isTampaResident}
+                      disabled={isLoading || !isCityActive}
                     >
                       {isLoading ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Creating account...
                         </>
-                      ) : !isTampaResident ? (
+                      ) : !isCityActive ? (
                         <>
                           <Clock className="w-4 h-4" />
                           Join Waitlist
