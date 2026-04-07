@@ -550,18 +550,6 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       <span className="text-muted-foreground text-sm ml-1">followers</span>
                     </div>
                   )}
-                  {appleMusicData?.topTracks?.length > 0 && (
-                    <div className="text-center">
-                      <span className="font-bold">{appleMusicData.topTracks.length}</span>
-                      <span className="text-muted-foreground text-sm ml-1">tracks</span>
-                    </div>
-                  )}
-                  {appleMusicData?.discography && (
-                    <div className="text-center">
-                      <span className="font-bold">{(appleMusicData.discography.albums?.length || 0) + (appleMusicData.discography.singles?.length || 0)}</span>
-                      <span className="text-muted-foreground text-sm ml-1">releases</span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Genres + Location */}
