@@ -15,6 +15,8 @@ router.get('/:slug', async (req, res) => {
       where: { profileSlug: slug },
       select: {
         id: true,
+        email: true,
+        password: true,
         artistName: true,
         profileSlug: true,
         bio: true,
@@ -46,6 +48,16 @@ router.get('/:slug', async (req, res) => {
     if (user.status !== 'APPROVED') {
       return res.status(404).json({ error: 'Profile not found' });
     }
+
+    // Derive verified/claimed status, then strip sensitive fields before responding.
+    // A profile counts as claimed once it has a real password AND the email is no
+    // longer the placeholder used for admin-managed (unclaimed) profiles.
+    const isClaimed =
+      !!user.password &&
+      !user.email.endsWith('@managed.tampamixtape.local');
+    delete user.email;
+    delete user.password;
+    user.isClaimed = isClaimed;
 
     // Use cached enriched data if available, otherwise fetch live (lightweight)
     let artistData = user.appleMusicCache || null;

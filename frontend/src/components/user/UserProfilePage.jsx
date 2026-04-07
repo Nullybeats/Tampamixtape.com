@@ -426,8 +426,9 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
     )
   }
 
-  // Determine if this is a verified/approved artist
-  const isVerifiedArtist = profileData.status === 'APPROVED'
+  // Verified = the profile has been claimed by its real owner.
+  // Backend derives this from the user record (claimed managed profile or self-registered artist).
+  const isVerifiedArtist = profileData.isClaimed === true
 
   // Transform individual URL fields to socialLinks object for consistency
   const socialLinksFromProfile = {
