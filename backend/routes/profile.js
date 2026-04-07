@@ -59,6 +59,11 @@ router.get('/:slug', async (req, res) => {
     delete user.password;
     user.isClaimed = isClaimed;
 
+    // Total platform likes across all of this artist's tracks
+    user.totalLikes = user.artistName
+      ? await prisma.like.count({ where: { artistName: user.artistName } })
+      : 0;
+
     // Use cached enriched data if available, otherwise fetch live (lightweight)
     let artistData = user.appleMusicCache || null;
     if (!artistData && user.appleMusicId) {

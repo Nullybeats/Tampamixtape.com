@@ -550,6 +550,12 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                       <span className="text-muted-foreground text-sm ml-1">followers</span>
                     </div>
                   )}
+                  {profileData.totalLikes > 0 && (
+                    <div className="text-center">
+                      <span className="font-bold">{formatNumber(profileData.totalLikes)}</span>
+                      <span className="text-muted-foreground text-sm ml-1">likes</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Genres + Location */}
