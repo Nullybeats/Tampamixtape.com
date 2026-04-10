@@ -53,6 +53,7 @@ import {
   Album,
   Mic2,
   Trophy,
+  Camera,
 } from 'lucide-react'
 
 // Social icons mapping
@@ -117,7 +118,7 @@ function formatDuration(ms) {
 
 export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const navigate = useNavigate()
-  const { user, featuredPlaylist, isApproved, isAuthenticated, followArtist, unfollowArtist, checkFollowStatus, likeTrack, unlikeTrack, checkTrackLikeStatus } = useAuth()
+  const { user, featuredPlaylist, isApproved, isAuthenticated, updateProfile, followArtist, unfollowArtist, checkFollowStatus, likeTrack, unlikeTrack, checkTrackLikeStatus } = useAuth()
   const { playTrack, currentTrack, isPlaying } = useAudioPlayer()
   const [copied, setCopied] = useState(false)
   const [fetchedProfile, setFetchedProfile] = useState(null)
@@ -135,6 +136,25 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [trackLikeCounts, setTrackLikeCounts] = useState({})
   const [showClaimModal, setShowClaimModal] = useState(false)
   const [isClaimableProfile, setIsClaimableProfile] = useState(false)
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+    if (file.size > 1.5 * 1024 * 1024) {
+      toast.error('Image must be under 1.5MB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      updateProfile({ avatar: ev.target.result })
+      toast.success('Profile photo updated')
+    }
+    reader.readAsDataURL(file)
+  }
 
   // Fetch profile data for public profiles
   useEffect(() => {
@@ -508,7 +528,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="w-32 h-32 md:w-36 md:h-36 rounded-full overflow-hidden shadow-2xl border-4 border-background flex-shrink-0 ring-2 ring-primary/30"
+              className="relative group w-32 h-32 md:w-36 md:h-36 rounded-full overflow-hidden shadow-2xl border-4 border-background flex-shrink-0 ring-2 ring-primary/30"
             >
               {profileImage ? (
                 <img
@@ -520,6 +540,24 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
                 <div className="w-full h-full bg-secondary flex items-center justify-center">
                   <Music className="w-14 h-14 text-muted-foreground" />
                 </div>
+              )}
+              {isOwnProfile && (
+                <>
+                  <label
+                    htmlFor="profile-avatar-upload"
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <Camera className="w-6 h-6 text-white" />
+                    <span className="text-xs text-white mt-1">Change</span>
+                  </label>
+                  <input
+                    id="profile-avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
+                </>
               )}
             </motion.div>
 
