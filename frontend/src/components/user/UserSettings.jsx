@@ -41,6 +41,7 @@ import {
   Loader2,
   Search,
   Lock,
+  Camera,
 } from 'lucide-react'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
@@ -87,6 +88,10 @@ export function UserSettings() {
     addEvent,
     deleteEvent,
   } = useAuth()
+
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar || null)
+  const [avatarFile, setAvatarFile] = useState(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
 
   const [profileForm, setProfileForm] = useState({
     artistName: user?.artistName || '',
@@ -213,15 +218,49 @@ export function UserSettings() {
     }
   }
 
-  const handleProfileSave = () => {
-    updateProfile({
-      artistName: profileForm.artistName,
-      bio: profileForm.bio,
-      genres: profileForm.genres.split(',').map(g => g.trim()).filter(Boolean),
-      region: profileForm.region,
-    })
-    setSaved({ ...saved, profile: true })
-    setTimeout(() => setSaved({ ...saved, profile: false }), 2000)
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+    if (file.size > 1.5 * 1024 * 1024) {
+      toast.error('Image must be under 1.5MB')
+      return
+    }
+
+    setAvatarFile(file)
+    const reader = new FileReader()
+    reader.onload = (ev) => setAvatarPreview(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  const handleProfileSave = async () => {
+    setAvatarUploading(true)
+    try {
+      const profileData = {
+        artistName: profileForm.artistName,
+        bio: profileForm.bio,
+        genres: profileForm.genres.split(',').map(g => g.trim()).filter(Boolean),
+        region: profileForm.region,
+      }
+
+      // Include avatar if a new file was selected
+      if (avatarFile) {
+        profileData.avatar = avatarPreview // base64 data URI
+      }
+
+      await updateProfile(profileData)
+      setAvatarFile(null) // clear pending file
+      setSaved({ ...saved, profile: true })
+      setTimeout(() => setSaved({ ...saved, profile: false }), 2000)
+    } catch {
+      toast.error('Failed to save profile')
+    } finally {
+      setAvatarUploading(false)
+    }
   }
 
   const handleSocialLinksSave = () => {
@@ -325,72 +364,111 @@ export function UserSettings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Profile Photo */}
                 <div className="space-y-2">
-                  <Label htmlFor="artistName">Artist Name</Label>
-                  <Input
-                    id="artistName"
-                    value={profileForm.artistName}
-                    onChange={(e) => setProfileForm({ ...profileForm, artistName: e.target.value })}
-                    placeholder="Your artist name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bio">Bio</Label>
-                  <textarea
-                    id="bio"
-                    value={profileForm.bio}
-                    onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-                    placeholder="Tell your story..."
-                    className="w-full min-h-[100px] px-3 py-2 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 resize-none"
-                    maxLength={500}
-                  />
-                  <p className="text-xs text-muted-foreground text-right">
-                    {profileForm.bio.length}/500
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="genres" className="flex items-center gap-2">
-                    Genres
-                    {user?.genresLocked && (
-                      <Badge variant="secondary" className="text-xs font-normal">
-                        <Lock className="w-3 h-3 mr-1" />
-                        Protected
-                      </Badge>
-                    )}
-                  </Label>
-                  <Input
-                    id="genres"
-                    value={profileForm.genres}
-                    onChange={(e) => setProfileForm({ ...profileForm, genres: e.target.value })}
-                    placeholder="Hip-Hop, R&B, Pop (comma separated)"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {user?.genresLocked
-                      ? "Your custom genres are protected from auto-sync updates"
-                      : "Separate multiple genres with commas. Once edited, your genres will be protected from auto-sync."}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="region">Region</Label>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <select
-                      id="region"
-                      value={profileForm.region}
-                      onChange={(e) => setProfileForm({ ...profileForm, region: e.target.value })}
-                      className="flex-1 h-10 px-3 py-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                    >
-                      <option value="Tampa Bay">Tampa Bay</option>
-                      <option value="St. Pete">St. Pete</option>
-                    </select>
+                  <Label>Profile Photo</Label>
+                  <div className="flex items-center gap-4">
+                    <div className="relative group">
+                      <div className="w-20 h-20 rounded-full overflow-hidden bg-muted border-2 border-border flex items-center justify-center">
+                        {avatarPreview ? (
+                          <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="w-8 h-8 text-muted-foreground" />
+                        )}
+                      </div>
+                      <label
+                        htmlFor="avatar-upload"
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <Camera className="w-5 h-5 text-white" />
+                      </label>
+                      <input
+                        id="avatar-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="hidden"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="avatar-upload" className="text-sm text-primary hover:underline cursor-pointer">
+                        {avatarPreview ? 'Change photo' : 'Upload photo'}
+                      </label>
+                      <p className="text-xs text-muted-foreground">JPG, PNG, or WebP. Max 1.5MB.</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Your location in the Tampa Bay area
-                  </p>
                 </div>
+
+                {user?.role === 'ARTIST' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="artistName">Artist Name</Label>
+                      <Input
+                        id="artistName"
+                        value={profileForm.artistName}
+                        onChange={(e) => setProfileForm({ ...profileForm, artistName: e.target.value })}
+                        placeholder="Your artist name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="bio">Bio</Label>
+                      <textarea
+                        id="bio"
+                        value={profileForm.bio}
+                        onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
+                        placeholder="Tell your story..."
+                        className="w-full min-h-[100px] px-3 py-2 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 resize-none"
+                        maxLength={500}
+                      />
+                      <p className="text-xs text-muted-foreground text-right">
+                        {profileForm.bio.length}/500
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="genres" className="flex items-center gap-2">
+                        Genres
+                        {user?.genresLocked && (
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            <Lock className="w-3 h-3 mr-1" />
+                            Protected
+                          </Badge>
+                        )}
+                      </Label>
+                      <Input
+                        id="genres"
+                        value={profileForm.genres}
+                        onChange={(e) => setProfileForm({ ...profileForm, genres: e.target.value })}
+                        placeholder="Hip-Hop, R&B, Pop (comma separated)"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {user?.genresLocked
+                          ? "Your custom genres are protected from auto-sync updates"
+                          : "Separate multiple genres with commas. Once edited, your genres will be protected from auto-sync."}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="region">Region</Label>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-muted-foreground" />
+                        <select
+                          id="region"
+                          value={profileForm.region}
+                          onChange={(e) => setProfileForm({ ...profileForm, region: e.target.value })}
+                          className="flex-1 h-10 px-3 py-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        >
+                          <option value="Tampa Bay">Tampa Bay</option>
+                          <option value="St. Pete">St. Pete</option>
+                        </select>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Your location in the Tampa Bay area
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex items-center justify-between pt-4 border-t border-border">
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
@@ -403,8 +481,13 @@ export function UserSettings() {
                     </button>
                     <ExternalLink className="w-3 h-3 text-muted-foreground" />
                   </div>
-                  <Button onClick={handleProfileSave} className="gap-2">
-                    {saved.profile ? (
+                  <Button onClick={handleProfileSave} disabled={avatarUploading} className="gap-2">
+                    {avatarUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : saved.profile ? (
                       <>
                         <Check className="w-4 h-4" />
                         Saved!

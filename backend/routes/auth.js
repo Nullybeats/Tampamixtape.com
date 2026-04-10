@@ -343,7 +343,7 @@ router.patch('/me', async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    const { artistName, bio, genres, region, instagramUrl, twitterUrl, youtubeUrl, tiktokUrl, websiteUrl } = req.body;
+    const { artistName, bio, genres, region, avatar, instagramUrl, twitterUrl, youtubeUrl, tiktokUrl, websiteUrl } = req.body;
 
     // Validate region if provided
     const validRegions = ['Tampa Bay', 'St. Pete'];
@@ -351,8 +351,22 @@ router.patch('/me', async (req, res) => {
       return res.status(400).json({ error: 'Invalid region. Must be "Tampa Bay" or "St. Pete"' });
     }
 
+    // Validate avatar if provided (must be a data URI or URL)
+    if (avatar !== undefined && avatar !== null && avatar !== '') {
+      const isDataUri = avatar.startsWith('data:image/');
+      const isUrl = avatar.startsWith('http://') || avatar.startsWith('https://');
+      if (!isDataUri && !isUrl) {
+        return res.status(400).json({ error: 'Invalid avatar format' });
+      }
+      // Limit base64 avatars to ~2MB
+      if (isDataUri && avatar.length > 2 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Avatar image is too large. Max 1.5MB.' });
+      }
+    }
+
     // Build update data - only include fields that were provided
     const updateData = {};
+    if (avatar !== undefined) updateData.avatar = avatar || null;
     if (artistName !== undefined) updateData.artistName = artistName;
     if (bio !== undefined) updateData.bio = bio;
     if (genres !== undefined) {
