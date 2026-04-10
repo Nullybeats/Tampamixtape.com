@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
-import { Heart, Users, MapPin, Calendar, Music, Clock } from 'lucide-react'
+import { Heart, Users, MapPin, Calendar, Music, Clock, Camera } from 'lucide-react'
 import { formatNumber } from '@/components/feed'
 
 function ArtistCard({ artist, index }) {
@@ -83,7 +83,7 @@ function TrackCard({ track, index }) {
 }
 
 export function FanProfilePage() {
-  const { user, getFollowingArtists, getLikedTracks } = useAuth()
+  const { user, updateProfile, getFollowingArtists, getLikedTracks } = useAuth()
   const [followedArtists, setFollowedArtists] = useState([])
   const [likedTracks, setLikedTracks] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -106,6 +106,16 @@ export function FanProfilePage() {
     }
     loadData()
   }, [])
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) return
+    if (file.size > 1.5 * 1024 * 1024) return
+    const reader = new FileReader()
+    reader.onload = (ev) => updateProfile({ avatar: ev.target.result })
+    reader.readAsDataURL(file)
+  }
 
   const displayName = user?.name || user?.artistName || user?.email?.split('@')[0] || 'Fan'
   const initials = displayName.slice(0, 2).toUpperCase()
@@ -130,17 +140,33 @@ export function FanProfilePage() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-6 mb-8"
         >
-          {user?.avatar ? (
-            <img
-              src={user.avatar}
-              alt={displayName}
-              className="w-20 h-20 rounded-full object-cover border-2 border-primary"
+          <div className="relative group">
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={displayName}
+                className="w-20 h-20 rounded-full object-cover border-2 border-primary"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center">
+                <span className="text-2xl font-bold text-primary">{initials}</span>
+              </div>
+            )}
+            <label
+              htmlFor="fan-avatar-upload"
+              className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              <Camera className="w-5 h-5 text-white" />
+              <span className="text-[10px] text-white mt-0.5">Change</span>
+            </label>
+            <input
+              id="fan-avatar-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
             />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center">
-              <span className="text-2xl font-bold text-primary">{initials}</span>
-            </div>
-          )}
+          </div>
 
           <div>
             <h1 className="text-2xl font-bold">{displayName}</h1>
