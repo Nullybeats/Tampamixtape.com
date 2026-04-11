@@ -7,11 +7,13 @@ const router = express.Router();
 // Get releases from database (public endpoint)
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 24, search, type } = req.query;
+    const { page = 1, limit = 24, search, type, timeframe = 'past' } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
+    const today = new Date().toISOString().slice(0, 10);
+    const isUpcoming = timeframe === 'upcoming';
 
     // Cache non-filtered queries (landing page defaults)
-    const cacheKey = !search && !type ? `releases:${page}:${limit}` : null;
+    const cacheKey = !search && !type ? `releases:${timeframe}:${page}:${limit}` : null;
     if (cacheKey) {
       const cached = cache.get(cacheKey);
       if (cached) {
@@ -23,12 +25,28 @@ router.get('/', async (req, res) => {
     // Build where clause
     const where = {};
 
+    // Filter by timeframe (releaseDate is a YYYY-MM-DD string, so lexical compare works)
+    if (isUpcoming) {
+      where.releaseDate = { gt: today };
+    } else {
+      where.OR = [
+        { releaseDate: { lte: today } },
+        { releaseDate: null },
+      ];
+    }
+
     // Add search filter
     if (search) {
-      where.OR = [
+      const searchClause = [
         { name: { contains: search, mode: 'insensitive' } },
         { artistName: { contains: search, mode: 'insensitive' } },
       ];
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchClause }];
+        delete where.OR;
+      } else {
+        where.OR = searchClause;
+      }
     }
 
     // Add type filter
@@ -42,7 +60,7 @@ router.get('/', async (req, res) => {
         where,
         skip,
         take: parseInt(limit),
-        orderBy: { releaseDate: 'desc' },
+        orderBy: { releaseDate: isUpcoming ? 'asc' : 'desc' },
         select: {
           id: true,
           name: true,

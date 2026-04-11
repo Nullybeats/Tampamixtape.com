@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Disc3,
   Search,
@@ -24,6 +25,7 @@ import {
   Calendar,
   Music,
   Filter,
+  CalendarClock,
 } from 'lucide-react'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
@@ -35,6 +37,7 @@ export function ReleasesPage() {
   const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [timeframe, setTimeframe] = useState('past')
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(1)
@@ -50,6 +53,7 @@ export function ReleasesPage() {
       const params = new URLSearchParams({
         page: pageNum.toString(),
         limit: '24',
+        timeframe,
       })
       if (searchQuery.trim()) {
         params.append('search', searchQuery.trim())
@@ -82,7 +86,7 @@ export function ReleasesPage() {
 
   useEffect(() => {
     fetchReleases(1)
-  }, [typeFilter])
+  }, [typeFilter, timeframe])
 
   // Debounced search
   useEffect(() => {
@@ -138,8 +142,31 @@ export function ReleasesPage() {
             Latest <span className="text-primary">Releases</span>
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Fresh tracks and albums from Tampa Bay artists. Stay up to date with the latest drops.
+            {timeframe === 'upcoming'
+              ? 'See what Tampa Bay artists are dropping next.'
+              : 'Fresh tracks and albums from Tampa Bay artists. Stay up to date with the latest drops.'}
           </p>
+        </motion.div>
+
+        {/* Timeframe Tabs */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="flex justify-center mb-6"
+        >
+          <Tabs value={timeframe} onValueChange={setTimeframe}>
+            <TabsList>
+              <TabsTrigger value="past" className="gap-2">
+                <Disc3 className="w-4 h-4" />
+                Latest
+              </TabsTrigger>
+              <TabsTrigger value="upcoming" className="gap-2">
+                <CalendarClock className="w-4 h-4" />
+                Upcoming
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </motion.div>
 
         {/* Search and Filters */}
@@ -189,7 +216,11 @@ export function ReleasesPage() {
             <Disc3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="font-display text-2xl font-bold uppercase mb-2">No Releases Found</h3>
             <p className="text-muted-foreground">
-              {searchQuery ? `No releases match "${searchQuery}"` : 'No releases available yet.'}
+              {searchQuery
+                ? `No releases match "${searchQuery}"`
+                : timeframe === 'upcoming'
+                  ? 'No upcoming releases announced yet.'
+                  : 'No releases available yet.'}
             </p>
           </div>
         ) : (
