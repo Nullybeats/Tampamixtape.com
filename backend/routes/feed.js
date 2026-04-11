@@ -25,11 +25,18 @@ router.get('/personal', authenticateToken, async (req, res) => {
     // Include the user's own ID to get their releases too
     const artistIds = [...followedArtistIds, userId]
 
-    // Get releases from followed artists + own releases
+    const today = new Date().toISOString().slice(0, 10)
+    const pastReleaseFilter = {
+      artistId: { in: artistIds },
+      OR: [
+        { releaseDate: { lte: today } },
+        { releaseDate: null },
+      ],
+    }
+
+    // Get releases from followed artists + own releases (excluding upcoming drops)
     const releases = await prisma.release.findMany({
-      where: {
-        artistId: { in: artistIds }
-      },
+      where: pastReleaseFilter,
       orderBy: { releaseDate: 'desc' },
       take: limit,
       skip: skip
@@ -37,9 +44,7 @@ router.get('/personal', authenticateToken, async (req, res) => {
 
     // Get total count for pagination
     const totalReleases = await prisma.release.count({
-      where: {
-        artistId: { in: artistIds }
-      }
+      where: pastReleaseFilter
     })
 
     // Get artist details for each release
@@ -103,7 +108,13 @@ router.get('/my-activity', authenticateToken, async (req, res) => {
     const limit = parseInt(req.query.limit) || 10
 
     const releases = await prisma.release.findMany({
-      where: { artistId: userId },
+      where: {
+        artistId: userId,
+        OR: [
+          { releaseDate: { lte: new Date().toISOString().slice(0, 10) } },
+          { releaseDate: null },
+        ],
+      },
       orderBy: { releaseDate: 'desc' },
       take: limit
     })
@@ -142,10 +153,14 @@ router.get('/following-activity', authenticateToken, async (req, res) => {
       return res.json({ items: [], message: 'Follow some artists to see their activity' })
     }
 
-    // Get recent releases from followed artists
+    // Get recent releases from followed artists (excluding upcoming drops)
     const releases = await prisma.release.findMany({
       where: {
-        artistId: { in: followedArtistIds }
+        artistId: { in: followedArtistIds },
+        OR: [
+          { releaseDate: { lte: new Date().toISOString().slice(0, 10) } },
+          { releaseDate: null },
+        ],
       },
       orderBy: { releaseDate: 'desc' },
       take: limit

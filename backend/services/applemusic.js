@@ -288,6 +288,22 @@ async function getFullArtistData(artistId) {
       new Date(b.releaseDate) - new Date(a.releaseDate)
     );
 
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const pastAlbums = sortedAlbums.filter(a => !a.releaseDate || a.releaseDate <= todayStr);
+    const upcomingAlbums = sortedAlbums
+      .filter(a => a.releaseDate && a.releaseDate > todayStr)
+      .sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
+
+    const toReleaseCard = (album) => ({
+      id: album.id,
+      name: album.name,
+      type: album.type,
+      releaseDate: album.releaseDate,
+      totalTracks: album.trackCount,
+      image: album.image,
+      url: album.url,
+    });
+
     return {
       platform: 'apple_music',
       id: artist.id,
@@ -295,15 +311,8 @@ async function getFullArtistData(artistId) {
       image: artist.artwork,
       genres: artist.genres,
       url: artist.url,
-      latestReleases: sortedAlbums.slice(0, 6).map(album => ({
-        id: album.id,
-        name: album.name,
-        type: album.type,
-        releaseDate: album.releaseDate,
-        totalTracks: album.trackCount,
-        image: album.image,
-        url: album.url,
-      })),
+      latestReleases: pastAlbums.slice(0, 6).map(toReleaseCard),
+      upcomingReleases: upcomingAlbums.map(toReleaseCard),
       discography: {
         albums: sortedAlbums.filter(a => a.type === 'album').map(album => ({
           id: album.id,
@@ -478,6 +487,12 @@ async function getFullEnrichedData(artistId) {
     totalTracks: album.trackCount || album.totalTracks || 0,
   });
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pastAlbums = sortedAlbums.filter(a => !a.releaseDate || a.releaseDate <= todayStr);
+  const upcomingAlbums = sortedAlbums
+    .filter(a => a.releaseDate && a.releaseDate > todayStr)
+    .sort((a, b) => new Date(a.releaseDate) - new Date(b.releaseDate));
+
   return {
     ...artistViews,
     topTracks: artistViews.topSongs, // Alias for frontend compatibility
@@ -486,7 +501,8 @@ async function getFullEnrichedData(artistId) {
       albums: sortedAlbums.filter(a => a.type === 'album').map(normalizeRelease),
       singles: sortedAlbums.filter(a => a.type === 'single').map(normalizeRelease),
     },
-    latestReleases: sortedAlbums.slice(0, 6).map(normalizeRelease),
+    latestReleases: pastAlbums.slice(0, 6).map(normalizeRelease),
+    upcomingReleases: upcomingAlbums.map(normalizeRelease),
     totalAlbums: sortedAlbums.filter(a => a.type === 'album').length,
     totalSingles: sortedAlbums.filter(a => a.type === 'single').length,
     totalTracks: sortedAlbums.reduce((sum, a) => sum + (a.trackCount || 0), 0),

@@ -98,6 +98,24 @@ router.get('/:slug', async (req, res) => {
       patchReleases(artistData.latestReleases);
       patchReleases(artistData.discography?.albums);
       patchReleases(artistData.discography?.singles);
+
+      // Split future-dated drops out of latestReleases (works on stale caches
+      // that were enriched before the upcoming-releases split was added)
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const isFuture = (r) => r?.releaseDate && r.releaseDate > todayStr;
+      const baseReleases = Array.isArray(artistData.latestReleases) ? artistData.latestReleases : [];
+      const cachedUpcoming = Array.isArray(artistData.upcomingReleases) ? artistData.upcomingReleases : [];
+      const futureFromLatest = baseReleases.filter(isFuture);
+      const seen = new Set();
+      const dedupedUpcoming = [...cachedUpcoming, ...futureFromLatest]
+        .filter((r) => {
+          if (!r || seen.has(r.id)) return false;
+          seen.add(r.id);
+          return isFuture(r);
+        })
+        .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate));
+      artistData.latestReleases = baseReleases.filter((r) => !isFuture(r));
+      artistData.upcomingReleases = dedupedUpcoming;
     }
 
     // Fetch events in parallel (always live — events change frequently)

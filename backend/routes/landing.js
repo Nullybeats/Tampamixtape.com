@@ -7,7 +7,7 @@ const router = express.Router();
 // Consolidated landing page data endpoint
 router.get('/landing', async (req, res) => {
   try {
-    const cached = cache.get('landing');
+    const cached = cache.get('landing:v2');
     if (cached) {
       res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
       return res.json(cached);
@@ -45,6 +45,12 @@ router.get('/landing', async (req, res) => {
       // 10 recent releases - covers TrendingSection + DiscoverySection
       prisma.release.findMany({
         take: 10,
+        where: {
+          OR: [
+            { releaseDate: { lte: new Date().toISOString().slice(0, 10) } },
+            { releaseDate: null },
+          ],
+        },
         orderBy: { releaseDate: 'desc' },
         select: {
           id: true,
@@ -111,7 +117,7 @@ router.get('/landing', async (req, res) => {
       updatedAt: new Date().toISOString(),
     };
 
-    cache.set('landing', result, 300);
+    cache.set('landing:v2', result, 300);
     res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
     res.json(result);
   } catch (error) {

@@ -416,12 +416,8 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
     )
   }
 
-  const today = new Date().toISOString().slice(0, 10)
-  const allReleases = artist.latestReleases || []
-  const pastReleases = allReleases.filter((a) => !a.releaseDate || a.releaseDate <= today)
-  const upcomingReleases = allReleases
-    .filter((a) => a.releaseDate && a.releaseDate > today)
-    .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate))
+  const pastReleases = artist.latestReleases || []
+  const upcomingReleases = artist.upcomingReleases || []
 
   return (
     <div className="min-h-screen bg-background pt-16">
