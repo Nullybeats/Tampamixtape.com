@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useAudioPlayer } from '@/components/audio/AudioPlayer'
 import { PersonalizedFeed, formatNumber } from '@/components/feed'
 import { ClaimProfileModal } from './ClaimProfileModal'
+import { AvatarCropModal } from './AvatarCropModal'
 import { Loader2, Rss, UserCheck } from 'lucide-react'
 import {
   BarChart,
@@ -136,6 +137,7 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
   const [trackLikeCounts, setTrackLikeCounts] = useState({})
   const [showClaimModal, setShowClaimModal] = useState(false)
   const [isClaimableProfile, setIsClaimableProfile] = useState(false)
+  const [cropImage, setCropImage] = useState(null)
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0]
@@ -144,16 +146,24 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
       toast.error('Please select an image file')
       return
     }
-    if (file.size > 1.5 * 1024 * 1024) {
-      toast.error('Image must be under 1.5MB')
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5MB')
       return
     }
     const reader = new FileReader()
-    reader.onload = (ev) => {
-      updateProfile({ avatar: ev.target.result })
-      toast.success('Profile photo updated')
-    }
+    reader.onload = (ev) => setCropImage(ev.target.result)
+    reader.onerror = () => toast.error('Failed to read image file')
     reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const handleCropSave = async (croppedDataUri) => {
+    try {
+      await updateProfile({ avatar: croppedDataUri })
+      toast.success('Profile photo updated')
+    } catch (err) {
+      toast.error('Failed to update profile photo', { description: err?.message })
+    }
   }
 
   // Fetch profile data for public profiles
@@ -1825,6 +1835,13 @@ export function UserProfilePage({ profileSlug, isOwnProfile = false }) {
           profile={fetchedProfile}
         />
       )}
+
+      <AvatarCropModal
+        imageSrc={cropImage}
+        isOpen={!!cropImage}
+        onClose={() => setCropImage(null)}
+        onSave={handleCropSave}
+      />
     </div>
   )
 }

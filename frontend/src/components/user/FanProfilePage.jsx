@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/AuthContext'
 import { Heart, Users, MapPin, Calendar, Music, Clock, Camera } from 'lucide-react'
 import { formatNumber } from '@/components/feed'
+import { AvatarCropModal } from './AvatarCropModal'
 
 function ArtistCard({ artist, index }) {
   const navigate = useNavigate()
@@ -87,6 +89,7 @@ export function FanProfilePage() {
   const [followedArtists, setFollowedArtists] = useState([])
   const [likedTracks, setLikedTracks] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [cropImage, setCropImage] = useState(null)
 
   useEffect(() => {
     async function loadData() {
@@ -110,11 +113,28 @@ export function FanProfilePage() {
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.type.startsWith('image/')) return
-    if (file.size > 1.5 * 1024 * 1024) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5MB')
+      return
+    }
     const reader = new FileReader()
-    reader.onload = (ev) => updateProfile({ avatar: ev.target.result })
+    reader.onload = (ev) => setCropImage(ev.target.result)
+    reader.onerror = () => toast.error('Failed to read image file')
     reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const handleCropSave = async (croppedDataUri) => {
+    try {
+      await updateProfile({ avatar: croppedDataUri })
+      toast.success('Profile photo updated')
+    } catch (err) {
+      toast.error('Failed to update profile photo', { description: err?.message })
+    }
   }
 
   const displayName = user?.name || user?.artistName || user?.email?.split('@')[0] || 'Fan'
@@ -269,6 +289,13 @@ export function FanProfilePage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <AvatarCropModal
+        imageSrc={cropImage}
+        isOpen={!!cropImage}
+        onClose={() => setCropImage(null)}
+        onSave={handleCropSave}
+      />
     </div>
   )
 }
