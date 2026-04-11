@@ -109,6 +109,13 @@ router.get('/users', requireAdmin, async (req, res) => {
           youtubeUrl: true,
           tiktokUrl: true,
           websiteUrl: true,
+          bio: true,
+          city: true,
+          signupIp: true,
+          rejectionReason: true,
+          adminNotes: true,
+          reviewedAt: true,
+          reviewedBy: true,
           createdAt: true,
           password: true, // Needed for accountType computation, stripped before response
         },
@@ -144,8 +151,13 @@ router.post('/users/:id/approve', requireAdmin, async (req, res) => {
   try {
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: { status: 'APPROVED' },
-      select: { id: true, status: true, artistName: true, profileSlug: true, appleMusicId: true },
+      data: {
+        status: 'APPROVED',
+        reviewedAt: new Date(),
+        reviewedBy: req.userId,
+        rejectionReason: null,
+      },
+      select: { id: true, email: true, status: true, artistName: true, profileSlug: true, appleMusicId: true, role: true },
     });
 
     // Sync releases from Apple Music in the background
@@ -153,6 +165,17 @@ router.post('/users/:id/approve', requireAdmin, async (req, res) => {
       syncSingleArtist(user).catch(err =>
         console.error(`Post-approval sync failed for ${user.artistName}:`, err.message)
       );
+    }
+
+    // Send approval email to artists (skip managed/placeholder accounts)
+    if (user.role === 'ARTIST' && !user.email.endsWith('@managed.tampamixtape.local')) {
+      emailService
+        .sendArtistApplicationApprovedEmail({
+          email: user.email,
+          artistName: user.artistName || 'there',
+          profileSlug: user.profileSlug,
+        })
+        .catch(err => console.error('Approval email failed:', err.message));
     }
 
     res.json({ message: 'User approved', user: { id: user.id, status: user.status } });
@@ -165,15 +188,123 @@ router.post('/users/:id/approve', requireAdmin, async (req, res) => {
 // Reject user
 router.post('/users/:id/reject', requireAdmin, async (req, res) => {
   try {
+    const { reason } = req.body || {};
+    const trimmedReason = typeof reason === 'string' ? reason.trim().slice(0, 1000) : null;
+
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: { status: 'REJECTED' },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: trimmedReason || null,
+        reviewedAt: new Date(),
+        reviewedBy: req.userId,
+      },
+      select: { id: true, email: true, status: true, artistName: true, role: true, rejectionReason: true },
     });
 
-    res.json({ message: 'User rejected', user: { id: user.id, status: user.status } });
+    if (user.role === 'ARTIST' && !user.email.endsWith('@managed.tampamixtape.local')) {
+      emailService
+        .sendArtistApplicationRejectedEmail({
+          email: user.email,
+          artistName: user.artistName || '',
+          reason: user.rejectionReason || '',
+        })
+        .catch(err => console.error('Rejection email failed:', err.message));
+    }
+
+    res.json({ message: 'User rejected', user: { id: user.id, status: user.status, rejectionReason: user.rejectionReason } });
   } catch (error) {
     console.error('Reject user error:', error);
     res.status(500).json({ error: 'Failed to reject user' });
+  }
+});
+
+// Update internal admin notes on a user (visible only to admins)
+router.patch('/users/:id/notes', requireAdmin, async (req, res) => {
+  try {
+    const { adminNotes } = req.body || {};
+    if (adminNotes !== null && typeof adminNotes !== 'string') {
+      return res.status(400).json({ error: 'adminNotes must be a string or null' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { adminNotes: adminNotes ? adminNotes.slice(0, 2000) : null },
+      select: { id: true, adminNotes: true },
+    });
+
+    res.json({ message: 'Notes updated', user });
+  } catch (error) {
+    console.error('Update admin notes error:', error);
+    res.status(500).json({ error: 'Failed to update notes' });
+  }
+});
+
+// Find other accounts that may be related to this applicant (same email, signup IP, or normalized name)
+router.get('/users/:id/related', requireAdmin, async (req, res) => {
+  try {
+    const target = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, email: true, signupIp: true, artistName: true, name: true },
+    });
+
+    if (!target) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const normalizedName = (target.artistName || target.name || '').trim();
+
+    const orFilters = [];
+    if (target.email) orFilters.push({ email: target.email });
+    if (target.signupIp) orFilters.push({ signupIp: target.signupIp });
+    if (normalizedName) {
+      orFilters.push({ artistName: { equals: normalizedName, mode: 'insensitive' } });
+      orFilters.push({ name: { equals: normalizedName, mode: 'insensitive' } });
+    }
+
+    if (orFilters.length === 0) {
+      return res.json({ related: [] });
+    }
+
+    const related = await prisma.user.findMany({
+      where: {
+        AND: [
+          { id: { not: target.id } },
+          { OR: orFilters },
+        ],
+      },
+      select: {
+        id: true,
+        email: true,
+        artistName: true,
+        name: true,
+        role: true,
+        status: true,
+        signupIp: true,
+        createdAt: true,
+        rejectionReason: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    // Annotate why each row was matched so the admin can interpret it
+    const annotated = related.map(r => ({
+      ...r,
+      matches: {
+        email: !!target.email && r.email === target.email,
+        ip: !!target.signupIp && r.signupIp === target.signupIp,
+        name:
+          !!normalizedName &&
+          ((r.artistName || '').toLowerCase() === normalizedName.toLowerCase() ||
+            (r.name || '').toLowerCase() === normalizedName.toLowerCase()),
+      },
+    }));
+
+    res.json({ related: annotated });
+  } catch (error) {
+    console.error('Get related users error:', error);
+    res.status(500).json({ error: 'Failed to fetch related accounts' });
   }
 });
 

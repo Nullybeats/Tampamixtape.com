@@ -164,6 +164,16 @@ export function AdminDashboard() {
   // Pending user detail state
   const [selectedPendingUser, setSelectedPendingUser] = useState(null)
   const [showPendingDetail, setShowPendingDetail] = useState(false)
+  const [pendingRelated, setPendingRelated] = useState([])
+  const [isLoadingRelated, setIsLoadingRelated] = useState(false)
+  const [adminNotesDraft, setAdminNotesDraft] = useState('')
+  const [isSavingNotes, setIsSavingNotes] = useState(false)
+
+  // Reject-with-reason dialog state
+  const [showRejectDialog, setShowRejectDialog] = useState(false)
+  const [pendingRejectUser, setPendingRejectUser] = useState(null)
+  const [rejectReasonInput, setRejectReasonInput] = useState('')
+  const [isSubmittingReject, setIsSubmittingReject] = useState(false)
 
   // Settings state
   const [settings, setSettings] = useState({
@@ -863,30 +873,105 @@ export function AdminDashboard() {
     }
   }
 
-  // Reject user
-  const handleReject = async (userId) => {
-    const targetUser = users.find(u => u.id === userId) || pendingUsersList.find(u => u.id === userId)
+  // Open reject-with-reason dialog (artists get an email so we always prompt for a reason)
+  const openRejectDialog = (user) => {
+    setPendingRejectUser(user)
+    setRejectReasonInput('')
+    setShowRejectDialog(true)
+  }
+
+  // Submit rejection with optional reason (sends email if artist)
+  const submitReject = async () => {
+    if (!pendingRejectUser) return
+    setIsSubmittingReject(true)
+    const userId = pendingRejectUser.id
+    const targetUser = pendingRejectUser
     try {
       const response = await fetch(`${API_URL}/api/admin/users/${userId}/reject`, {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason: rejectReasonInput.trim() || null }),
+      })
+      if (response.ok) {
+        setUsers(users.map(u => u.id === userId ? { ...u, status: 'REJECTED', rejectionReason: rejectReasonInput.trim() || null } : u))
+        setPendingUsersList(pendingUsersList.filter(u => u.id !== userId))
+        setStats(s => ({ ...s, pendingUsers: Math.max(0, s.pendingUsers - 1) }))
+        toast.success('Application rejected', {
+          description: `${targetUser?.artistName || 'Applicant'} was notified by email.`,
+        })
+        setShowRejectDialog(false)
+        setShowPendingDetail(false)
+        setPendingRejectUser(null)
+        setRejectReasonInput('')
+      } else {
+        const data = await response.json()
+        toast.error('Failed to reject', { description: data.error || 'Please try again.' })
+      }
+    } catch (err) {
+      toast.error('Failed to reject')
+    } finally {
+      setIsSubmittingReject(false)
+    }
+  }
+
+  // Fetch other accounts that may be related to a pending applicant (same email/IP/name)
+  const loadRelatedAccounts = async (userId) => {
+    if (!token || !userId) return
+    setIsLoadingRelated(true)
+    setPendingRelated([])
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}/related`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (response.ok) {
-        setUsers(users.map(u => u.id === userId ? { ...u, status: 'REJECTED' } : u))
-        setPendingUsersList(pendingUsersList.filter(u => u.id !== userId))
-        setStats(s => ({ ...s, pendingUsers: s.pendingUsers - 1 }))
-        toast.success('User rejected', {
-          description: `${targetUser?.artistName || 'User'} has been rejected.`,
-        })
-      } else {
         const data = await response.json()
-        toast.error('Failed to reject user', {
-          description: data.error || 'Please try again.',
-        })
+        setPendingRelated(data.related || [])
       }
     } catch (err) {
-      toast.error('Failed to reject user')
+      console.error('Failed to load related accounts:', err)
+    } finally {
+      setIsLoadingRelated(false)
     }
+  }
+
+  // Persist admin notes for a pending applicant
+  const saveAdminNotes = async () => {
+    if (!selectedPendingUser) return
+    setIsSavingNotes(true)
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${selectedPendingUser.id}/notes`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ adminNotes: adminNotesDraft || null }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setSelectedPendingUser({ ...selectedPendingUser, adminNotes: data.user.adminNotes })
+        setPendingUsersList(pendingUsersList.map(u => u.id === selectedPendingUser.id ? { ...u, adminNotes: data.user.adminNotes } : u))
+        toast.success('Notes saved')
+      } else {
+        const data = await response.json()
+        toast.error('Failed to save notes', { description: data.error || 'Please try again.' })
+      }
+    } catch (err) {
+      toast.error('Failed to save notes')
+    } finally {
+      setIsSavingNotes(false)
+    }
+  }
+
+  // Open the application detail dialog and load related accounts in parallel
+  const openPendingDetail = (u) => {
+    setSelectedPendingUser(u)
+    setAdminNotesDraft(u.adminNotes || '')
+    setShowPendingDetail(true)
+    loadRelatedAccounts(u.id)
   }
 
   // Update user role
@@ -1448,7 +1533,13 @@ export function AdminDashboard() {
                                 {u.createdAt && (
                                   <span className="flex items-center gap-1">
                                     <Calendar className="w-3 h-3" />
-                                    {new Date(u.createdAt).toLocaleDateString()}
+                                    {new Date(u.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                                  </span>
+                                )}
+                                {u.city && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" />
+                                    {u.city}
                                   </span>
                                 )}
                                 {u.genres && (
@@ -1456,6 +1547,12 @@ export function AdminDashboard() {
                                 )}
                                 {u.region && u.region !== 'Tampa Bay' && (
                                   <span>{u.region}</span>
+                                )}
+                                {u.adminNotes && (
+                                  <span className="flex items-center gap-1 text-yellow-400" title="Admin notes attached">
+                                    <FileQuestion className="w-3 h-3" />
+                                    Notes
+                                  </span>
                                 )}
                               </div>
                               {/* Social Links Preview */}
@@ -1529,10 +1626,7 @@ export function AdminDashboard() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                setSelectedPendingUser(u)
-                                setShowPendingDetail(true)
-                              }}
+                              onClick={() => openPendingDetail(u)}
                               title="View Details"
                             >
                               <Eye className="w-4 h-4" />
@@ -1548,7 +1642,7 @@ export function AdminDashboard() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleReject(u.id)}
+                              onClick={() => openRejectDialog(u)}
                               className="gap-1 text-red-400 border-red-500/30 hover:bg-red-500/10"
                             >
                               <XCircle className="w-4 h-4" />
@@ -2990,13 +3084,33 @@ export function AdminDashboard() {
                   {/* Info Grid */}
                   <div className="grid grid-cols-2 gap-4 p-3 bg-secondary/30 rounded-lg">
                     <div>
+                      <p className="text-xs text-muted-foreground">City</p>
+                      <p className="text-sm font-medium">
+                        {selectedPendingUser.city || <span className="text-muted-foreground italic">Not provided</span>}
+                      </p>
+                    </div>
+                    <div>
                       <p className="text-xs text-muted-foreground">Region</p>
                       <p className="text-sm font-medium">{selectedPendingUser.region || 'Tampa Bay'}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Applied</p>
-                      <p className="text-sm font-medium">{new Date(selectedPendingUser.createdAt).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium">
+                        {new Date(selectedPendingUser.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                      </p>
                     </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Account Type</p>
+                      <p className="text-sm font-medium capitalize">
+                        {selectedPendingUser.accountType || (selectedPendingUser.role === 'ARTIST' ? 'artist' : 'fan')}
+                      </p>
+                    </div>
+                    {selectedPendingUser.signupIp && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-muted-foreground">Signup IP</p>
+                        <p className="text-sm font-mono text-muted-foreground">{selectedPendingUser.signupIp}</p>
+                      </div>
+                    )}
                     {selectedPendingUser.genres && (
                       <div className="col-span-2">
                         <p className="text-xs text-muted-foreground">Genres</p>
@@ -3114,6 +3228,79 @@ export function AdminDashboard() {
                       )}
                     </div>
                   )}
+
+                  {/* Related accounts (same email / IP / name) — duplicate detection */}
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
+                      <UserCheck className="w-3 h-3" />
+                      Related accounts
+                    </p>
+                    {isLoadingRelated ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground p-3 bg-secondary/30 rounded-lg">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Checking for duplicates...
+                      </div>
+                    ) : pendingRelated.length > 0 ? (
+                      <div className="space-y-2">
+                        {pendingRelated.map((r) => (
+                          <div key={r.id} className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-foreground truncate">{r.artistName || r.name || 'No name'}</p>
+                                <p className="text-muted-foreground truncate">{r.email}</p>
+                              </div>
+                              <Badge
+                                variant={r.status === 'APPROVED' ? 'success' : 'secondary'}
+                                className={`text-[10px] ${r.status === 'REJECTED' ? 'bg-red-500/20 text-red-400 border-transparent' : ''}`}
+                              >
+                                {r.status}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                              {r.matches.email && <Badge variant="outline" className="text-[10px]">same email</Badge>}
+                              {r.matches.ip && <Badge variant="outline" className="text-[10px]">same IP</Badge>}
+                              {r.matches.name && <Badge variant="outline" className="text-[10px]">same name</Badge>}
+                              <span className="text-muted-foreground ml-auto">
+                                {new Date(r.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            {r.rejectionReason && (
+                              <p className="text-muted-foreground italic mt-1 line-clamp-2">"{r.rejectionReason}"</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic p-3 bg-secondary/30 rounded-lg">
+                        No related accounts found
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Admin notes (internal only) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-muted-foreground flex items-center gap-2">
+                        <FileQuestion className="w-3 h-3" />
+                        Internal admin notes
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={saveAdminNotes}
+                        disabled={isSavingNotes || adminNotesDraft === (selectedPendingUser.adminNotes || '')}
+                      >
+                        {isSavingNotes ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={adminNotesDraft}
+                      onChange={(e) => setAdminNotesDraft(e.target.value)}
+                      placeholder="Notes only visible to admins (e.g. 'verified IG matches Apple Music')"
+                      rows={3}
+                      maxLength={2000}
+                    />
+                  </div>
                 </div>
 
                 <DialogFooter>
@@ -3122,10 +3309,7 @@ export function AdminDashboard() {
                   </Button>
                   <Button
                     variant="destructive"
-                    onClick={() => {
-                      setShowPendingDetail(false)
-                      handleReject(selectedPendingUser.id)
-                    }}
+                    onClick={() => openRejectDialog(selectedPendingUser)}
                   >
                     Reject
                   </Button>
@@ -3141,6 +3325,48 @@ export function AdminDashboard() {
                 </DialogFooter>
               </>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Reject Application Dialog (artist applications — sends email) */}
+        <Dialog open={showRejectDialog} onOpenChange={(open) => { if (!open) { setShowRejectDialog(false); setPendingRejectUser(null); } }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-400">
+                <XCircle className="w-5 h-5" />
+                Reject Application
+              </DialogTitle>
+              <DialogDescription>
+                {pendingRejectUser?.role === 'ARTIST' && !pendingRejectUser?.email?.endsWith('@managed.tampamixtape.local')
+                  ? <>This will email <strong>{pendingRejectUser?.email}</strong> with the reason below.</>
+                  : <>Reject <strong>{pendingRejectUser?.artistName || pendingRejectUser?.name || pendingRejectUser?.email}</strong>.</>
+                }
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2 space-y-2">
+              <Label htmlFor="pendingRejectReason">Reason (optional, shown to applicant)</Label>
+              <Textarea
+                id="pendingRejectReason"
+                value={rejectReasonInput}
+                onChange={(e) => setRejectReasonInput(e.target.value)}
+                placeholder="e.g. We couldn't verify the linked Instagram. Reapply with proof of identity."
+                rows={4}
+                maxLength={1000}
+              />
+              <p className="text-xs text-muted-foreground">{rejectReasonInput.length}/1000</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowRejectDialog(false)} disabled={isSubmittingReject}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={submitReject}
+                disabled={isSubmittingReject}
+              >
+                {isSubmittingReject ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Reject Application'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

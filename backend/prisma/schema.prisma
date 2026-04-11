@@ -41,9 +41,17 @@ model User {
   youtubeUrl    String?
   tiktokUrl     String?
   websiteUrl    String?
+  city            String?     // City selected at signup (Tampa, St. Petersburg, etc.)
+  accountType     String?     // 'fan' | 'artist' — what the user picked at signup
+  signupIp        String?     // IP at registration, used by admins to spot duplicate applications
+  rejectionReason String?     // Reason shown to artist + stored for audit when application is rejected
+  adminNotes      String?     // Internal-only notes the reviewing admin can leave on an application
+  reviewedAt      DateTime?   // When an admin approved/rejected the application
+  reviewedBy      String?     // Admin user id who made the decision
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  @@index([signupIp])
   @@map("users")
 }
 

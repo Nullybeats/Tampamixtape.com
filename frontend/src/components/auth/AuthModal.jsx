@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/AuthContext'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Mail,
   Lock,
@@ -37,6 +38,11 @@ import {
   Clock,
   Headphones,
   Mic2,
+  Instagram,
+  Twitter,
+  Youtube,
+  Globe,
+  FileText,
 } from 'lucide-react'
 
 // Florida cities - Tampa is active, others coming soon
@@ -61,12 +67,25 @@ const fanSignUpSchema = z.object({
   city: z.string().min(1, 'Please select your city'),
 })
 
+const optionalUrl = z
+  .string()
+  .trim()
+  .url('Must be a full URL starting with https://')
+  .or(z.literal(''))
+  .optional()
+
 const artistSignUpSchema = z.object({
   accountType: z.literal('artist'),
   artistName: z.string().min(2, 'Artist name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   city: z.string().min(1, 'Please select your city'),
+  bio: z.string().max(1000, 'Bio must be 1000 characters or fewer').optional(),
+  instagramUrl: optionalUrl,
+  twitterUrl: optionalUrl,
+  tiktokUrl: optionalUrl,
+  youtubeUrl: optionalUrl,
+  websiteUrl: optionalUrl,
 })
 
 const signUpSchema = z.discriminatedUnion('accountType', [fanSignUpSchema, artistSignUpSchema])
@@ -93,6 +112,12 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
       email: '',
       password: '',
       city: '',
+      bio: '',
+      instagramUrl: '',
+      twitterUrl: '',
+      tiktokUrl: '',
+      youtubeUrl: '',
+      websiteUrl: '',
     }
   })
 
@@ -117,8 +142,13 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
     setIsLoading(true)
     setError('')
     try {
+      // Strip empty strings so AuthContext doesn't forward blank optional fields
+      const cleaned = Object.fromEntries(
+        Object.entries(data).filter(([, v]) => v !== '' && v !== undefined && v !== null)
+      )
+
       const signUpData = {
-        ...data,
+        ...cleaned,
         accountType,
         state: 'Florida',
         region: selectedCityData?.region || 'Tampa Bay',
@@ -478,24 +508,172 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'signup' }) {
                       </div>
                     )}
 
+                    {accountType === 'artist' ? (
+                      <Button
+                        type="button"
+                        className="w-full gap-2"
+                        disabled={!isCityActive}
+                        onClick={() => isCityActive && setStep(3)}
+                      >
+                        {!isCityActive ? (
+                          <>
+                            <Clock className="w-4 h-4" />
+                            Join Waitlist
+                          </>
+                        ) : (
+                          <>
+                            Continue
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="submit"
+                        className="w-full gap-2"
+                        disabled={isLoading || !isCityActive}
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Creating account...
+                          </>
+                        ) : !isCityActive ? (
+                          <>
+                            <Clock className="w-4 h-4" />
+                            Join Waitlist
+                          </>
+                        ) : (
+                          <>
+                            Create Account
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Step 3: Artist application details (bio + social links) */}
+                {step === 3 && accountType === 'artist' && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="space-y-4"
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setStep(2)}
+                      className="gap-1 -ml-2"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Back
+                    </Button>
+
+                    <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
+                      Help our team review your application faster. All fields below are optional but strongly recommended.
+                    </div>
+
+                    {/* Bio */}
+                    <div className="space-y-2">
+                      <Label htmlFor="bio" className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        About you
+                      </Label>
+                      <Textarea
+                        id="bio"
+                        placeholder="Tell us about your music, where you play, what makes you Tampa Bay..."
+                        rows={4}
+                        maxLength={1000}
+                        {...signUpForm.register('bio')}
+                      />
+                      {signUpForm.formState.errors.bio && (
+                        <p className="text-xs text-red-400">{signUpForm.formState.errors.bio.message}</p>
+                      )}
+                    </div>
+
+                    {/* Social links */}
+                    <div className="space-y-2">
+                      <Label className="text-sm">Where can we hear/see you?</Label>
+
+                      <div className="relative">
+                        <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pink-400" />
+                        <Input
+                          placeholder="https://instagram.com/yourhandle"
+                          className="pl-10"
+                          {...signUpForm.register('instagramUrl')}
+                        />
+                      </div>
+                      {signUpForm.formState.errors.instagramUrl && (
+                        <p className="text-xs text-red-400">{signUpForm.formState.errors.instagramUrl.message}</p>
+                      )}
+
+                      <div className="relative">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground">
+                          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                        </svg>
+                        <Input
+                          placeholder="https://tiktok.com/@yourhandle"
+                          className="pl-10"
+                          {...signUpForm.register('tiktokUrl')}
+                        />
+                      </div>
+                      {signUpForm.formState.errors.tiktokUrl && (
+                        <p className="text-xs text-red-400">{signUpForm.formState.errors.tiktokUrl.message}</p>
+                      )}
+
+                      <div className="relative">
+                        <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
+                        <Input
+                          placeholder="https://youtube.com/@yourchannel"
+                          className="pl-10"
+                          {...signUpForm.register('youtubeUrl')}
+                        />
+                      </div>
+                      {signUpForm.formState.errors.youtubeUrl && (
+                        <p className="text-xs text-red-400">{signUpForm.formState.errors.youtubeUrl.message}</p>
+                      )}
+
+                      <div className="relative">
+                        <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400" />
+                        <Input
+                          placeholder="https://twitter.com/yourhandle"
+                          className="pl-10"
+                          {...signUpForm.register('twitterUrl')}
+                        />
+                      </div>
+                      {signUpForm.formState.errors.twitterUrl && (
+                        <p className="text-xs text-red-400">{signUpForm.formState.errors.twitterUrl.message}</p>
+                      )}
+
+                      <div className="relative">
+                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="https://yourwebsite.com"
+                          className="pl-10"
+                          {...signUpForm.register('websiteUrl')}
+                        />
+                      </div>
+                      {signUpForm.formState.errors.websiteUrl && (
+                        <p className="text-xs text-red-400">{signUpForm.formState.errors.websiteUrl.message}</p>
+                      )}
+                    </div>
+
                     <Button
                       type="submit"
                       className="w-full gap-2"
-                      disabled={isLoading || !isCityActive}
+                      disabled={isLoading}
                     >
                       {isLoading ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          Creating account...
-                        </>
-                      ) : !isCityActive ? (
-                        <>
-                          <Clock className="w-4 h-4" />
-                          Join Waitlist
+                          Submitting application...
                         </>
                       ) : (
                         <>
-                          Create Account
+                          Submit Application
                           <ArrowRight className="w-4 h-4" />
                         </>
                       )}

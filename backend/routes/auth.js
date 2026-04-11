@@ -33,7 +33,24 @@ const sanitizeString = (str, maxLength = 500) => {
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, artistName, appleMusicId, appleMusicUrl, avatar, accountType } = req.body;
+    const {
+      email,
+      password,
+      name,
+      artistName,
+      appleMusicId,
+      appleMusicUrl,
+      avatar,
+      accountType,
+      city,
+      region,
+      bio,
+      instagramUrl,
+      twitterUrl,
+      youtubeUrl,
+      tiktokUrl,
+      websiteUrl,
+    } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -67,6 +84,14 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Invalid avatar URL format' });
     }
 
+    // Validate optional social links from artist applications
+    const socialFields = { instagramUrl, twitterUrl, youtubeUrl, tiktokUrl, websiteUrl };
+    for (const [key, value] of Object.entries(socialFields)) {
+      if (value && !isValidUrl(value)) {
+        return res.status(400).json({ error: `Invalid ${key} format. Must start with http:// or https://` });
+      }
+    }
+
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
@@ -76,6 +101,8 @@ router.post('/register', async (req, res) => {
     // Sanitize inputs
     const sanitizedName = sanitizeString(name, 100);
     const sanitizedArtistName = sanitizeString(artistName, 100);
+    const sanitizedBio = sanitizeString(bio, 1000);
+    const sanitizedCity = sanitizeString(city, 100);
     const profileSlug = sanitizedArtistName
       ? sanitizedArtistName.toLowerCase().replace(/[^a-z0-9]/g, '')
       : null;
@@ -83,6 +110,9 @@ router.post('/register', async (req, res) => {
     // Fan: role USER, approved immediately. Artist: role ARTIST, pending review.
     const role = resolvedAccountType === 'artist' ? 'ARTIST' : 'USER';
     const status = resolvedAccountType === 'artist' ? 'PENDING' : 'APPROVED';
+
+    // Capture submitter IP for duplicate-application detection (matches profile.js pattern)
+    const signupIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null;
 
     const user = await prisma.user.create({
       data: {
@@ -93,6 +123,16 @@ router.post('/register', async (req, res) => {
         profileSlug,
         role,
         status,
+        accountType: resolvedAccountType,
+        signupIp,
+        ...(sanitizedCity && { city: sanitizedCity }),
+        ...(region && { region }),
+        ...(sanitizedBio && { bio: sanitizedBio }),
+        ...(instagramUrl && { instagramUrl }),
+        ...(twitterUrl && { twitterUrl }),
+        ...(youtubeUrl && { youtubeUrl }),
+        ...(tiktokUrl && { tiktokUrl }),
+        ...(websiteUrl && { websiteUrl }),
         // Include Apple Music data if provided during signup (already validated)
         ...(appleMusicId && { appleMusicId }),
         ...(appleMusicUrl && { appleMusicUrl }),

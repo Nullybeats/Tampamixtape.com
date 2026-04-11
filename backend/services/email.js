@@ -534,6 +534,186 @@ Questions? Visit tampamixtape.com/contact
   }
 }
 
+/**
+ * Send email when an artist application is approved
+ */
+async function sendArtistApplicationApprovedEmail({ email, artistName, profileSlug }) {
+  if (!isConfigured()) {
+    console.log('Email not configured, skipping artist approval email');
+    return { success: false, reason: 'not_configured' };
+  }
+
+  const profileUrl = profileSlug ? `https://tampamixtape.com/${profileSlug}` : 'https://tampamixtape.com/login';
+
+  const mailOptions = {
+    from: `Tampa Mixtape <${FROM_EMAIL}>`,
+    to: email,
+    subject: `You're in! Welcome to Tampa Mixtape, ${artistName}`,
+    text: `
+Congratulations ${artistName}!
+
+Your artist application has been approved. You're now part of Tampa Mixtape — Tampa Bay's music discovery platform.
+
+What you can do now:
+- Log in and finish your profile (bio, photo, genres)
+- Connect your Apple Music profile to sync your releases
+- Manage your social links
+- Track who's listening with your artist dashboard
+
+Log in: https://tampamixtape.com/login
+${profileSlug ? `Your profile: ${profileUrl}` : ''}
+
+Welcome to the Tampa Bay music community!
+
+- The Tampa Mixtape Team
+    `.trim(),
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background: ${BRAND.dark}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background: ${BRAND.darkGray};">
+    ${getEmailHeader()}
+
+    <div style="padding: 40px 30px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <div style="display: inline-block; background: ${BRAND.success}20; border-radius: 50%; padding: 15px; margin-bottom: 15px;">
+          <span style="font-size: 32px;">🎉</span>
+        </div>
+        <h2 style="color: ${BRAND.success}; margin: 0 0 10px 0; font-size: 24px;">You're Approved!</h2>
+        <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 16px;">Welcome to Tampa Mixtape, <strong style="color: ${BRAND.text};">${artistName}</strong></p>
+      </div>
+
+      <p style="color: ${BRAND.text}; font-size: 15px; line-height: 1.6; text-align: center; margin-bottom: 30px;">
+        Your artist application has been approved. Log in to finish setting up your profile and start connecting with Tampa Bay listeners.
+      </p>
+
+      <div style="text-align: center; margin-bottom: 30px;">
+        ${getButton('Log In to Your Dashboard', 'https://tampamixtape.com/login')}
+      </div>
+
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 25px;">
+        <h3 style="color: ${BRAND.text}; margin: 0 0 15px 0; font-size: 16px;">Next steps:</h3>
+        <ul style="color: ${BRAND.textMuted}; margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+          <li>Add a bio, photo, and genres</li>
+          <li>Connect your Apple Music profile to sync releases</li>
+          <li>Add your social links</li>
+          <li>Track listeners and demand from your dashboard</li>
+        </ul>
+      </div>
+
+      <p style="color: ${BRAND.textMuted}; text-align: center; margin-top: 30px; font-size: 14px;">
+        Welcome to the Tampa Bay music community.
+      </p>
+    </div>
+
+    ${getEmailFooter()}
+  </div>
+</body>
+</html>
+    `.trim(),
+  };
+
+  try {
+    await sendEmail(mailOptions);
+    console.log(`Artist approval email sent to ${email}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send artist approval email:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send email when an artist application is rejected
+ */
+async function sendArtistApplicationRejectedEmail({ email, artistName, reason }) {
+  if (!isConfigured()) {
+    console.log('Email not configured, skipping artist rejection email');
+    return { success: false, reason: 'not_configured' };
+  }
+
+  const mailOptions = {
+    from: `Tampa Mixtape <${FROM_EMAIL}>`,
+    to: email,
+    subject: `Update on your Tampa Mixtape application`,
+    text: `
+Hi ${artistName || 'there'},
+
+Thank you for applying to Tampa Mixtape. After reviewing your application, we were unable to approve it at this time.
+
+${reason ? `Reason: ${reason}` : ''}
+
+If you'd like to reapply with additional information, or if you think this was a mistake, please reach out at https://tampamixtape.com/contact.
+
+We appreciate your interest in the Tampa Bay music scene.
+
+- The Tampa Mixtape Team
+    `.trim(),
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background: ${BRAND.dark}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; background: ${BRAND.darkGray};">
+    ${getEmailHeader()}
+
+    <div style="padding: 40px 30px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <div style="display: inline-block; background: ${BRAND.textMuted}20; border-radius: 50%; padding: 15px; margin-bottom: 15px;">
+          <span style="font-size: 32px;">📋</span>
+        </div>
+        <h2 style="color: ${BRAND.text}; margin: 0 0 10px 0; font-size: 24px;">Application Update</h2>
+        <p style="color: ${BRAND.textMuted}; margin: 0; font-size: 16px;">Regarding your application${artistName ? ` for <strong style="color: ${BRAND.text};">${artistName}</strong>` : ''}</p>
+      </div>
+
+      <p style="color: ${BRAND.text}; font-size: 15px; line-height: 1.6; margin-bottom: 25px;">
+        Thank you for applying to Tampa Mixtape. After careful review, we were unable to approve your application at this time.
+      </p>
+
+      ${reason ? `
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 20px; margin-bottom: 25px; border-left: 4px solid ${BRAND.error};">
+        <h3 style="color: ${BRAND.textMuted}; margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Reason</h3>
+        <p style="color: ${BRAND.text}; margin: 0; font-size: 15px; white-space: pre-wrap;">${reason}</p>
+      </div>
+      ` : ''}
+
+      <div style="background: ${BRAND.dark}; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+        <h3 style="color: ${BRAND.text}; margin: 0 0 15px 0; font-size: 16px;">What you can do:</h3>
+        <ul style="color: ${BRAND.textMuted}; margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+          <li>Reapply with additional information about your work</li>
+          <li>Reach out to us if you have questions about the decision</li>
+        </ul>
+      </div>
+
+      <div style="text-align: center;">
+        ${getButton('Contact Support', 'https://tampamixtape.com/contact', BRAND.lightGray)}
+      </div>
+    </div>
+
+    ${getEmailFooter()}
+  </div>
+</body>
+</html>
+    `.trim(),
+  };
+
+  try {
+    await sendEmail(mailOptions);
+    console.log(`Artist rejection email sent to ${email}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send artist rejection email:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 async function sendAdminAlert({ subject, message }) {
   const adminEmail = process.env.ADMIN_EMAIL;
   if (!adminEmail) {
@@ -570,5 +750,7 @@ module.exports = {
   sendClaimSubmittedEmail,
   sendClaimApprovedEmail,
   sendClaimRejectedEmail,
+  sendArtistApplicationApprovedEmail,
+  sendArtistApplicationRejectedEmail,
   sendAdminAlert,
 };
