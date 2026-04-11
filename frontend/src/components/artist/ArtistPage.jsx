@@ -416,6 +416,13 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
     )
   }
 
+  const today = new Date().toISOString().slice(0, 10)
+  const allReleases = artist.latestReleases || []
+  const pastReleases = allReleases.filter((a) => !a.releaseDate || a.releaseDate <= today)
+  const upcomingReleases = allReleases
+    .filter((a) => a.releaseDate && a.releaseDate > today)
+    .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate))
+
   return (
     <div className="min-h-screen bg-background pt-16">
       {/* Hero Section */}
@@ -556,7 +563,7 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
       {/* Content Tabs */}
       <div className="max-w-6xl mx-auto px-4 py-8">
         <Tabs defaultValue="tracks" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-auto lg:inline-grid">
             <TabsTrigger value="tracks" className="gap-2">
               <Music className="w-4 h-4" />
               All Songs
@@ -564,6 +571,10 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
             <TabsTrigger value="releases" className="gap-2">
               <Disc3 className="w-4 h-4" />
               Latest Releases
+            </TabsTrigger>
+            <TabsTrigger value="upcoming" className="gap-2">
+              <Calendar className="w-4 h-4" />
+              Upcoming
             </TabsTrigger>
             <TabsTrigger value="discography" className="gap-2">
               <Album className="w-4 h-4" />
@@ -614,15 +625,40 @@ export function ArtistPage({ artistId, artistName, onBack, onAuthClick }) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {artist.latestReleases?.length > 0 ? (
+                {pastReleases.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {artist.latestReleases.map((album, index) => (
+                    {pastReleases.map((album, index) => (
                       <AlbumCard key={album.id} album={album} index={index} />
                     ))}
                   </div>
                 ) : (
                   <p className="text-muted-foreground text-center py-8">
                     No releases available
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Upcoming Releases Tab */}
+          <TabsContent value="upcoming">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  Upcoming Releases
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {upcomingReleases.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {upcomingReleases.map((album, index) => (
+                      <AlbumCard key={album.id} album={album} index={index} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">
+                    No upcoming releases
                   </p>
                 )}
               </CardContent>
