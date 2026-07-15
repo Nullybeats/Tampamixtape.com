@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SpotlightCard } from '@/components/ui/spotlight'
 import { AnimatedNumber } from '@/components/ui/animated-number'
+import { TierBadge } from '@/components/ui/tier-badge'
 import {
   TrendingUp,
   Flame,
@@ -14,7 +15,6 @@ import {
   Users,
   ArrowUpRight,
   Loader2,
-  ChevronRight,
 } from 'lucide-react'
 import { ActivityItem } from '@/components/feed'
 
@@ -32,10 +32,10 @@ function TrendingArtistCard({ artist, rank, index }) {
     >
       <SpotlightCard
         onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
-        className="group rounded-xl cursor-pointer transition-colors hover:bg-white/[0.03]"
-        contentClassName="flex items-center gap-4 p-3"
+        className="group rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03]"
+        contentClassName="flex items-center gap-3 px-2.5 py-2"
       >
-        <span className={`font-display w-8 text-center text-xl font-bold tabular-nums ${
+        <span className={`font-display w-6 text-center text-base font-bold tabular-nums ${
           rank <= 3 ? 'text-primary' : 'text-muted-foreground'
         }`}>
           {rank}
@@ -45,33 +45,29 @@ function TrendingArtistCard({ artist, rank, index }) {
           <img
             src={artist.avatar}
             alt={artist.artistName}
-            className="w-12 h-12 rounded-full object-cover ring-2 ring-white/10 group-hover:ring-primary transition-all"
+            className="w-10 h-10 rounded-full object-cover ring-2 ring-white/10 group-hover:ring-primary transition-all"
           />
         ) : (
-          <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
-            <Music className="w-6 h-6 text-muted-foreground" />
+          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+            <Music className="w-5 h-5 text-muted-foreground" />
           </div>
         )}
 
         <div className="flex-1 min-w-0">
-          <h4 className="font-medium truncate group-hover:text-primary transition-colors">
+          <h4 className="text-sm font-medium truncate group-hover:text-primary transition-colors">
             {artist.artistName}
           </h4>
-          <p className="text-sm text-muted-foreground truncate">
+          <p className="text-xs text-muted-foreground truncate">
             {artist.genres?.split(',')[0] || 'Artist'}
           </p>
         </div>
 
-        <div className="text-right hidden sm:block">
-          <div className="font-mono text-lg font-bold text-primary">
+        <div className="flex items-center gap-3 shrink-0">
+          <TierBadge tier={artist.demandScoreTier} variant="dot" className="hidden sm:inline-flex" />
+          <div className="w-9 text-right font-mono text-base font-bold tabular-nums text-primary">
             <AnimatedNumber value={artist.demandScore || 0} format={false} />
           </div>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {artist.demandScoreTier || 'score'}
-          </p>
         </div>
-
-        <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
       </SpotlightCard>
     </motion.div>
   )
@@ -174,7 +170,7 @@ export function TrendingSection({ artists: propArtists, releases: propReleases }
           </p>
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-2 gap-8 items-start">
           {/* Trending Artists */}
           <Card className="bg-card/60 backdrop-blur-xl border-white/5 elev-2 overflow-hidden">
             <CardHeader className="pb-4">
