@@ -26,9 +26,14 @@ export function Hero({ stats: propStats, artists: propArtists, releases: propRel
     totalFollowers: 0,
   })
   const [statsLoaded, setStatsLoaded] = useState(false)
+  // Resolve artists/releases from props, falling back to self-fetch so the
+  // album wall + Live Rankings card populate even when /api/landing is absent.
+  const [artists, setArtists] = useState(propArtists || [])
+  const [releases, setReleases] = useState(propReleases || [])
 
-  // Use props from landing endpoint if available, otherwise fetch
   useEffect(() => {
+    if (propArtists?.length) setArtists(propArtists)
+    if (propReleases?.length) setReleases(propReleases)
     if (propStats) {
       setPlatformStats({
         artistCount: propStats.artistCount || 0,
@@ -37,43 +42,56 @@ export function Hero({ stats: propStats, artists: propArtists, releases: propRel
         totalFollowers: propStats.totalFollowers || 0,
       })
       setStatsLoaded(true)
-      return
     }
 
-    const fetchStats = async () => {
+    const needArtists = !propArtists?.length
+    const needReleases = !propReleases?.length
+    const needStats = !propStats
+    if (!needArtists && !needReleases && !needStats) return
+
+    const fetchFallback = async () => {
       try {
-        const [artistsRes, statsRes] = await Promise.all([
+        const [artistsRes, statsRes, releasesRes] = await Promise.all([
           fetch(`${API_URL}/api/artists/hot100?limit=100`),
           fetch(`${API_URL}/api/releases/stats`),
+          fetch(`${API_URL}/api/releases?limit=24`),
         ])
 
         const artistsData = await artistsRes.json()
         const statsData = await statsRes.json()
+        const releasesData = await releasesRes.json()
 
-        const artists = artistsData.artists || []
-        const totalFollowers = artists.reduce((sum, a) => sum + (a.followers || 0), 0)
+        const fetchedArtists = artistsData.artists || []
+        const fetchedReleases = releasesData.releases || []
 
-        setPlatformStats({
-          artistCount: artists.length,
-          albumCount: statsData.albums || 0,
-          singleCount: statsData.singles || 0,
-          totalFollowers,
-        })
+        if (needArtists) setArtists(fetchedArtists)
+        if (needReleases) setReleases(fetchedReleases)
+        if (needStats) {
+          const totalFollowers = fetchedArtists.reduce((sum, a) => sum + (a.followers || 0), 0)
+          setPlatformStats({
+            artistCount: fetchedArtists.length,
+            albumCount: statsData.albums || 0,
+            singleCount: statsData.singles || 0,
+            totalFollowers,
+          })
+        }
         setStatsLoaded(true)
       } catch (error) {
-        console.error('Failed to fetch stats:', error)
-        setPlatformStats({
-          artistCount: 50,
-          albumCount: 120,
-          singleCount: 350,
-          totalFollowers: 2500000,
-        })
+        console.error('Failed to load hero data:', error)
+        if (needStats) {
+          setPlatformStats({
+            artistCount: 50,
+            albumCount: 120,
+            singleCount: 350,
+            totalFollowers: 2500000,
+          })
+        }
         setStatsLoaded(true)
       }
     }
 
-    fetchStats()
-  }, [propStats])
+    fetchFallback()
+  }, [propStats, propArtists, propReleases])
 
   const stats = useMemo(() => [
     { label: 'Artists', value: platformStats.artistCount || 50, suffix: '+', icon: Users },
@@ -90,8 +108,8 @@ export function Hero({ stats: propStats, artists: propArtists, releases: propRel
 
   // Album covers (Apple Music artwork) already in the feed — releases first, avatars fill in.
   const albumImages = [
-    ...(propReleases || []).map((r) => r?.image),
-    ...(propArtists || []).map((a) => a?.avatar),
+    ...(releases || []).map((r) => r?.image),
+    ...(artists || []).map((a) => a?.avatar),
   ]
 
   return (
@@ -146,7 +164,7 @@ export function Hero({ stats: propStats, artists: propArtists, releases: propRel
 
           {/* Hero product visual — Live Rankings card on a glowing pedestal */}
           <motion.div {...fade(0.45)} className="mt-16 w-full">
-            <LiveRankingsCard artists={propArtists || []} />
+            <LiveRankingsCard artists={artists} />
           </motion.div>
 
           {/* Metric row (previously computed but never rendered) */}

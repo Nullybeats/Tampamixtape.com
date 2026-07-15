@@ -14,7 +14,7 @@ export function HeroAlbumWall({ images = [] }) {
 
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 opacity-[0.13] blur-[1.5px] [mask-image:linear-gradient(to_bottom,transparent,black_12%,black_72%,transparent)]">
+      <div className="absolute inset-0 grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 opacity-[0.2] blur-[1px] [mask-image:linear-gradient(to_bottom,transparent,black_10%,black_75%,transparent)]">
         {tiles.map((src, i) => (
           <div key={i} className="aspect-square overflow-hidden">
             <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -22,7 +22,7 @@ export function HeroAlbumWall({ images = [] }) {
         ))}
       </div>
       {/* Vignette keeps the headline + card area clean */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_55%_at_50%_42%,rgba(8,8,10,0.9),rgba(8,8,10,0.35)_70%,transparent)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_58%_52%_at_50%_42%,rgba(8,8,10,0.85),rgba(8,8,10,0.3)_70%,transparent)]" />
     </div>
   )
 }
