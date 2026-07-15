@@ -1,19 +1,81 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { TiltCard } from '@/components/ui/tilt-card'
 import {
   Disc3,
   Sparkles,
   TrendingUp,
   Loader2,
   Music,
+  Play,
 } from 'lucide-react'
-import { ReleaseCard } from '@/components/feed'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
+
+function ReleaseTile({ release, className, featured = false }) {
+  const navigate = useNavigate()
+
+  const open = () => {
+    if (release.url) {
+      window.open(release.url, '_blank', 'noopener,noreferrer')
+    } else if (release.artistSlug) {
+      navigate(`/${release.artistSlug}`)
+    }
+  }
+
+  return (
+    <TiltCard className={className}>
+      <div
+        onClick={open}
+        className="group relative h-full w-full cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-card elev-1 transition-shadow duration-300 hover:elev-3"
+      >
+        {release.image ? (
+          <img
+            src={release.image}
+            alt={release.name}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-secondary">
+            <Music className="h-10 w-10 text-muted-foreground" />
+          </div>
+        )}
+
+        {/* Legibility scrim */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+
+        {/* Play affordance */}
+        {release.url && (
+          <div className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full glass opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+            <Play className="h-4 w-4 fill-white text-white" />
+          </div>
+        )}
+
+        <div className="absolute inset-x-0 bottom-0 p-4">
+          <Badge variant="secondary" className="mb-2 text-[10px] uppercase tracking-wider">
+            {release.type}
+          </Badge>
+          <h4 className={`truncate font-semibold ${featured ? 'text-xl' : 'text-sm'}`}>
+            {release.name}
+          </h4>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (release.artistSlug) navigate(`/${release.artistSlug}`)
+            }}
+            className="truncate text-left text-xs text-white/70 transition-colors hover:text-primary"
+          >
+            {release.artistName}
+          </button>
+        </div>
+      </div>
+    </TiltCard>
+  )
+}
 
 export function DiscoverySection({ releases: propReleases }) {
   const navigate = useNavigate()
@@ -47,8 +109,11 @@ export function DiscoverySection({ releases: propReleases }) {
     fetchReleases()
   }, [propReleases])
 
+  const featured = releases[0]
+  const rest = releases.slice(1)
+
   return (
-    <section id="discovery" className="py-24 bg-gradient-to-b from-transparent via-primary/5 to-transparent">
+    <section id="discovery" className="relative py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div
@@ -61,17 +126,17 @@ export function DiscoverySection({ releases: propReleases }) {
             <Disc3 className="w-4 h-4 mr-1" />
             Discovery Feed
           </Badge>
-          <h2 className="font-display text-5xl sm:text-6xl font-bold mb-4 uppercase tracking-tight">
-            Discover <span className="text-gradient">New Releases</span>
+          <h2 className="font-display text-4xl sm:text-6xl font-extrabold mb-4 tracking-[-0.02em]">
+            Discover <span className="text-gradient">new releases</span>
           </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
             Be the first to know when Tampa artists drop new music. Fresh releases from the Bay's top talent.
           </p>
         </motion.div>
 
         <div className="grid lg:grid-cols-2 gap-8 items-start">
-          {/* Release Feed */}
-          <div className="space-y-4">
+          {/* Release bento */}
+          <div>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" />
@@ -96,9 +161,30 @@ export function DiscoverySection({ releases: propReleases }) {
                 <p className="text-muted-foreground">No releases yet</p>
               </div>
             ) : (
-              releases.map((release, index) => (
-                <ReleaseCard key={release.id} release={release} index={index} />
-              ))
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="grid grid-cols-2 gap-4"
+              >
+                {featured && (
+                  <ReleaseTile
+                    release={featured}
+                    featured
+                    className="col-span-2 aspect-[16/10]"
+                  />
+                )}
+                {rest.map((release, i) => {
+                  const wide = i === rest.length - 1 && rest.length % 2 === 1
+                  return (
+                    <ReleaseTile
+                      key={release.id}
+                      release={release}
+                      className={wide ? 'col-span-2 aspect-[16/7]' : 'col-span-1 aspect-square'}
+                    />
+                  )
+                })}
+              </motion.div>
             )}
           </div>
 
@@ -107,16 +193,15 @@ export function DiscoverySection({ releases: propReleases }) {
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            className="lg:sticky lg:top-24"
+            className="lg:sticky lg:top-28"
           >
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card to-primary/5">
-              {/* Decorative background */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/3 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
+            <div className="relative overflow-hidden rounded-2xl glass">
+              {/* Decorative wash */}
+              <div className="pointer-events-none absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
 
               <div className="relative p-8">
-                <h3 className="font-display text-3xl font-bold uppercase tracking-tight mb-2">
-                  Never Miss<br />a Drop
+                <h3 className="font-display text-3xl font-extrabold tracking-[-0.02em] mb-2">
+                  Never miss<br />a drop
                 </h3>
                 <p className="text-sm text-muted-foreground mb-8">
                   Stay locked in with Tampa Bay's music scene.
@@ -125,9 +210,9 @@ export function DiscoverySection({ releases: propReleases }) {
                 {/* Feature pills */}
                 <div className="space-y-3 mb-8">
                   {[
-                    { icon: TrendingUp, label: 'Real-time release tracking', color: 'text-primary' },
-                    { icon: Disc3, label: 'Powered by Apple Music', color: 'text-primary' },
-                    { icon: Sparkles, label: 'Tampa & St. Pete artists only', color: 'text-primary' },
+                    { icon: TrendingUp, label: 'Real-time release tracking' },
+                    { icon: Disc3, label: 'Powered by Apple Music' },
+                    { icon: Sparkles, label: 'Tampa & St. Pete artists only' },
                   ].map((feature, i) => {
                     const Icon = feature.icon
                     return (
@@ -137,10 +222,10 @@ export function DiscoverySection({ releases: propReleases }) {
                         whileInView={{ opacity: 1, x: 0 }}
                         viewport={{ once: true }}
                         transition={{ delay: 0.1 + i * 0.1 }}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-background/50 backdrop-blur-sm border border-border/50"
+                        className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5"
                       >
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Icon className={`w-4 h-4 ${feature.color}`} />
+                          <Icon className="w-4 h-4 text-primary" />
                         </div>
                         <span className="text-sm font-medium">{feature.label}</span>
                       </motion.div>

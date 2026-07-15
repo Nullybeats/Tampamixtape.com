@@ -4,6 +4,10 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { SpotlightCard } from '@/components/ui/spotlight'
+import { TiltCard } from '@/components/ui/tilt-card'
+import { AnimatedNumber } from '@/components/ui/animated-number'
 import {
   Trophy,
   Crown,
@@ -11,22 +15,11 @@ import {
   Award,
   ExternalLink,
   Music,
-  Users,
   Loader2,
   TrendingUp,
 } from 'lucide-react'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
-
-function formatNumber(num) {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M'
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K'
-  }
-  return num?.toLocaleString() || '0'
-}
 
 function getRankIcon(rank) {
   switch (rank) {
@@ -43,6 +36,8 @@ function getRankIcon(rank) {
 
 function ArtistRow({ artist, index }) {
   const navigate = useNavigate()
+  const isTop = artist.rank <= 3
+  const isFirst = artist.rank === 1
 
   return (
     <motion.div
@@ -50,16 +45,31 @@ function ArtistRow({ artist, index }) {
       whileInView={{ opacity: 1, x: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.05 }}
-      onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
-      className={`group flex items-center gap-4 p-4 rounded-xl transition-all cursor-pointer ${
-        artist.rank <= 3 ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-secondary/50'
-      }`}
     >
+      <SpotlightCard
+        onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
+        className={cn(
+          'group my-1 rounded-xl cursor-pointer transition-colors',
+          isFirst
+            ? 'ring-1 ring-primary/40 bg-primary/[0.07]'
+            : isTop
+              ? 'bg-primary/[0.05] hover:bg-primary/10'
+              : 'hover:bg-white/[0.03]'
+        )}
+        contentClassName="flex items-center gap-4 p-4"
+      >
+        {/* Sweeping shine on the #1 row */}
+        {isFirst && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+            <div className="absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shine" />
+          </div>
+        )}
+
       {/* Rank */}
       <div className="w-14 text-center">
         <div className="flex items-center justify-center gap-1">
           {getRankIcon(artist.rank)}
-          <span className={`font-display text-3xl font-bold ${artist.rank <= 3 ? 'text-gradient-hot' : 'text-muted-foreground'}`}>
+          <span className={`font-display text-3xl font-bold tabular-nums ${isTop ? 'text-gradient-hot' : 'text-muted-foreground'}`}>
             {artist.rank}
           </span>
         </div>
@@ -118,7 +128,7 @@ function ArtistRow({ artist, index }) {
         )}
         <div className="text-center">
           <div className="font-mono font-bold text-foreground text-lg">
-            {artist.demandScore || 0}
+            <AnimatedNumber value={artist.demandScore || 0} format={false} />
           </div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">score</div>
         </div>
@@ -155,6 +165,7 @@ function ArtistRow({ artist, index }) {
           <ExternalLink className="w-4 h-4" />
         </Button>
       </div>
+      </SpotlightCard>
     </motion.div>
   )
 }
@@ -203,10 +214,10 @@ export function Hot100Section({ artists: propArtists }) {
             <Trophy className="w-4 h-4 mr-1" />
             Demand Score
           </Badge>
-          <h2 className="font-display text-5xl sm:text-6xl font-bold mb-4 uppercase tracking-tight">
+          <h2 className="font-display text-5xl sm:text-6xl font-extrabold mb-4 tracking-[-0.02em]">
             Tampa <span className="text-gradient-hot">Hot 100</span>
           </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
             Ranked by the TampaMixtape Demand Score — release activity, community engagement, chart presence, and live shows.
           </p>
         </motion.div>
@@ -217,8 +228,8 @@ export function Hot100Section({ artists: propArtists }) {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <Card className="overflow-hidden">
-            <CardHeader className="border-b border-border">
+          <Card className="overflow-hidden bg-card/60 backdrop-blur-xl border-white/5 elev-3">
+            <CardHeader className="border-b border-white/5">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-yellow-400" />
@@ -229,7 +240,7 @@ export function Hot100Section({ artists: propArtists }) {
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="p-4 divide-y divide-border/50">
+            <CardContent className="p-4">
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -299,7 +310,8 @@ export function Hot100Section({ artists: propArtists }) {
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
               >
-                <Card className="hover:glow-green-sm transition-shadow cursor-pointer group">
+                <TiltCard max={5} className="h-full">
+                <Card className="h-full bg-card/60 backdrop-blur-xl border-white/5 elev-1 hover:elev-3 transition-shadow cursor-pointer group">
                   <CardContent className="p-6">
                     <div className="flex items-center gap-3 mb-4">
                       <Icon className={`w-6 h-6 ${card.color}`} />
@@ -319,6 +331,7 @@ export function Hot100Section({ artists: propArtists }) {
                     </Button>
                   </CardContent>
                 </Card>
+                </TiltCard>
               </motion.div>
             )
           })}
