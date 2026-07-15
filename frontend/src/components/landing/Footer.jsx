@@ -74,7 +74,7 @@ export function Footer({ adSettings: propAdSettings }) {
   const adImageSrc = adSettings.imageUrl || '/randy-ojeda-law.png'
 
   return (
-    <footer className="border-t border-border bg-card/50">
+    <footer className="border-t border-white/5 bg-card/30">
       {/* Advertisement - Randy Ojeda Law */}
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -83,8 +83,8 @@ export function Footer({ adSettings: propAdSettings }) {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <div className="relative">
-              <div className="relative group">
+            <div className="relative glass rounded-2xl p-2">
+              <div className="relative group overflow-hidden rounded-xl">
                 <a
                   href={adSettings.link}
                   target="_blank"
@@ -131,7 +131,7 @@ export function Footer({ adSettings: propAdSettings }) {
                   alt="Tampa Mixtape"
                   className="w-10 h-10 rounded-xl"
                 />
-                <span className="font-display text-xl font-bold uppercase tracking-wide">
+                <span className="font-display text-xl font-bold tracking-tight">
                   Tampa<span className="text-primary">Mixtape</span>
                 </span>
               </div>

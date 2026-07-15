@@ -25,15 +25,52 @@ import { AboutPage } from '@/components/pages/AboutPage'
 import { ContactPage } from '@/components/pages/ContactPage'
 import { PrivacyPage } from '@/components/pages/PrivacyPage'
 import { TermsPage } from '@/components/pages/TermsPage'
-import { Cursor } from 'react-creative-cursor'
-import 'react-creative-cursor/dist/styles.css'
+import Lenis from 'lenis'
+import 'lenis/dist/lenis.css'
+
+// Module-scoped Lenis instance so route changes can reset scroll through it
+let lenisInstance = null
+
+// Smooth scroll (Apple-style). Disabled under prefers-reduced-motion.
+function SmoothScroll() {
+  useEffect(() => {
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (prefersReduced) return
+
+    const lenis = new Lenis({
+      duration: 1.1,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+    })
+    lenisInstance = lenis
+
+    let rafId
+    const raf = (time) => {
+      lenis.raf(time)
+      rafId = requestAnimationFrame(raf)
+    }
+    rafId = requestAnimationFrame(raf)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      lenis.destroy()
+      lenisInstance = null
+    }
+  }, [])
+
+  return null
+}
 
 // Scroll to top on route change
 function ScrollToTop() {
   const { pathname } = useLocation()
 
   useEffect(() => {
-    window.scrollTo(0, 0)
+    if (lenisInstance) {
+      lenisInstance.scrollTo(0, { immediate: true })
+    } else {
+      window.scrollTo(0, 0)
+    }
   }, [pathname])
 
   return null
@@ -61,7 +98,7 @@ function LandingPage({ onAuthClick }) {
         onDashboardClick={handleDashboardClick}
       />
       <main>
-        <Hero stats={landingData?.stats} artists={landingData?.artists} />
+        <Hero stats={landingData?.stats} artists={landingData?.artists} releases={landingData?.releases} />
         <DiscoverySection releases={landingData?.releases?.slice(0, 4)} />
         <TrendingSection artists={landingData?.artists?.slice(0, 5)} releases={landingData?.releases} />
         <Hot100Section artists={landingData?.artists?.slice(0, 10)} />
@@ -605,13 +642,7 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <Cursor
-        isGelly={false}
-        animationDuration={0.1}
-        cursorSize={20}
-        cursorBackgrounColor="#ff656c"
-        cursorInnerColor="#ffffff"
-      />
+      <SmoothScroll />
       <AuthProvider>
         <AudioPlayerProvider>
           <ScrollToTop />

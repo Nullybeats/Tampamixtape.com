@@ -4,6 +4,8 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { SpotlightCard } from '@/components/ui/spotlight'
+import { AnimatedNumber } from '@/components/ui/animated-number'
 import {
   TrendingUp,
   Flame,
@@ -14,7 +16,7 @@ import {
   Loader2,
   ChevronRight,
 } from 'lucide-react'
-import { ActivityItem, formatNumber } from '@/components/feed'
+import { ActivityItem } from '@/components/feed'
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/$/, '')
 
@@ -27,46 +29,50 @@ function TrendingArtistCard({ artist, rank, index }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.05 }}
-      className="flex items-center gap-4 p-3 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group"
-      onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
     >
-      <span className={`font-display w-8 text-center text-xl font-bold ${
-        rank <= 3 ? 'text-hot' : 'text-muted-foreground'
-      }`}>
-        {rank}
-      </span>
+      <SpotlightCard
+        onClick={() => artist.profileSlug && navigate(`/${artist.profileSlug}`)}
+        className="group rounded-xl cursor-pointer transition-colors hover:bg-white/[0.03]"
+        contentClassName="flex items-center gap-4 p-3"
+      >
+        <span className={`font-display w-8 text-center text-xl font-bold tabular-nums ${
+          rank <= 3 ? 'text-primary' : 'text-muted-foreground'
+        }`}>
+          {rank}
+        </span>
 
-      {artist.avatar ? (
-        <img
-          src={artist.avatar}
-          alt={artist.artistName}
-          className="w-12 h-12 rounded-full object-cover ring-2 ring-transparent group-hover:ring-primary transition-all"
-        />
-      ) : (
-        <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
-          <Music className="w-6 h-6 text-muted-foreground" />
+        {artist.avatar ? (
+          <img
+            src={artist.avatar}
+            alt={artist.artistName}
+            className="w-12 h-12 rounded-full object-cover ring-2 ring-white/10 group-hover:ring-primary transition-all"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
+            <Music className="w-6 h-6 text-muted-foreground" />
+          </div>
+        )}
+
+        <div className="flex-1 min-w-0">
+          <h4 className="font-medium truncate group-hover:text-primary transition-colors">
+            {artist.artistName}
+          </h4>
+          <p className="text-sm text-muted-foreground truncate">
+            {artist.genres?.split(',')[0] || 'Artist'}
+          </p>
         </div>
-      )}
 
-      <div className="flex-1 min-w-0">
-        <h4 className="font-medium truncate group-hover:text-primary transition-colors">
-          {artist.artistName}
-        </h4>
-        <p className="text-sm text-muted-foreground truncate">
-          {artist.genres?.split(',')[0] || 'Artist'}
-        </p>
-      </div>
-
-      <div className="text-right hidden sm:block">
-        <div className="font-mono text-lg font-bold text-primary">
-          {artist.demandScore || 0}
+        <div className="text-right hidden sm:block">
+          <div className="font-mono text-lg font-bold text-primary">
+            <AnimatedNumber value={artist.demandScore || 0} format={false} />
+          </div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            {artist.demandScoreTier || 'score'}
+          </p>
         </div>
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          {artist.demandScoreTier || 'score'}
-        </p>
-      </div>
 
-      <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+        <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      </SpotlightCard>
     </motion.div>
   )
 }
@@ -138,7 +144,7 @@ export function TrendingSection({ artists: propArtists, releases: propReleases }
 
   if (loading) {
     return (
-      <section className="py-16 bg-gradient-to-b from-transparent via-primary/5 to-transparent">
+      <section className="py-16">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
@@ -147,7 +153,7 @@ export function TrendingSection({ artists: propArtists, releases: propReleases }
   }
 
   return (
-    <section className="py-16 bg-gradient-to-b from-transparent via-primary/5 to-transparent">
+    <section className="relative py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div
@@ -160,8 +166,8 @@ export function TrendingSection({ artists: propArtists, releases: propReleases }
             <Flame className="w-4 h-4 mr-1 text-orange-500" />
             What's Hot
           </Badge>
-          <h2 className="font-display text-4xl sm:text-5xl font-bold mb-4 uppercase tracking-tight">
-            Trending <span className="text-gradient">Right Now</span>
+          <h2 className="font-display text-4xl sm:text-5xl font-extrabold mb-4 tracking-[-0.02em]">
+            Trending <span className="text-gradient">right now</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
             See what's happening in the Tampa Bay music scene. Real-time activity and rising stars.
@@ -170,7 +176,7 @@ export function TrendingSection({ artists: propArtists, releases: propReleases }
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Trending Artists */}
-          <Card>
+          <Card className="bg-card/60 backdrop-blur-xl border-white/5 elev-2 overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
@@ -205,14 +211,18 @@ export function TrendingSection({ artists: propArtists, releases: propReleases }
           </Card>
 
           {/* Activity Feed */}
-          <Card>
+          <Card className="bg-card/60 backdrop-blur-xl border-white/5 elev-2 overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-primary" />
                   Activity Feed
                 </span>
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                  </span>
                   Live
                 </Badge>
               </CardTitle>

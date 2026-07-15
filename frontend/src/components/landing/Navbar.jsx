@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import {
   BarChart3,
@@ -41,6 +42,15 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
   const { user, isAuthenticated, isVerified, isAdmin, isApproved, isPending, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [scrolled, setScrolled] = useState(false)
+
+  // Condense the floating nav once the page scrolls
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Keyboard shortcut to open search (Cmd+K or Ctrl+K)
   useEffect(() => {
@@ -241,10 +251,22 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ type: 'spring', stiffness: 100 }}
-      className="fixed top-0 left-0 right-0 z-50 glass"
+      className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4"
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div
+        className={cn(
+          'mx-auto rounded-2xl glass transition-all duration-300 ease-out',
+          scrolled
+            ? 'max-w-5xl px-3 sm:px-4'
+            : 'max-w-7xl px-4 sm:px-6'
+        )}
+      >
+        <div
+          className={cn(
+            'flex items-center justify-between transition-all duration-300',
+            scrolled ? 'h-14' : 'h-16'
+          )}
+        >
           {/* Logo */}
           <button
             onClick={handleLogoClick}
@@ -253,9 +275,9 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
             <img
               src="/favicon.png"
               alt="TampaMixtape"
-              className="w-10 h-10 rounded-xl"
+              className="w-9 h-9 rounded-xl"
             />
-            <span className="font-display text-xl font-bold uppercase tracking-wide">
+            <span className="font-display text-xl font-bold tracking-tight">
               Tampa<span className="text-primary">Mixtape</span>
             </span>
           </button>
@@ -439,10 +461,10 @@ export function Navbar({ onAuthClick, onDashboardClick, onLogoClick }) {
       {/* Mobile Menu */}
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-          className="md:hidden border-t border-border"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          className="md:hidden mx-auto mt-2 max-w-7xl rounded-2xl glass overflow-hidden"
         >
           <div className="px-4 py-4 space-y-3">
             {navLinks.map((link) => (
